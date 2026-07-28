@@ -284,7 +284,16 @@
     "emptyBoardBody": "Create a task to begin planning work.",
     "dueTime": "Due time",
     "reminder": "Reminder",
-    "projectRequired": "Project is required"
+    "projectRequired": "Project is required",
+    "descriptionPlaceholder": "Add details, context, or notes…",
+    "voiceAdd": "Voice add",
+    "voiceListening": "Listening…",
+    "voiceStop": "Stop listening",
+    "voiceHint": "Speak to append to the description. Tap again to stop.",
+    "voiceHearing": "Hearing",
+    "voiceUnsupported": "Voice input isn’t supported in this browser",
+    "voiceDenied": "Microphone permission denied",
+    "voiceFailed": "Couldn’t start voice input"
   },
   "notes": {
     "title": "Notes",

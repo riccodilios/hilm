@@ -284,7 +284,16 @@
     "emptyBoardBody": "أنشئ مهمة لبدء التخطيط.",
     "dueTime": "وقت الاستحقاق",
     "reminder": "التذكير",
-    "projectRequired": "المشروع مطلوب"
+    "projectRequired": "المشروع مطلوب",
+    "descriptionPlaceholder": "أضف التفاصيل أو السياق أو الملاحظات…",
+    "voiceAdd": "إضافة صوتية",
+    "voiceListening": "جارٍ الاستماع…",
+    "voiceStop": "إيقاف الاستماع",
+    "voiceHint": "تحدّث لإضافة نص إلى الوصف. اضغط مجدداً للإيقاف.",
+    "voiceHearing": "يسمع",
+    "voiceUnsupported": "الإدخال الصوتي غير مدعوم في هذا المتصفح",
+    "voiceDenied": "تم رفض إذن الميكروفون",
+    "voiceFailed": "تعذّر بدء الإدخال الصوتي"
   },
   "notes": {
     "title": "الملاحظات",
