@@ -31,6 +31,7 @@ export function TaskListItem({
       tabIndex={0}
       className={cn(
         'flex cursor-pointer touch-manipulation select-none items-center justify-between gap-4 rounded-xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface',
+        task.status === 'done' && 'opacity-55 grayscale-[0.35]',
         className,
       )}
       onClick={() => {
@@ -49,7 +50,9 @@ export function TaskListItem({
       {...longPress}
     >
       <div className="min-w-0">
-        <p className="truncate font-medium">{task.title}</p>
+        <p className={cn('truncate font-medium', task.status === 'done' && 'text-muted line-through')}>
+          {task.title}
+        </p>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
           {task.projects ? <ProjectBadge {...task.projects} /> : null}
           <span>
