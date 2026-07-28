@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Check, ChevronLeft, Plus } from 'lucide-react'
@@ -11,11 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ProjectBadge } from '@/components/ProjectBadge'
 import { EmptyState, Skeleton } from '@/components/ui/page'
+import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
 import type { Priority, TaskStatus } from '@/types/domain'
 
 export function TaskDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const qc = useQueryClient()
   const [subtaskTitle, setSubtaskTitle] = useState('')
@@ -23,7 +27,7 @@ export function TaskDetailPage() {
   const { data: subtasks } = useQuery({ queryKey: [...tasksKeys.detail(id ?? ''), 'subtasks'], queryFn: () => listSubtasks(id!), enabled: Boolean(id) })
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateTask>[1]) => updateTask(id!, patch),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: tasksKeys.all }); toast.success('Task updated') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: tasksKeys.all }); toast.success(t('tasks.updated')) },
     onError: (error: Error) => toast.error(error.message),
   })
   const addSubtask = useMutation({
@@ -37,28 +41,40 @@ export function TaskDetailPage() {
   })
 
   if (isLoading) return <Skeleton className="h-96" />
-  if (!task) return <EmptyState title="Task not found" action={<Button asChild><Link to="/app/tasks">Back to tasks</Link></Button>} />
+  if (!task) return <EmptyState title={t('tasks.notFound')} action={<Button asChild><Link to="/app/tasks">{t('tasks.back')}</Link></Button>} />
 
   return (
     <div className="max-w-3xl">
-      <Button variant="ghost" size="sm" asChild className="mb-4"><Link to="/app/tasks"><ChevronLeft /> Tasks</Link></Button>
+      <Button variant="ghost" size="sm" asChild className="mb-4"><Link to="/app/tasks"><ChevronLeft /> {t('tasks.title')}</Link></Button>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-medium tracking-tight">Task details</h1>
-        <Button disabled={task.status === 'done' || save.isPending} onClick={() => save.mutate({ status: 'done' })}><Check /> {task.status === 'done' ? 'Completed' : 'Complete task'}</Button>
+        <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-medium tracking-tight">{t('tasks.details')}</h1>{task.projects ? <ProjectBadge {...task.projects} size="md" /> : null}</div>
+        <Button disabled={task.status === 'done' || save.isPending} onClick={() => save.mutate({ status: 'done' })}><Check /> {task.status === 'done' ? t('tasks.completed') : t('tasks.complete')}</Button>
       </div>
       <div className="space-y-4">
         <Card><CardContent className="space-y-4 pt-5">
-          <div className="space-y-2"><Label htmlFor="title">Title</Label><Input id="title" defaultValue={task.title} onBlur={(event) => { if (event.target.value.trim() && event.target.value !== task.title) save.mutate({ title: event.target.value.trim() }) }} /></div>
-          <div className="space-y-2"><Label htmlFor="description">Description</Label><Textarea id="description" defaultValue={task.description ?? ''} rows={7} onBlur={(event) => { if (event.target.value !== (task.description ?? '')) save.mutate({ description: event.target.value }) }} /></div>
+          <div className="space-y-2"><Label htmlFor="title">{t('projects.name')}</Label><Input id="title" defaultValue={task.title} onBlur={(event) => { if (event.target.value.trim() && event.target.value !== task.title) save.mutate({ title: event.target.value.trim() }) }} /></div>
+          <div className="space-y-2"><Label htmlFor="description">{t('projects.desc')}</Label><Textarea id="description" defaultValue={task.description ?? ''} rows={7} onBlur={(event) => { if (event.target.value !== (task.description ?? '')) save.mutate({ description: event.target.value }) }} /></div>
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2"><Label htmlFor="status">Status</Label><select id="status" value={task.status} onChange={(event) => save.mutate({ status: event.target.value as TaskStatus })} className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm">{TASK_STATUSES.filter((status) => status !== 'archived').map((status) => <option key={status} value={status}>{status.replace('_', ' ')}</option>)}</select></div>
-            <div className="space-y-2"><Label htmlFor="priority">Priority</Label><select id="priority" value={task.priority} onChange={(event) => save.mutate({ priority: event.target.value as Priority })} className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm">{PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}</select></div>
-            <div className="space-y-2"><Label htmlFor="due">Due date</Label><Input id="due" type="date" defaultValue={task.due_at?.slice(0, 10) ?? ''} onBlur={(event) => save.mutate({ due_at: event.target.value || null })} /></div>
+            <div className="space-y-2"><Label htmlFor="status">{t('tasks.status')}</Label><select id="status" value={task.status} onChange={(event) => save.mutate({ status: event.target.value as TaskStatus })} className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm">{TASK_STATUSES.filter((status) => status !== 'archived').map((status) => <option key={status} value={status}>{t(`status.${status}`)}</option>)}</select></div>
+            <div className="space-y-2"><Label htmlFor="priority">{t('tasks.priority')}</Label><select id="priority" value={task.priority} onChange={(event) => save.mutate({ priority: event.target.value as Priority })} className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm">{PRIORITIES.map((priority) => <option key={priority} value={priority}>{t(`priority.${priority}`)}</option>)}</select></div>
+            <div className="space-y-2"><Label htmlFor="due-date">{t('tasks.due')}</Label><Input id="due-date" type="date" defaultValue={task.due_date ?? task.due_at?.slice(0, 10) ?? ''} onBlur={(event) => save.mutate({ due_date: event.target.value || null })} /></div>
+            <div className="space-y-2"><Label htmlFor="due-time">{t('tasks.dueTime')}</Label><Input id="due-time" type="time" defaultValue={task.due_time?.slice(0, 5) ?? ''} onBlur={(event) => save.mutate({ due_time: event.target.value || null })} /></div>
+            <div className="space-y-2"><Label htmlFor="reminder-type">{t('tasks.reminder')}</Label><select id="reminder-type" value={(task.reminder_type as ReminderType | null) ?? '1h'} onChange={(event) => save.mutate({ reminderType: event.target.value as ReminderType })} className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm">{REMINDER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t(option.labelKey)}</option>)}</select></div>
+            {(task.reminder_type as ReminderType | null) === 'custom' ? (
+              <div className="space-y-2 sm:col-span-3"><Label htmlFor="custom-reminder">{t('reminders.custom')}</Label><Input id="custom-reminder" type="datetime-local" defaultValue={task.reminder_datetime ? task.reminder_datetime.slice(0, 16) : ''} onBlur={(event) => {
+                const value = event.target.value
+                save.mutate({
+                  reminderType: 'custom',
+                  customReminderAt: value ? new Date(value).toISOString() : null,
+                  reminder_datetime: value ? new Date(value).toISOString() : null,
+                })
+              }} /></div>
+            ) : null}
           </div>
         </CardContent></Card>
-        <Card><CardHeader><CardTitle>Subtasks</CardTitle></CardHeader><CardContent>
+        <Card><CardHeader><CardTitle>{t('tasks.subtasks')}</CardTitle></CardHeader><CardContent>
           <div className="space-y-2">{subtasks?.map((subtask) => <div key={subtask.id} className="flex items-center gap-3 rounded-lg bg-surface-2 px-3 py-2 text-sm"><span className={`size-2 rounded-full ${subtask.done ? 'bg-success' : 'bg-muted'}`} />{subtask.title}</div>)}</div>
-          <form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); if (subtaskTitle.trim()) addSubtask.mutate() }}><Input value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder="Add a subtask" /><Button type="submit" size="icon" disabled={addSubtask.isPending}><Plus /></Button></form>
+          <form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); if (subtaskTitle.trim()) addSubtask.mutate() }}><Input value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder={t('tasks.addSubtask')} /><Button type="submit" size="icon" disabled={addSubtask.isPending}><Plus /></Button></form>
         </CardContent></Card>
       </div>
     </div>

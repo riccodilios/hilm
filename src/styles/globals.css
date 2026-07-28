@@ -1,23 +1,25 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/noto-sans-arabic";
 
 @theme {
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-arabic: "Noto Sans Arabic Variable", "Geist Variable", ui-sans-serif, sans-serif;
 
-  --color-background: #0a0a0b;
-  --color-foreground: #f4f4f5;
-  --color-surface: #111113;
-  --color-surface-2: #18181b;
-  --color-surface-3: #1f1f23;
-  --color-border: #27272a;
-  --color-border-subtle: #1c1c1f;
-  --color-muted: #a1a1aa;
-  --color-muted-fg: #71717a;
-  --color-accent: #e4e4e7;
-  --color-accent-fg: #09090b;
-  --color-ring: #3f3f46;
+  --color-background: var(--hilm-background);
+  --color-foreground: var(--hilm-foreground);
+  --color-surface: var(--hilm-surface);
+  --color-surface-2: var(--hilm-surface-2);
+  --color-surface-3: var(--hilm-surface-3);
+  --color-border: var(--hilm-border);
+  --color-border-subtle: var(--hilm-border-subtle);
+  --color-muted: var(--hilm-muted);
+  --color-muted-fg: var(--hilm-muted-fg);
+  --color-accent: var(--hilm-accent);
+  --color-accent-fg: var(--hilm-accent-fg);
+  --color-ring: var(--hilm-ring);
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
@@ -30,12 +32,45 @@
 }
 
 @layer base {
+  :root,
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --hilm-background: #0a0a0b;
+    --hilm-foreground: #f4f4f5;
+    --hilm-surface: #111113;
+    --hilm-surface-2: #18181b;
+    --hilm-surface-3: #1f1f23;
+    --hilm-border: #27272a;
+    --hilm-border-subtle: #1c1c1f;
+    --hilm-muted: #a1a1aa;
+    --hilm-muted-fg: #71717a;
+    --hilm-accent: #e4e4e7;
+    --hilm-accent-fg: #09090b;
+    --hilm-ring: #3f3f46;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+    --hilm-background: #f7f7f8;
+    --hilm-foreground: #111113;
+    --hilm-surface: #ffffff;
+    --hilm-surface-2: #f1f1f3;
+    --hilm-surface-3: #e7e7ea;
+    --hilm-border: #d4d4d8;
+    --hilm-border-subtle: #e4e4e7;
+    --hilm-muted: #52525b;
+    --hilm-muted-fg: #71717a;
+    --hilm-accent: #18181b;
+    --hilm-accent-fg: #fafafa;
+    --hilm-ring: #a1a1aa;
+  }
+
   * {
     border-color: var(--color-border);
   }
 
-  html {
-    color-scheme: dark;
+  html[dir="rtl"] body {
+    font-family: var(--font-arabic);
   }
 
   body {

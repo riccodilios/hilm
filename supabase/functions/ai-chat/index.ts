@@ -22,29 +22,6 @@ const agentPrompts: Record<string, string> = {
   qa_assistant: `You are Hilm's QA Assistant. Create focused test plans, edge cases, and release-risk assessments. ${actionInstruction}`,
 }
 
-function toBytes(value: string) {
-  const binary = atob(value)
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
-}
-
-function fromBytes(bytes: Uint8Array) {
-  let binary = ''
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
-  return btoa(binary)
-}
-
-async function decryptKey(value: string, secret?: string) {
-  if (value.startsWith('base64:')) return decoder.decode(toBytes(value.slice(7)))
-  if (!value.startsWith('aes-gcm:')) throw new Error('Unsupported API key format')
-  if (!secret) throw new Error('ENCRYPTION_SECRET is required to decrypt the API key')
-  const combined = toBytes(value.slice(8))
-  const iv = combined.slice(0, 12)
-  const ciphertext = combined.slice(12)
-  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(secret))
-  const key = await crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['decrypt'])
-  return decoder.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext))
-}
-
 function actionsFromContent(content: string) {
   const match = content.match(/```actions(?:\s+json)?\s*\n([\s\S]*?)```/i)
   if (!match) return []
@@ -80,6 +57,7 @@ Deno.serve(async (request) => {
       agentId?: string
       projectId?: string
       model?: string
+      locale?: string
     }
     if (!body.conversationId || !body.message?.trim()) throw new Error('conversationId and message are required')
 
@@ -92,31 +70,14 @@ Deno.serve(async (request) => {
       .single()
     if (conversationError || !conversation) throw new Error('Conversation not found')
 
-    const { data: settings, error: settingsError } = await admin
-      .from('user_settings')
-      .select('openrouter_api_key_encrypted, default_model')
-      .eq('user_id', user.id)
-      .single()
-    if (settingsError) throw settingsError
-
-    const envOpenRouterKey = Deno.env.get('OPENROUTER_API_KEY')
-    let apiKey = envOpenRouterKey ?? ''
-    if (settings?.openrouter_api_key_encrypted) {
-      apiKey = await decryptKey(
-        settings.openrouter_api_key_encrypted,
-        Deno.env.get('ENCRYPTION_SECRET'),
-      )
-    }
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY')
     if (!apiKey) {
-      throw new Error(
-        'Add OPENROUTER_API_KEY as an Edge Function secret, or paste your key in Settings',
-      )
+      throw new Error('OPENROUTER_API_KEY is not configured on the server')
     }
 
     const defaultModel =
-      Deno.env.get('OPENROUTER_DEFAULT_MODEL') ??
-      settings?.default_model ??
-      'anthropic/claude-sonnet-4'
+      Deno.env.get('OPENROUTER_DEFAULT_MODEL') ?? 'google/gemini-2.5-flash'
+    const activeModel = body.model ?? conversation.model ?? defaultModel
     const activeProjectId = body.projectId ?? conversation.project_id
     const [{ data: history }, { data: projects }, { data: tasks }] = await Promise.all([
       admin.from('ai_messages').select('role, content').eq('conversation_id', body.conversationId).order('created_at', { ascending: false }).limit(16),
@@ -125,7 +86,13 @@ Deno.serve(async (request) => {
     ])
     const scopedTasks = activeProjectId ? (tasks ?? []).filter((task) => task.project_id === activeProjectId) : tasks ?? []
     const agentInstruction = agentPrompts[body.agentId ?? 'chief_of_staff'] ?? agentPrompts.chief_of_staff
+    const locale = body.locale?.startsWith('ar') ? 'ar' : 'en'
+    const languageInstruction =
+      locale === 'ar'
+        ? 'Respond to the user in Arabic (Modern Standard Arabic). Keep action JSON keys/types in English as specified. User-facing titles and summaries inside action fields may be Arabic when appropriate.'
+        : 'Respond to the user in English.'
     const systemPrompt = `You are Hilm AI. ${agentInstruction}
+${languageInstruction}
 Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end, for example:
 \`\`\`actions
 [{"type":"task.create","title":"Example","priority":"medium"}]
@@ -143,7 +110,7 @@ Tasks: ${JSON.stringify(scopedTasks)}`
         'X-Title': 'Hilm',
       },
       body: JSON.stringify({
-        model: body.model ?? conversation.model ?? defaultModel,
+        model: activeModel,
         stream: true,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -187,7 +154,7 @@ Tasks: ${JSON.stringify(scopedTasks)}`
           const actions = actionsFromContent(content)
           await admin.from('ai_messages').insert([
             { user_id: user.id, conversation_id: body.conversationId, role: 'user', content: body.message.trim(), actions: [] },
-            { user_id: user.id, conversation_id: body.conversationId, role: 'assistant', content, actions, model: body.model ?? conversation.model ?? settings.default_model },
+            { user_id: user.id, conversation_id: body.conversationId, role: 'assistant', content, actions, model: activeModel },
           ])
           await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', body.conversationId)
           if (actions.length) controller.enqueue(encoder.encode(sse({ type: 'actions', actions })))

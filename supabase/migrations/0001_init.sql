@@ -41,7 +41,7 @@ create table public.profiles (
 create table public.user_settings (
   user_id uuid primary key references auth.users (id) on delete cascade,
   theme text not null default 'dark',
-  default_model text not null default 'anthropic/claude-sonnet-4',
+  default_model text not null default 'google/gemini-2.5-flash',
   notification_prefs jsonb not null default '{}'::jsonb,
   openrouter_api_key_encrypted text,
   has_openrouter_key boolean not null default false,

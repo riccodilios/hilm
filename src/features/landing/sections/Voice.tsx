@@ -1,23 +1,20 @@
+import { useTranslation } from 'react-i18next'
 import { FadeIn, Section, SectionHeading } from '@/features/landing/primitives'
 
-const phrases = [
-  'Finished authentication.',
-  'Create a task for payment testing.',
-  'Remind me tomorrow.',
-  "Summarize today's work.",
-]
-
 export function VoiceSection() {
+  const { t } = useTranslation()
+  const phrases = t('landing.voicePhrases', { returnObjects: true }) as string[]
+
   return (
     <Section className="overflow-hidden">
       <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
         <FadeIn>
           <SectionHeading
-            eyebrow="Voice"
-            title="Speak the way you already think."
-            description="Say what happened. Hilm finds the task, marks it done, logs activity, and suggests what to do next."
+            eyebrow={t('landing.voiceEyebrow')}
+            title={t('landing.voiceTitle')}
+            description={t('landing.voiceDescription')}
           />
-          <p className="text-sm text-muted">Everything updates automatically — no form filling required.</p>
+          <p className="text-sm text-muted">{t('landing.voiceNote')}</p>
         </FadeIn>
 
         <div className="space-y-3">

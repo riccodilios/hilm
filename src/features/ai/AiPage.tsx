@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Bot, Check, LoaderCircle, Plus, Send, Sparkles } from 'lucide-react'
@@ -38,6 +39,7 @@ function actionLabel(action: AiAction) {
 }
 
 export function AiPage() {
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('projectId') ?? undefined
@@ -89,7 +91,7 @@ export function AiPage() {
         setSelectedId(conversation.id)
         await queryClient.invalidateQueries({ queryKey: aiKeys.conversations() })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Could not start conversation')
+        toast.error(error instanceof Error ? error.message : t('ai.empty'))
         return
       }
     }
@@ -111,7 +113,13 @@ export function AiPage() {
     setDraft(pending)
     let content = ''
 
-    for await (const event of streamChat({ conversationId, message, agentId, projectId })) {
+    for await (const event of streamChat({
+      conversationId,
+      message,
+      agentId,
+      projectId,
+      locale: i18n.language.startsWith('ar') ? 'ar' : 'en',
+    })) {
       if (event.type === 'token') {
         content += event.token
         setDraft({ ...pending, content })
@@ -152,18 +160,18 @@ export function AiPage() {
   return (
     <div>
       <PageHeader
-        title="Hilm AI"
-        description={projectId ? 'Project-aware assistance is enabled.' : 'A focused operating partner for your work.'}
+        title={t('ai.title')}
+        description={t('ai.empty')}
         actions={
           <Button variant="secondary" onClick={() => newConversation.mutate()} disabled={newConversation.isPending}>
-            <Plus className="size-4" /> New chat
+            <Plus className="size-4" /> {t('ai.newChat')}
           </Button>
         }
       />
 
       <div className="grid min-h-[calc(100dvh-15rem)] gap-4 lg:grid-cols-[260px_1fr]">
         <aside className="hidden rounded-2xl border border-border-subtle bg-surface/60 p-3 lg:block">
-          <p className="mb-3 px-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">Conversations</p>
+          <p className="mb-3 px-2 text-xs font-medium uppercase tracking-[0.16em] text-muted">{t('search.conversations')}</p>
           <div className="space-y-1">
             {conversations.data?.map((conversation) => (
               <button
@@ -184,7 +192,7 @@ export function AiPage() {
                 </span>
               </button>
             ))}
-            {!conversations.data?.length ? <p className="px-2 text-sm text-muted">Start a conversation below.</p> : null}
+            {!conversations.data?.length ? <p className="px-2 text-sm text-muted">{t('ai.empty')}</p> : null}
           </div>
         </aside>
 
@@ -202,9 +210,13 @@ export function AiPage() {
                   if (selectedId) void updateConversation(selectedId, { agent_id: nextAgentId })
                 }}
                 className="bg-transparent text-sm font-medium outline-none"
-                aria-label="AI agent"
+                aria-label={t('ai.agents')}
               >
-                {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {t(`agents.${agent.id}.name`)}
+                  </option>
+                ))}
               </select>
             </div>
             <p className="text-xs text-muted">{agents.find((agent) => agent.id === agentId)?.description}</p>
@@ -215,8 +227,8 @@ export function AiPage() {
               {!displayedMessages.length ? (
                 <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
                   <Bot className="mb-4 size-10 text-muted" />
-                  <h2 className="font-medium">How can I help?</h2>
-                  <p className="mt-2 text-sm text-muted">Ask for a plan, review your priorities, or turn an idea into tasks.</p>
+                  <h2 className="font-medium">{t('ai.title')}</h2>
+                  <p className="mt-2 text-sm text-muted">{t('ai.empty')}</p>
                 </div>
               ) : displayedMessages.map((message) => (
                 <div key={message.id} className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -233,8 +245,8 @@ export function AiPage() {
             {proposedActions.length ? (
               <div className="border-t border-border-subtle bg-surface/50 p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">Proposed actions</p>
-                  <Button size="sm" onClick={() => void executeActions()}><Check className="size-4" /> Execute all</Button>
+                  <p className="text-sm font-medium">{t('ai.actions')}</p>
+                  <Button size="sm" onClick={() => void executeActions()}><Check className="size-4" /> {t('ai.apply')}</Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {proposedActions.map((action, index) => (
@@ -257,11 +269,11 @@ export function AiPage() {
                       void sendMessage()
                     }
                   }}
-                  placeholder="Message your AI team…"
+                  placeholder={t('ai.placeholder')}
                   className="min-h-10 resize-none border-0 bg-transparent px-2 py-1 shadow-none focus-visible:ring-0"
                   rows={1}
                 />
-                <Button type="submit" size="icon" disabled={!input.trim() || streaming} aria-label="Send message">
+                <Button type="submit" size="icon" disabled={!input.trim() || streaming} aria-label={t('ai.send')}>
                   {streaming ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
                 </Button>
               </div>

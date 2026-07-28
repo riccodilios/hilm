@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/ui/page'
 import { EmptyState } from '@/components/ui/page'
+import { useTranslation } from 'react-i18next'
 
 export function ScaffoldPage({
   title,
@@ -8,12 +9,13 @@ export function ScaffoldPage({
   title: string
   description: string
 }) {
+  const { t } = useTranslation()
   return (
     <div>
       <PageHeader title={title} description={description} />
       <EmptyState
-        title="Scaffolded for expansion"
-        description="Schema and navigation are ready. Full UI ships in a later phase."
+        title={t('common.comingSoon')}
+        description={t('common.comingSoonBody')}
       />
     </div>
   )

@@ -111,6 +111,7 @@ export async function* streamChat(input: {
   agentId: AgentId
   projectId?: string
   model?: string
+  locale?: string
 }): AsyncGenerator<ChatStreamEvent> {
   const {
     data: { session },

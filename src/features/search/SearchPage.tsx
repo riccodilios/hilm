@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { listProjects, projectsKeys } from '@/features/projects/api'
@@ -6,6 +7,7 @@ import { listTasks, tasksKeys } from '@/features/tasks/api'
 import { listNotes, notesKeys } from '@/features/notes/api'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Input } from '@/components/ui/input'
+import { ProjectBadge } from '@/components/ProjectBadge'
 import { supabase } from '@/lib/supabase/client'
 import type { Tables } from '@/types/database'
 
@@ -32,6 +34,7 @@ async function searchConversations(q: string) {
 }
 
 export function SearchPage() {
+  const { t } = useTranslation()
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()
 
@@ -86,50 +89,51 @@ export function SearchPage() {
 
   return (
     <div>
-      <PageHeader title="Search" description="Find tasks, projects, notes, ideas, and conversations." />
+      <PageHeader title={t('search.title')} description={t('search.description')} />
       <Input
         autoFocus
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search everything…"
+        placeholder={t('search.placeholder')}
         className="mb-6 h-12 text-base"
       />
 
       {loading ? <Skeleton className="h-40 w-full" /> : null}
 
       {!query ? (
-        <p className="text-sm text-muted">Start typing to search across Hilm.</p>
+        <p className="text-sm text-muted">{t('search.hint')}</p>
       ) : (
         <div className="space-y-8">
-          <ResultSection title="Projects" empty={results.projects.length === 0}>
+          <ResultSection title={t('search.projects')} empty={results.projects.length === 0} emptyLabel={t('search.noMatches')}>
             {results.projects.map((p) => (
               <Link key={p.id} to={`/app/projects/${p.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {p.name}
               </Link>
             ))}
           </ResultSection>
-          <ResultSection title="Tasks" empty={results.tasks.length === 0}>
+          <ResultSection title={t('search.tasks')} empty={results.tasks.length === 0} emptyLabel={t('search.noMatches')}>
             {results.tasks.map((t) => (
               <Link key={t.id} to={`/app/tasks/${t.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
-                {t.title}
+                <p>{t.title}</p>
+                {t.projects ? <ProjectBadge {...t.projects} className="mt-1" /> : null}
               </Link>
             ))}
           </ResultSection>
-          <ResultSection title="Notes" empty={results.notes.length === 0}>
+          <ResultSection title={t('search.notes')} empty={results.notes.length === 0} emptyLabel={t('search.noMatches')}>
             {results.notes.map((n) => (
               <Link key={n.id} to={`/app/notes/${n.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {n.title}
               </Link>
             ))}
           </ResultSection>
-          <ResultSection title="Ideas" empty={results.ideas.length === 0}>
+          <ResultSection title={t('search.ideas')} empty={results.ideas.length === 0} emptyLabel={t('search.noMatches')}>
             {results.ideas.map((i) => (
               <div key={i.id} className="rounded-lg px-3 py-2 text-sm">
                 {i.title}
               </div>
             ))}
           </ResultSection>
-          <ResultSection title="AI conversations" empty={results.conversations.length === 0}>
+          <ResultSection title={t('search.conversations')} empty={results.conversations.length === 0} emptyLabel={t('search.noMatches')}>
             {results.conversations.map((c) => (
               <Link key={c.id} to={`/app/ai?c=${c.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {c.title}
@@ -145,16 +149,18 @@ export function SearchPage() {
 function ResultSection({
   title,
   empty,
+  emptyLabel,
   children,
 }: {
   title: string
   empty: boolean
+  emptyLabel: string
   children: React.ReactNode
 }) {
   return (
     <section>
       <h2 className="mb-2 text-xs uppercase tracking-[0.18em] text-muted">{title}</h2>
-      {empty ? <p className="text-sm text-muted">No matches.</p> : <div className="space-y-1">{children}</div>}
+      {empty ? <p className="text-sm text-muted">{emptyLabel}</p> : <div className="space-y-1">{children}</div>}
     </section>
   )
 }

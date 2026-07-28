@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import type { Tables } from '@/types/database'
+import type { ReminderType } from '@/features/tasks/reminders'
 
 export const settingsKeys = {
   all: ['settings'] as const,
@@ -8,11 +9,14 @@ export const settingsKeys = {
   profile: () => ['profile', 'me'] as const,
 }
 
+const settingsSelect =
+  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, created_at, updated_at'
+
 export async function getSettings() {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('user_settings')
-    .select('user_id, theme, default_model, notification_prefs, has_openrouter_key, created_at, updated_at')
+    .select(settingsSelect)
     .eq('user_id', userId)
     .single()
   if (error) throw error
@@ -23,13 +27,16 @@ export async function updateSettings(patch: {
   theme?: string
   default_model?: string
   notification_prefs?: import('@/types/database').Json
+  default_reminder_type?: ReminderType
+  email_reminders_enabled?: boolean
+  push_notifications_enabled?: boolean
 }) {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('user_settings')
     .update(patch)
     .eq('user_id', userId)
-    .select('user_id, theme, default_model, notification_prefs, has_openrouter_key, created_at, updated_at')
+    .select(settingsSelect)
     .single()
   if (error) throw error
   return data
@@ -52,26 +59,4 @@ export async function updateProfile(patch: { display_name?: string; avatar_url?:
     .single()
   if (error) throw error
   return data as Tables<'profiles'>
-}
-
-export async function saveOpenRouterKey(apiKey: string) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) throw new Error('Not authenticated')
-
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/encrypt-key`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-    },
-    body: JSON.stringify({ apiKey }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || 'Failed to save API key')
-  }
-  return res.json()
 }

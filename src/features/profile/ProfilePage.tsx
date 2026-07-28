@@ -1,32 +1,34 @@
 import { useQuery } from '@tanstack/react-query'
-import { Activity, BookOpen, Lightbulb, Settings, UserRound } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Activity, Bell, BookOpen, Lightbulb, Settings, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { getProfile, settingsKeys } from '@/features/settings/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
-const links = [
-  { to: '/app/settings', label: 'Settings', description: 'Profile, theme, and AI provider preferences.', icon: Settings },
-  { to: '/app/daily-log', label: 'Daily log', description: 'Capture progress, wins, and blockers.', icon: BookOpen },
-  { to: '/app/activity', label: 'Activity', description: 'Review the recent history of your workspace.', icon: Activity },
-  { to: '/app/ideas', label: 'Ideas', description: 'Explore and prioritize ideas (coming soon).', icon: Lightbulb },
-]
-
 export function ProfilePage() {
+  const { t } = useTranslation()
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
+  const links = [
+    { to: '/app/settings', label: t('profile.settings'), description: t('profile.settingsDesc'), icon: Settings },
+    { to: '/app/notifications', label: t('nav.notifications'), description: t('settings.notificationsDesc'), icon: Bell },
+    { to: '/app/daily-log', label: t('profile.dailyLog'), description: t('profile.dailyLogDesc'), icon: BookOpen },
+    { to: '/app/activity', label: t('profile.activity'), description: t('profile.activityDesc'), icon: Activity },
+    { to: '/app/ideas', label: t('profile.ideas'), description: t('profile.ideasDesc'), icon: Lightbulb },
+  ]
 
   if (profile.isLoading) return <div className="space-y-4"><Skeleton className="h-12 w-52" /><Skeleton className="h-48" /></div>
 
-  const name = profile.data?.display_name || 'Hilm user'
+  const name = profile.data?.display_name || t('brand.name')
   return (
     <div>
-      <PageHeader title="Profile" description="Your personal workspace at a glance." />
+      <PageHeader title={t('profile.title')} description={t('profile.settingsDesc')} />
       <Card className="mb-6">
         <CardContent className="flex items-center gap-4 p-6">
           <span className="flex size-14 items-center justify-center rounded-2xl bg-accent/15 text-accent"><UserRound className="size-7" /></span>
           <div>
             <h2 className="text-lg font-medium">{name}</h2>
-            <p className="text-sm text-muted">Personal OS member</p>
+            <p className="text-sm text-muted">{t('brand.tagline')}</p>
           </div>
         </CardContent>
       </Card>

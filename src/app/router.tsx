@@ -1,9 +1,13 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { AppShell } from '@/components/layout/AppShell'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { SignupPage } from '@/features/auth/SignupPage'
+import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage'
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { Skeleton } from '@/components/ui/page'
 import { LandingSkeleton } from '@/features/landing/LandingSkeleton'
 
@@ -53,6 +57,11 @@ const ProfilePage = lazy(() =>
 const SearchPage = lazy(() =>
   import('@/features/search/SearchPage').then((m) => ({ default: m.SearchPage })),
 )
+const NotificationsPage = lazy(() =>
+  import('@/features/notifications/NotificationsPage').then((m) => ({
+    default: m.NotificationsPage,
+  })),
+)
 const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
@@ -65,6 +74,11 @@ function AppFallback() {
       <Skeleton className="h-64 w-full" />
     </div>
   )
+}
+
+function ScaffoldRoute({ titleKey, descriptionKey }: { titleKey: string; descriptionKey: string }) {
+  const { t } = useTranslation()
+  return <ScaffoldPage title={t(titleKey)} description={t(descriptionKey)} />
 }
 
 export function AppRouter() {
@@ -89,6 +103,9 @@ export function AppRouter() {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<RequireAuth />}>
           <Route
@@ -118,16 +135,22 @@ export function AppRouter() {
             <Route path="daily-log" element={<Suspense fallback={<AppFallback />}><DailyLogPage /></Suspense>} />
             <Route path="activity" element={<Suspense fallback={<AppFallback />}><ActivityPage /></Suspense>} />
             <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
+            <Route path="notifications" element={<Suspense fallback={<AppFallback />}><NotificationsPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
             <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
+            <Route
+              path="calendar"
+              element={
+                <Suspense fallback={<AppFallback />}>
+                  <ScaffoldRoute titleKey="scaffold.calendarTitle" descriptionKey="scaffold.calendarDesc" />
+                </Suspense>
+              }
+            />
             <Route
               path="ideas"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldPage
-                    title="Ideas"
-                    description="Idea inbox with impact/effort scoring — coming next."
-                  />
+                  <ScaffoldRoute titleKey="scaffold.ideasTitle" descriptionKey="scaffold.ideasDesc" />
                 </Suspense>
               }
             />
@@ -135,10 +158,7 @@ export function AppRouter() {
               path="meetings"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldPage
-                    title="Meetings"
-                    description="Meeting notes and AI summaries — scaffolded for expansion."
-                  />
+                  <ScaffoldRoute titleKey="scaffold.meetingsTitle" descriptionKey="scaffold.meetingsDesc" />
                 </Suspense>
               }
             />
@@ -146,10 +166,7 @@ export function AppRouter() {
               path="releases"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldPage
-                    title="Releases"
-                    description="Release notes and ship history — scaffolded for expansion."
-                  />
+                  <ScaffoldRoute titleKey="scaffold.releasesTitle" descriptionKey="scaffold.releasesDesc" />
                 </Suspense>
               }
             />
@@ -157,10 +174,7 @@ export function AppRouter() {
               path="documents"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldPage
-                    title="Documents"
-                    description="Project documentation hub — scaffolded for expansion."
-                  />
+                  <ScaffoldRoute titleKey="scaffold.documentsTitle" descriptionKey="scaffold.documentsDesc" />
                 </Suspense>
               }
             />
@@ -168,10 +182,7 @@ export function AppRouter() {
               path="export"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldPage
-                    title="Export"
-                    description="Export and import your Hilm data — scaffolded for expansion."
-                  />
+                  <ScaffoldRoute titleKey="scaffold.exportTitle" descriptionKey="scaffold.exportDesc" />
                 </Suspense>
               }
             />

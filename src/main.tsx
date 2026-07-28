@@ -1,18 +1,44 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { QueryProvider } from '@/lib/query/client'
 import { AppRouter } from '@/app/router'
+import { ThemeProvider, useTheme } from '@/hooks/useTheme'
+import '@/i18n'
 import '@/styles/globals.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function App() {
+  const { i18n } = useTranslation()
+  const { theme } = useTheme()
+  const isRtl = i18n.language.startsWith('ar')
+
+  useEffect(() => {
+    document.documentElement.lang = isRtl ? 'ar' : 'en'
+    document.documentElement.dir = isRtl ? 'rtl' : 'ltr'
+  }, [isRtl])
+
+  return (
     <QueryProvider>
       <AuthProvider>
         <AppRouter />
-        <Toaster theme="dark" position="bottom-right" richColors closeButton />
+        <Toaster
+          theme={theme}
+          position={isRtl ? 'bottom-left' : 'bottom-right'}
+          richColors
+          closeButton
+          dir={isRtl ? 'rtl' : 'ltr'}
+        />
       </AuthProvider>
     </QueryProvider>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </StrictMode>,
 )

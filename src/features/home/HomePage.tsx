@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ArrowRight, Sparkles } from 'lucide-react'
@@ -7,9 +8,11 @@ import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ProjectBadge } from '@/components/ProjectBadge'
 import { formatRelative } from '@/lib/utils'
 
 export function HomePage() {
+  const { t } = useTranslation()
   const { data, isLoading, error } = useQuery({
     queryKey: homeKeys.dashboard(),
     queryFn: getDashboardData,
@@ -31,8 +34,8 @@ export function HomePage() {
   if (error || !data) {
     return (
       <PageHeader
-        title="Today"
-        description={error instanceof Error ? error.message : 'Could not load dashboard'}
+        title={t('home.title')}
+        description={error instanceof Error ? error.message : t('home.loadError')}
       />
     )
   }
@@ -40,13 +43,13 @@ export function HomePage() {
   return (
     <div>
       <PageHeader
-        title="What should I work on today?"
+        title={t('home.title')}
         description={format(new Date(), 'EEEE, MMMM d')}
         actions={
           <Button asChild variant="secondary" size="sm">
             <Link to="/app/ai">
               <Sparkles className="size-4" />
-              Ask AI
+              {t('home.askAi')}
             </Link>
           </Button>
         }
@@ -55,37 +58,38 @@ export function HomePage() {
       <section className="mb-8 rounded-2xl border border-border bg-gradient-to-br from-surface via-surface to-surface-2 p-6 sm:p-8">
         {data.focus ? (
           <>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">Focus now</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted">{t('home.focusNow')}</p>
             <h2 className="mt-3 text-2xl font-medium tracking-tight sm:text-3xl">{data.focus.title}</h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PriorityBadge priority={data.focus.priority} />
+              {data.focus.projects ? <ProjectBadge {...data.focus.projects} /> : null}
               <Badge className="bg-surface-3 text-muted capitalize">
                 {data.focus.status.replace('_', ' ')}
               </Badge>
               {data.focus.due_at ? (
                 <span className="text-sm text-muted">
-                  Due {format(new Date(data.focus.due_at), 'MMM d, h:mm a')}
+                  {t('tasks.due')} {format(new Date(data.focus.due_at), 'MMM d, h:mm a')}
                 </span>
               ) : null}
             </div>
             <div className="mt-6">
               <Button asChild>
                 <Link to={`/app/tasks/${data.focus.id}`}>
-                  Open task <ArrowRight className="size-4" />
+                  {t('home.openTask')} <ArrowRight className="size-4" />
                 </Link>
               </Button>
             </div>
           </>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">Focus now</p>
-            <h2 className="mt-3 text-2xl font-medium tracking-tight">Inbox zero — create a task or ask AI what to do next.</h2>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted">{t('home.focusNow')}</p>
+            <h2 className="mt-3 text-2xl font-medium tracking-tight">{t('home.inboxZero')}</h2>
             <div className="mt-6 flex gap-2">
               <Button asChild>
-                <Link to="/app/tasks?new=1">New task</Link>
+                <Link to="/app/tasks?new=1">{t('home.newTask')}</Link>
               </Button>
               <Button asChild variant="secondary">
-                <Link to="/app/ai">Ask Chief of Staff</Link>
+                <Link to="/app/ai">{t('home.askChief')}</Link>
               </Button>
             </div>
           </>
@@ -94,10 +98,10 @@ export function HomePage() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: 'Open', value: data.stats.openCount },
-          { label: 'Overdue', value: data.stats.overdueCount },
-          { label: 'Done / 7d', value: data.stats.doneThisWeek },
-          { label: 'Projects', value: data.stats.projectCount },
+          { label: t('home.statOpen'), value: data.stats.openCount },
+          { label: t('home.statOverdue'), value: data.stats.overdueCount },
+          { label: t('home.statDone'), value: data.stats.doneThisWeek },
+          { label: t('home.statProjects'), value: data.stats.projectCount },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-border-subtle bg-surface/60 px-4 py-3">
             <p className="text-xs text-muted">{stat.label}</p>
@@ -109,7 +113,7 @@ export function HomePage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Today & overdue</CardTitle>
+            <CardTitle>{t('home.todayOverdue')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {[...data.overdueTasks, ...data.todayTasks].slice(0, 8).map((task) => (
@@ -120,22 +124,20 @@ export function HomePage() {
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm">{task.title}</p>
-                  <p className="text-xs text-muted">
-                    {task.due_at ? format(new Date(task.due_at), 'MMM d') : 'No due date'}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">{task.projects ? <ProjectBadge {...task.projects} /> : null}<span>{task.due_at ? format(new Date(task.due_at), 'MMM d') : t('home.noDueDate')}</span></div>
                 </div>
                 <PriorityBadge priority={task.priority} />
               </Link>
             ))}
             {data.overdueTasks.length + data.todayTasks.length === 0 ? (
-              <p className="text-sm text-muted">Nothing due today.</p>
+              <p className="text-sm text-muted">{t('home.nothingDue')}</p>
             ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming deadlines</CardTitle>
+            <CardTitle>{t('home.upcoming')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {data.upcoming.slice(0, 8).map((task) => (
@@ -144,21 +146,21 @@ export function HomePage() {
                 to={`/app/tasks/${task.id}`}
                 className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
-                <p className="truncate text-sm">{task.title}</p>
+                <div className="min-w-0"><p className="truncate text-sm">{task.title}</p>{task.projects ? <ProjectBadge {...task.projects} className="mt-1" /> : null}</div>
                 <span className="shrink-0 text-xs text-muted">
                   {task.due_at ? format(new Date(task.due_at), 'MMM d') : ''}
                 </span>
               </Link>
             ))}
             {data.upcoming.length === 0 ? (
-              <p className="text-sm text-muted">No deadlines in the next 7 days.</p>
+              <p className="text-sm text-muted">{t('home.noUpcoming')}</p>
             ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Project health</CardTitle>
+            <CardTitle>{t('home.projectHealth')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.projects.slice(0, 6).map((project) => (
@@ -185,9 +187,9 @@ export function HomePage() {
             ))}
             {data.projects.length === 0 ? (
               <p className="text-sm text-muted">
-                No projects yet.{' '}
+                {t('home.noProjects')}{' '}
                 <Link to="/app/projects" className="underline">
-                  Create one
+                  {t('home.createOne')}
                 </Link>
               </p>
             ) : null}
@@ -196,7 +198,7 @@ export function HomePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>{t('home.recentActivity')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.activity.map((event) => (
@@ -209,24 +211,24 @@ export function HomePage() {
               </div>
             ))}
             {data.activity.length === 0 ? (
-              <p className="text-sm text-muted">Activity will appear as you work.</p>
+              <p className="text-sm text-muted">{t('home.noActivity')}</p>
             ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Daily log</CardTitle>
+            <CardTitle>{t('home.dailyLog')}</CardTitle>
           </CardHeader>
           <CardContent>
             {data.dailyLog ? (
               <div className="space-y-2 text-sm">
                 <p>
-                  <span className="text-muted">Worked on — </span>
+                  <span className="text-muted">{t('home.workedOn')} — </span>
                   {data.dailyLog.worked_on || '—'}
                 </p>
                 <p>
-                  <span className="text-muted">Blockers — </span>
+                  <span className="text-muted">{t('home.blockers')} — </span>
                   {data.dailyLog.blockers || '—'}
                 </p>
                 {data.dailyLog.ai_summary ? (
@@ -234,17 +236,17 @@ export function HomePage() {
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm text-muted">No log for today yet.</p>
+              <p className="text-sm text-muted">{t('home.noLog')}</p>
             )}
             <Button asChild variant="ghost" size="sm" className="mt-3 px-0">
-              <Link to="/app/daily-log">Open daily log</Link>
+              <Link to="/app/daily-log">{t('home.openDailyLog')}</Link>
             </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent notes</CardTitle>
+            <CardTitle>{t('home.recentNotes')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {data.recentNotes.map((note) => (
@@ -258,7 +260,7 @@ export function HomePage() {
               </Link>
             ))}
             {data.recentNotes.length === 0 ? (
-              <p className="text-sm text-muted">Notes will show up here.</p>
+              <p className="text-sm text-muted">{t('home.noNotes')}</p>
             ) : null}
           </CardContent>
         </Card>

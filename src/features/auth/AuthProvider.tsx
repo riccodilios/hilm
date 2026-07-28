@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { getAuthCallbackUrl } from '@/lib/env'
 
 type AuthContextValue = {
   session: Session | null
@@ -9,6 +10,9 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, displayName?: string) => Promise<void>
   signOut: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  /** Future-ready magic link / OTP sign-in */
+  signInWithMagicLink: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -51,12 +55,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password,
           options: {
             data: { display_name: displayName },
+            emailRedirectTo: getAuthCallbackUrl('/app'),
           },
         })
         if (error) throw error
       },
       async signOut() {
         const { error } = await supabase.auth.signOut()
+        if (error) throw error
+      },
+      async resetPassword(email) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: getAuthCallbackUrl('/auth/reset-password'),
+        })
+        if (error) throw error
+      },
+      async signInWithMagicLink(email) {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: getAuthCallbackUrl('/app'),
+            shouldCreateUser: true,
+          },
+        })
         if (error) throw error
       },
     }),

@@ -1,26 +1,30 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Download, ArrowRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { HeroBackdrop } from '@/features/landing/HeroBackdrop'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 
 export function LandingHero() {
   const reduce = useReducedMotion()
   const { canInstall, install } = usePwaInstall()
+  const { t } = useTranslation()
 
   return (
     <section className="relative isolate min-h-dvh overflow-hidden">
       <HeroBackdrop />
 
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <span className="text-sm font-medium tracking-tight text-foreground">Hilm</span>
+        <span className="text-sm font-medium tracking-tight text-foreground">{t('brand.name')}</span>
         <div className="flex items-center gap-2">
+          <LanguageSwitcher compact />
           <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link to="/login">Sign in</Link>
+            <Link to="/login">{t('common.signIn')}</Link>
           </Button>
           <Button asChild size="sm">
-            <Link to="/signup">Get Started</Link>
+            <Link to="/signup">{t('common.getStarted')}</Link>
           </Button>
         </div>
       </header>
@@ -32,7 +36,7 @@ export function LandingHero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         >
-          Hilm
+          {t('brand.name')}
         </motion.h1>
 
         <motion.p
@@ -41,7 +45,7 @@ export function LandingHero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
         >
-          The AI Personal Operating System.
+          {t('landing.heroSubtitle')}
         </motion.p>
 
         <motion.p
@@ -50,8 +54,7 @@ export function LandingHero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          Hilm is your AI Chief of Staff that manages projects, remembers everything, automates
-          work, and helps you ship products faster.
+          {t('landing.heroDescription')}
         </motion.p>
 
         <motion.div
@@ -62,13 +65,13 @@ export function LandingHero() {
         >
           <Button asChild size="lg" className="min-w-[148px]">
             <Link to="/signup">
-              Get Started <ArrowRight className="size-4" />
+              {t('common.getStarted')} <ArrowRight className="size-4" />
             </Link>
           </Button>
           {canInstall ? (
             <Button size="lg" variant="secondary" className="min-w-[148px]" onClick={() => void install()}>
               <Download className="size-4" />
-              Install App
+              {t('common.installApp')}
             </Button>
           ) : null}
         </motion.div>

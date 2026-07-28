@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
@@ -22,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PROJECT_COLORS } from '@/types/domain'
 
 export function ProjectsPage() {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
   const [open, setOpen] = useState(false)
@@ -39,7 +41,7 @@ export function ProjectsPage() {
       setOpen(false)
       setName('')
       setDescription('')
-      toast.success('Project created')
+      toast.success(t('projects.created'))
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -47,19 +49,19 @@ export function ProjectsPage() {
   return (
     <div>
       <PageHeader
-        title="Projects"
-        description="Everything you build, manage, and ship."
+        title={t('projects.title')}
+        description={t('projects.description')}
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="size-4" /> New project
+                <Plus className="size-4" /> {t('projects.new')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>New project</DialogTitle>
-                <DialogDescription>Give it a clear name and optional description.</DialogDescription>
+                <DialogTitle>{t('projects.new')}</DialogTitle>
+                <DialogDescription>{t('projects.description')}</DialogDescription>
               </DialogHeader>
               <form
                 className="space-y-4"
@@ -69,15 +71,15 @@ export function ProjectsPage() {
                 }}
               >
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">{t('projects.name')}</Label>
                   <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="desc">Description</Label>
+                  <Label htmlFor="desc">{t('projects.desc')}</Label>
                   <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Color</Label>
+                  <Label>{t('projects.color')}</Label>
                   <div className="flex flex-wrap gap-2">
                     {PROJECT_COLORS.map((c) => (
                       <button
@@ -94,7 +96,7 @@ export function ProjectsPage() {
                   </div>
                 </div>
                 <Button type="submit" disabled={create.isPending} className="w-full">
-                  Create
+                  {t('common.create')}
                 </Button>
               </form>
             </DialogContent>
@@ -109,11 +111,11 @@ export function ProjectsPage() {
         </div>
       ) : !data?.length ? (
         <EmptyState
-          title="No projects yet"
-          description="Create Wasl, Finora, Rivalize, Alytic — or whatever you're building."
+          title={t('projects.emptyTitle')}
+          description={t('projects.emptyBody')}
           action={
             <Button onClick={() => setOpen(true)}>
-              <Plus className="size-4" /> New project
+              <Plus className="size-4" /> {t('projects.new')}
             </Button>
           }
         />
@@ -136,7 +138,7 @@ export function ProjectsPage() {
                   <div>
                     <h2 className="font-medium tracking-tight">{project.name}</h2>
                     <p className="line-clamp-1 text-sm text-muted">
-                      {project.description || 'No description'}
+                      {project.description || t('projects.noDescription')}
                     </p>
                   </div>
                 </div>

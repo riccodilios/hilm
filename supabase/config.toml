@@ -1,7 +1,10 @@
-project_id = "your-project-id"
+project_id = "lrvmlayzmvswfqsqroni"
 
 [functions.encrypt-key]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-chat]
+verify_jwt = true
+
+[functions.send-task-reminders]
 verify_jwt = false

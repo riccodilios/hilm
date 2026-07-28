@@ -1,5 +1,5 @@
 import { createNote } from '@/features/notes/api'
-import { createProject, updateProject } from '@/features/projects/api'
+import { createProject, listProjects, updateProject } from '@/features/projects/api'
 import { createRoadmapItem } from '@/features/roadmap/api'
 import { upsertDailyLog } from '@/features/daily-log/api'
 import { createTask, moveTask, updateTask } from '@/features/tasks/api'
@@ -27,15 +27,19 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
             data = await updateTask(action.taskId, { status: 'done' })
             break
           case 'task.create':
+            {
+              const projectId = action.projectId ?? (await listProjects())[0]?.id
+              if (!projectId) throw new Error('Create a project before creating a task')
             data = await createTask({
               title: action.title,
               description: action.description,
-              projectId: action.projectId,
+              projectId,
               priority: action.priority as Priority | undefined,
               status: action.status as TaskStatus | undefined,
               dueAt: action.dueAt,
             })
             break
+            }
           case 'task.move':
             data = await moveTask(action.taskId, action.status as TaskStatus)
             break

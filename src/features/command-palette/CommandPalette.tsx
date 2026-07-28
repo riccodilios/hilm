@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Command } from 'cmdk'
 import {
@@ -18,6 +19,7 @@ import { listNotes, notesKeys } from '@/features/notes/api'
 import { cn } from '@/lib/utils'
 
 export function CommandPalette() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -83,38 +85,38 @@ export function CommandPalette() {
       <button
         type="button"
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        aria-label="Close command palette"
+        aria-label={t('common.close')}
         onClick={() => setOpen(false)}
       />
       <div className="relative mx-auto mt-[12vh] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-        <Command label="Command palette" className="bg-transparent" shouldFilter={false}>
+        <Command label={t('command.commands')} className="bg-transparent" shouldFilter={false}>
           <div className="flex items-center gap-2 border-b border-border px-4">
             <Search className="size-4 text-muted" />
             <Command.Input
               value={query}
               onValueChange={setQuery}
-              placeholder="Search or run a command…"
+              placeholder={t('command.placeholder')}
               className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-fg"
             />
           </div>
           <Command.List className="max-h-[420px] overflow-y-auto p-2">
             <Command.Empty className="px-3 py-8 text-center text-sm text-muted">
-              No results.
+              {t('common.noResults')}
             </Command.Empty>
 
-            <Command.Group heading="Commands" className="px-1 py-2 text-xs text-muted">
-              <Item onSelect={() => go('/app/tasks?new=1')} icon={Plus} label="New Task" />
-              <Item onSelect={() => go('/app/projects')} icon={FolderKanban} label="New Project" />
-              <Item onSelect={() => go('/app')} icon={Home} label="Today's Tasks" />
-              <Item onSelect={() => go('/app/ai')} icon={Brain} label="Ask AI" />
-              <Item onSelect={() => go('/app/notes')} icon={NotebookPen} label="Quick Note" />
-              <Item onSelect={() => go('/app/search')} icon={Search} label="Open Search" />
-              <Item onSelect={() => go('/app/ai')} icon={Sparkles} label="Chief of Staff" />
-              <Item onSelect={() => go('/app/tasks/board')} icon={CheckSquare} label="Kanban Board" />
+            <Command.Group heading={t('command.commands')} className="px-1 py-2 text-xs text-muted">
+              <Item onSelect={() => go('/app/tasks?new=1')} icon={Plus} label={t('command.newTask')} />
+              <Item onSelect={() => go('/app/projects')} icon={FolderKanban} label={t('command.newProject')} />
+              <Item onSelect={() => go('/app')} icon={Home} label={t('command.today')} />
+              <Item onSelect={() => go('/app/ai')} icon={Brain} label={t('command.askAi')} />
+              <Item onSelect={() => go('/app/notes')} icon={NotebookPen} label={t('command.quickNote')} />
+              <Item onSelect={() => go('/app/search')} icon={Search} label={t('command.openSearch')} />
+              <Item onSelect={() => go('/app/ai')} icon={Sparkles} label={t('command.chief')} />
+              <Item onSelect={() => go('/app/tasks/board')} icon={CheckSquare} label={t('command.kanban')} />
             </Command.Group>
 
             {filtered.projects.length ? (
-              <Command.Group heading="Projects" className="px-1 py-2 text-xs text-muted">
+              <Command.Group heading={t('command.projects')} className="px-1 py-2 text-xs text-muted">
                 {filtered.projects.map((p) => (
                   <Item
                     key={p.id}
@@ -127,7 +129,7 @@ export function CommandPalette() {
             ) : null}
 
             {filtered.tasks.length ? (
-              <Command.Group heading="Tasks" className="px-1 py-2 text-xs text-muted">
+              <Command.Group heading={t('command.tasks')} className="px-1 py-2 text-xs text-muted">
                 {filtered.tasks.map((t) => (
                   <Item
                     key={t.id}
@@ -140,7 +142,7 @@ export function CommandPalette() {
             ) : null}
 
             {filtered.notes.length ? (
-              <Command.Group heading="Notes" className="px-1 py-2 text-xs text-muted">
+              <Command.Group heading={t('command.notes')} className="px-1 py-2 text-xs text-muted">
                 {filtered.notes.map((n) => (
                   <Item
                     key={n.id}

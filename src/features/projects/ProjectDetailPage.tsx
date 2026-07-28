@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { ExternalLink, FileText, Plus } from 'lucide-react'
@@ -23,9 +24,8 @@ import type { Priority, ProjectStatus, RoadmapHorizon } from '@/types/domain'
 
 const allTabs = ['overview', 'tasks', 'kanban', 'roadmap', 'notes', 'activity', 'ai', 'settings', 'ideas', 'meetings', 'releases', 'files', 'documentation'] as const
 type Tab = typeof allTabs[number]
-const tabLabels: Record<Tab, string> = { overview: 'Overview', tasks: 'Tasks', kanban: 'Kanban', roadmap: 'Roadmap', notes: 'Notes', activity: 'Activity', ai: 'AI', settings: 'Settings', ideas: 'Ideas', meetings: 'Meetings', releases: 'Releases', files: 'Files', documentation: 'Documentation' }
-
 export function ProjectDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('overview')
@@ -43,8 +43,9 @@ export function ProjectDetailPage() {
   const addRoadmap = useMutation({ mutationFn: () => createRoadmapItem({ projectId: id!, title: roadmapTitle.trim(), horizon: roadmapHorizon }), onSuccess: async () => { await qc.invalidateQueries({ queryKey: roadmapKeys.all }); setRoadmapTitle(''); toast.success('Roadmap item added') }, onError: (error: Error) => toast.error(error.message) })
   const addNote = useMutation({ mutationFn: () => createNote({ title: 'Untitled note', projectId: id }), onSuccess: async (note) => { await qc.invalidateQueries({ queryKey: notesKeys.all }); window.location.assign(`/app/notes/${note.id}`) }, onError: (error: Error) => toast.error(error.message) })
 
+  const tabLabels: Record<Tab, string> = { overview: t('projects.overview'), tasks: t('projects.tasks'), kanban: t('projects.kanban'), roadmap: t('projects.roadmap'), notes: t('projects.notes'), activity: t('projects.activity'), ai: t('projects.ai'), settings: t('projects.settings'), ideas: t('projects.ideas'), meetings: t('projects.meetings'), releases: t('projects.releases'), files: t('projects.files'), documentation: t('projects.documentation') }
   if (isLoading) return <Skeleton className="h-[32rem]" />
-  if (!project) return <EmptyState title="Project not found" action={<Button asChild><Link to="/app/projects">Back to projects</Link></Button>} />
+  if (!project) return <EmptyState title={t('projects.notFound')} action={<Button asChild><Link to="/app/projects">{t('projects.back')}</Link></Button>} />
   const completed = tasks?.filter((task) => task.status === 'done').length ?? 0
   return <div>
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div className="flex items-center gap-3"><span className="flex size-12 items-center justify-center rounded-2xl text-lg font-medium text-background" style={{ backgroundColor: project.color }}>{project.name[0]?.toUpperCase()}</span><div><h1 className="text-2xl font-medium tracking-tight sm:text-3xl">{project.name}</h1><p className="mt-1 text-sm text-muted">{project.status}</p></div></div><div className="flex gap-2"><HealthBadge health={project.health} /><PriorityBadge priority={project.priority} /></div></div>

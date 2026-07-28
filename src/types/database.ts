@@ -12,11 +12,12 @@ type Table<
   Row extends Record<string, unknown>,
   Insert extends Record<string, unknown>,
   Update extends Record<string, unknown>,
+  Relationships extends Rel[] = [],
 > = {
   Row: Row
   Insert: Insert
   Update: Update
-  Relationships: Rel[]
+  Relationships: Relationships
 }
 
 export type Database = {
@@ -52,6 +53,9 @@ export type Database = {
           notification_prefs: Json
           openrouter_api_key_encrypted: string | null
           has_openrouter_key: boolean
+          default_reminder_type: Database['public']['Enums']['reminder_type']
+          email_reminders_enabled: boolean
+          push_notifications_enabled: boolean
           created_at: string
           updated_at: string
         },
@@ -62,6 +66,9 @@ export type Database = {
           notification_prefs?: Json
           openrouter_api_key_encrypted?: string | null
           has_openrouter_key?: boolean
+          default_reminder_type?: Database['public']['Enums']['reminder_type']
+          email_reminders_enabled?: boolean
+          push_notifications_enabled?: boolean
           created_at?: string
           updated_at?: string
         },
@@ -71,6 +78,9 @@ export type Database = {
           notification_prefs?: Json
           openrouter_api_key_encrypted?: string | null
           has_openrouter_key?: boolean
+          default_reminder_type?: Database['public']['Enums']['reminder_type']
+          email_reminders_enabled?: boolean
+          push_notifications_enabled?: boolean
           updated_at?: string
         }
       >
@@ -162,7 +172,7 @@ export type Database = {
         {
           id: string
           user_id: string
-          project_id: string | null
+          project_id: string
           title: string
           description: string | null
           priority: Database['public']['Enums']['priority']
@@ -170,7 +180,12 @@ export type Database = {
           estimated_hours: number | null
           actual_hours: number | null
           due_at: string | null
+          due_date: string | null
+          due_time: string | null
           reminder_at: string | null
+          reminder_datetime: string | null
+          reminder_type: string | null
+          notification_sent: boolean
           position: number
           completed_at: string | null
           created_at: string
@@ -179,7 +194,7 @@ export type Database = {
         {
           id?: string
           user_id: string
-          project_id?: string | null
+          project_id: string
           title: string
           description?: string | null
           priority?: Database['public']['Enums']['priority']
@@ -187,14 +202,19 @@ export type Database = {
           estimated_hours?: number | null
           actual_hours?: number | null
           due_at?: string | null
+          due_date?: string | null
+          due_time?: string | null
           reminder_at?: string | null
+          reminder_datetime?: string | null
+          reminder_type?: string | null
+          notification_sent?: boolean
           position?: number
           completed_at?: string | null
         },
         {
           id?: string
           user_id?: string
-          project_id?: string | null
+          project_id?: string
           title?: string
           description?: string | null
           priority?: Database['public']['Enums']['priority']
@@ -202,10 +222,24 @@ export type Database = {
           estimated_hours?: number | null
           actual_hours?: number | null
           due_at?: string | null
+          due_date?: string | null
+          due_time?: string | null
           reminder_at?: string | null
+          reminder_datetime?: string | null
+          reminder_type?: string | null
+          notification_sent?: boolean
           position?: number
           completed_at?: string | null
-        }
+        },
+        [
+          {
+            foreignKeyName: 'tasks_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
       >
       subtasks: Table<
         {
@@ -531,6 +565,104 @@ export type Database = {
           actions?: Json
         }
       >
+      task_reminders: Table<
+        {
+          id: string
+          user_id: string
+          task_id: string
+          project_id: string
+          remind_at: string
+          reminder_type: Database['public']['Enums']['reminder_type']
+          channels: Database['public']['Enums']['notification_channel'][]
+          notification_sent: boolean
+          sent_at: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          user_id: string
+          task_id: string
+          project_id: string
+          remind_at: string
+          reminder_type?: Database['public']['Enums']['reminder_type']
+          channels?: Database['public']['Enums']['notification_channel'][]
+          notification_sent?: boolean
+          sent_at?: string | null
+          metadata?: Json
+        },
+        {
+          remind_at?: string
+          reminder_type?: Database['public']['Enums']['reminder_type']
+          channels?: Database['public']['Enums']['notification_channel'][]
+          notification_sent?: boolean
+          sent_at?: string | null
+          metadata?: Json
+        }
+      >
+      notifications: Table<
+        {
+          id: string
+          user_id: string
+          channel: Database['public']['Enums']['notification_channel']
+          type: string
+          title: string
+          body: string | null
+          entity_type: string | null
+          entity_id: string | null
+          project_id: string | null
+          href: string | null
+          read_at: string | null
+          metadata: Json
+          created_at: string
+        },
+        {
+          id?: string
+          user_id: string
+          channel?: Database['public']['Enums']['notification_channel']
+          type: string
+          title: string
+          body?: string | null
+          entity_type?: string | null
+          entity_id?: string | null
+          project_id?: string | null
+          href?: string | null
+          read_at?: string | null
+          metadata?: Json
+        },
+        {
+          read_at?: string | null
+          title?: string
+          body?: string | null
+          metadata?: Json
+        }
+      >
+      project_notification_prefs: Table<
+        {
+          id: string
+          user_id: string
+          project_id: string
+          email_reminders: boolean
+          push_notifications: boolean
+          in_app_notifications: boolean
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          user_id: string
+          project_id: string
+          email_reminders?: boolean
+          push_notifications?: boolean
+          in_app_notifications?: boolean
+        },
+        {
+          email_reminders?: boolean
+          push_notifications?: boolean
+          in_app_notifications?: boolean
+        }
+      >
       attachments: Table<
         {
           id: string
@@ -577,6 +709,8 @@ export type Database = {
       health_status: 'healthy' | 'warning' | 'blocked' | 'critical'
       roadmap_horizon: 'now' | 'next' | 'later' | 'future'
       idea_status: 'inbox' | 'exploring' | 'accepted' | 'rejected' | 'converted'
+      reminder_type: '5m' | '15m' | '30m' | '1h' | 'same_day_morning' | '1d' | '2d' | '1w' | 'custom'
+      notification_channel: 'email' | 'push' | 'in_app'
     }
     CompositeTypes: {
       [_ in never]: never

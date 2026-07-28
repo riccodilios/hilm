@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import type { HealthStatus, Priority, TaskStatus } from '@/types/domain'
 
@@ -32,17 +33,16 @@ export function Badge({
 }
 
 export function HealthBadge({ health }: { health: HealthStatus }) {
-  return <Badge className={healthStyles[health]}>{health}</Badge>
+  const { t } = useTranslation()
+  return <Badge className={healthStyles[health]}>{t(`health.${health}`)}</Badge>
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
-  return <Badge className={priorityStyles[priority]}>{priority}</Badge>
+  const { t } = useTranslation()
+  return <Badge className={priorityStyles[priority]}>{t(`priority.${priority}`)}</Badge>
 }
 
 export function StatusBadge({ status }: { status: TaskStatus }) {
-  return (
-    <Badge className="bg-surface-3 text-muted capitalize">
-      {status.replace('_', ' ')}
-    </Badge>
-  )
+  const { t } = useTranslation()
+  return <Badge className="bg-surface-3 text-muted">{t(`status.${status}`)}</Badge>
 }

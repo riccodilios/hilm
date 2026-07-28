@@ -1,21 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import { FadeIn, Section, SectionHeading } from '@/features/landing/primitives'
 
-const failures = [
-  'You update everything manually.',
-  'AI forgets context between chats.',
-  'Projects become scattered across tools.',
-  'Documentation gets outdated the moment you ship.',
-  'Ideas disappear into notes you never reopen.',
-]
-
 export function ProblemSection() {
+  const { t } = useTranslation()
+  const failures = t('landing.problemItems', { returnObjects: true }) as string[]
+
   return (
     <Section>
       <FadeIn>
         <SectionHeading
-          eyebrow="The problem"
-          title="Project tools were built for tracking work — not running it."
-          description="Spreadsheets of status, disconnected AI chats, and five apps fighting to be the source of truth. You become the integration layer."
+          eyebrow={t('landing.problemEyebrow')}
+          title={t('landing.problemTitle')}
+          description={t('landing.problemDescription')}
         />
       </FadeIn>
 
@@ -35,13 +31,12 @@ export function ProblemSection() {
 
         <FadeIn delay={0.2}>
           <div className="rounded-3xl border border-border bg-gradient-to-br from-surface via-surface to-surface-2 p-8 sm:p-10">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">Then Hilm</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted">{t('landing.thenHilm')}</p>
             <p className="mt-4 text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
-              One operating system that remembers your work and acts on it.
+              {t('landing.thenHilmTitle')}
             </p>
             <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
-              Hilm sits above your projects as an AI Chief of Staff — keeping context, executing
-              changes, and keeping every surface in sync.
+              {t('landing.thenHilmBody')}
             </p>
           </div>
         </FadeIn>

@@ -1,0 +1,474 @@
+{
+  "brand": {
+    "name": "Hilm",
+    "tagline": "Personal OS",
+    "os": "AI Personal Operating System"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "back": "Back",
+    "open": "Open",
+    "search": "Search",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "getStarted": "Get Started",
+    "installApp": "Install App",
+    "installHilm": "Install Hilm",
+    "offline": "You're offline — reading cached data. Changes require a connection.",
+    "close": "Close",
+    "language": "Language",
+    "english": "English",
+    "arabic": "Arabic",
+    "noResults": "No results.",
+    "comingSoon": "Scaffolded for expansion",
+    "comingSoonBody": "Schema and navigation are ready. Full UI ships in a later phase."
+  },
+  "nav": {
+    "home": "Home",
+    "projects": "Projects",
+    "tasks": "Tasks",
+    "ai": "AI",
+    "profile": "Profile",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "calendar": "Calendar"
+  },
+  "auth": {
+    "signInTitle": "Sign in",
+    "signInSubtitle": "Your AI personal operating system.",
+    "signUpTitle": "Create account",
+    "signUpSubtitle": "Start building your personal OS.",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "signingIn": "Signing in…",
+    "creating": "Creating…",
+    "noAccount": "No account?",
+    "createOne": "Create one",
+    "hasAccount": "Already have an account?",
+    "welcomeBack": "Welcome back",
+    "accountCreated": "Account created — check email if confirmation is required",
+    "missingEnv": "Add your Supabase credentials to .env first",
+    "verifying": "Verifying your account…",
+    "verified": "Email verified — welcome to Hilm",
+    "callbackMissingSession": "No session found. Open the link from your email again.",
+    "callbackFailed": "Authentication failed",
+    "recoveryReady": "Choose a new password",
+    "checkEmail": "Check your email to verify your account",
+    "forgotTitle": "Reset password",
+    "forgotSubtitle": "We will email you a secure reset link.",
+    "sendReset": "Send reset link",
+    "resetEmailSent": "Reset email sent — check your inbox",
+    "resetTitle": "Set a new password",
+    "resetSubtitle": "Choose a strong password for your Hilm account.",
+    "updatePassword": "Update password",
+    "passwordUpdated": "Password updated",
+    "forgotPassword": "Forgot password?"
+  },
+  "landing": {
+    "heroSubtitle": "The AI Personal Operating System.",
+    "heroDescription": "Hilm is your AI Chief of Staff that manages projects, remembers everything, automates work, and helps you ship products faster.",
+    "problemEyebrow": "The problem",
+    "problemTitle": "Project tools were built for tracking work — not running it.",
+    "problemDescription": "Spreadsheets of status, disconnected AI chats, and five apps fighting to be the source of truth. You become the integration layer.",
+    "problemItems": [
+      "You update everything manually.",
+      "AI forgets context between chats.",
+      "Projects become scattered across tools.",
+      "Documentation gets outdated the moment you ship.",
+      "Ideas disappear into notes you never reopen."
+    ],
+    "thenHilm": "Then Hilm",
+    "thenHilmTitle": "One operating system that remembers your work and acts on it.",
+    "thenHilmBody": "Hilm sits above your projects as an AI Chief of Staff — keeping context, executing changes, and keeping every surface in sync.",
+    "featuresEyebrow": "Capabilities",
+    "featuresTitle": "Everything your personal OS needs — with AI in the loop.",
+    "featuresDescription": "Not a pile of features. A coherent system where each surface feeds the next.",
+    "features": {
+      "chief": {
+        "title": "AI Chief of Staff",
+        "body": "An agent that understands every project and proposes the next move."
+      },
+      "projects": {
+        "title": "Projects",
+        "body": "Health, progress, and context for everything you build."
+      },
+      "tasks": {
+        "title": "Tasks",
+        "body": "Statuses, estimates, dependencies, and kanban that stay current."
+      },
+      "logs": {
+        "title": "Daily Logs",
+        "body": "What you shipped, what blocked you, and what comes next."
+      },
+      "docs": {
+        "title": "Documentation",
+        "body": "Living docs that stay aligned with decisions and releases."
+      },
+      "ideas": {
+        "title": "Ideas",
+        "body": "Capture sparks, score impact, convert into real work."
+      },
+      "roadmaps": {
+        "title": "Roadmaps",
+        "body": "Now, next, later, future — without losing the thread."
+      },
+      "automation": {
+        "title": "AI Automation",
+        "body": "Structured actions that update your system, not just chat."
+      },
+      "voice": {
+        "title": "Voice Commands",
+        "body": "Speak naturally. Hilm routes intent into actions."
+      },
+      "search": {
+        "title": "Smart Search",
+        "body": "Find tasks, notes, ideas, and conversations instantly."
+      },
+      "palette": {
+        "title": "Command Palette",
+        "body": "Raycast-speed shortcuts from anywhere in the app."
+      },
+      "offline": {
+        "title": "Offline Support",
+        "body": "Read your work when the network drops."
+      },
+      "pwa": {
+        "title": "Progressive Web App",
+        "body": "Install Hilm. Launch it like a native product."
+      }
+    },
+    "automationEyebrow": "Automation",
+    "automationTitle": "Chat that executes — not just answers.",
+    "automationDescription": "Hilm returns structured actions. Your projects, tasks, docs, and activity update automatically.",
+    "automationActions": [
+      "Complete tasks",
+      "Create tasks",
+      "Update project status",
+      "Generate documentation",
+      "Create meeting summaries",
+      "Generate release notes",
+      "Track progress",
+      "Find blockers",
+      "Suggest priorities",
+      "Maintain project history"
+    ],
+    "voiceEyebrow": "Voice",
+    "voiceTitle": "Speak the way you already think.",
+    "voiceDescription": "Say what happened. Hilm finds the task, marks it done, logs activity, and suggests what to do next.",
+    "voiceNote": "Everything updates automatically — no form filling required.",
+    "voicePhrases": [
+      "Finished authentication.",
+      "Create a task for payment testing.",
+      "Remind me tomorrow.",
+      "Summarize today's work."
+    ],
+    "securityEyebrow": "Trust",
+    "securityTitle": "Built for work you would not paste into a public chatbot.",
+    "securityDescription": "Security is part of the product surface — not a footnote.",
+    "security": {
+      "encrypted": {
+        "title": "Encrypted credentials",
+        "body": "API keys are encrypted at rest and never embedded in the client bundle."
+      },
+      "storage": {
+        "title": "Secure storage",
+        "body": "Auth sessions persist safely. Attachments live in scoped private storage."
+      },
+      "privateAi": {
+        "title": "Private AI",
+        "body": "Requests proxy through your backend with your key — Hilm does not harvest your work."
+      },
+      "offline": {
+        "title": "Offline support",
+        "body": "Recent data stays readable on-device when you lose connectivity."
+      },
+      "owned": {
+        "title": "User-owned data",
+        "body": "Your projects, notes, and history remain yours — exportable and under your control."
+      }
+    },
+    "ctaTitle": "Ready to build faster?",
+    "ctaBody": "Install Hilm today and give every project a Chief of Staff.",
+    "footerPrivacy": "Privacy",
+    "footerGithub": "GitHub",
+    "footerDocs": "Documentation",
+    "footerContact": "Contact"
+  },
+  "privacy": {
+    "title": "Privacy",
+    "description": "Hilm is designed so your operating system stays yours.",
+    "p1": "Account data, projects, and AI conversation history are stored in your Supabase project under row-level security. OpenRouter API keys are encrypted at rest and never shipped in the client bundle.",
+    "p2": "Offline caches live on your device via IndexedDB and the service worker. You can request export of your data from Settings as that surface ships.",
+    "p3": "Contact {{email}} for privacy questions."
+  },
+  "home": {
+    "title": "What should I work on today?",
+    "askAi": "Ask AI",
+    "focusNow": "Focus now",
+    "openTask": "Open task",
+    "inboxZero": "Inbox zero — create a task or ask AI what to do next.",
+    "newTask": "New task",
+    "askChief": "Ask Chief of Staff",
+    "statOpen": "Open",
+    "statOverdue": "Overdue",
+    "statDone": "Done / 7d",
+    "statProjects": "Projects",
+    "todayOverdue": "Today & overdue",
+    "nothingDue": "Nothing due today.",
+    "noDueDate": "No due date",
+    "upcoming": "Upcoming deadlines",
+    "noUpcoming": "No deadlines in the next 7 days.",
+    "projectHealth": "Project health",
+    "noProjects": "No projects yet.",
+    "createOne": "Create one",
+    "recentActivity": "Recent activity",
+    "noActivity": "Activity will appear as you work.",
+    "dailyLog": "Daily log",
+    "workedOn": "Worked on",
+    "blockers": "Blockers",
+    "noLog": "No log for today yet.",
+    "openDailyLog": "Open daily log",
+    "recentNotes": "Recent notes",
+    "noNotes": "Notes will show up here.",
+    "loadError": "Could not load dashboard"
+  },
+  "projects": {
+    "title": "Projects",
+    "description": "Everything you build, manage, and ship.",
+    "new": "New project",
+    "name": "Name",
+    "desc": "Description",
+    "color": "Color",
+    "emptyTitle": "No projects yet",
+    "emptyBody": "Create Wasl, Finora, Rivalize, Alytic — or whatever you're building.",
+    "created": "Project created",
+    "noDescription": "No description",
+    "back": "Back to projects",
+    "notFound": "Project not found",
+    "overview": "Overview",
+    "tasks": "Tasks",
+    "kanban": "Kanban",
+    "roadmap": "Roadmap",
+    "notes": "Notes",
+    "activity": "Activity",
+    "ai": "AI",
+    "settings": "Settings",
+    "ideas": "Ideas",
+    "meetings": "Meetings",
+    "releases": "Releases",
+    "files": "Files",
+    "documentation": "Documentation"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "board": "Board",
+    "new": "New task",
+    "kanbanTitle": "Kanban",
+    "details": "Task details",
+    "complete": "Complete task",
+    "completed": "Completed",
+    "status": "Status",
+    "priority": "Priority",
+    "due": "Due date",
+    "subtasks": "Subtasks",
+    "addSubtask": "Add a subtask",
+    "back": "Back to tasks",
+    "notFound": "Task not found",
+    "updated": "Task updated",
+    "dropHere": "Drop tasks here",
+    "emptyBoard": "No tasks on this board",
+    "emptyBoardBody": "Create a task to begin planning work.",
+    "dueTime": "Due time",
+    "reminder": "Reminder",
+    "projectRequired": "Project is required"
+  },
+  "notes": {
+    "title": "Notes",
+    "new": "New note",
+    "empty": "Empty note",
+    "updated": "Updated {{time}}",
+    "back": "Back to notes",
+    "notFound": "Note not found",
+    "preview": "Preview",
+    "edit": "Edit",
+    "convertTask": "Convert to task",
+    "save": "Save"
+  },
+  "dailyLog": {
+    "title": "Daily log",
+    "description": "Capture what moved today.",
+    "workedOn": "What I worked on",
+    "blockers": "Blockers",
+    "hours": "Hours",
+    "wins": "Wins",
+    "tomorrow": "Tomorrow",
+    "aiSummary": "AI summary",
+    "saved": "Daily log saved"
+  },
+  "activity": {
+    "title": "Activity",
+    "description": "A timeline of everything that changed.",
+    "empty": "No activity yet."
+  },
+  "search": {
+    "title": "Search",
+    "description": "Find tasks, projects, notes, ideas, and conversations.",
+    "placeholder": "Search everything…",
+    "hint": "Start typing to search across Hilm.",
+    "projects": "Projects",
+    "tasks": "Tasks",
+    "notes": "Notes",
+    "ideas": "Ideas",
+    "conversations": "AI conversations",
+    "noMatches": "No matches."
+  },
+  "command": {
+    "placeholder": "Search or run a command…",
+    "commands": "Commands",
+    "newTask": "New Task",
+    "newProject": "New Project",
+    "today": "Today's Tasks",
+    "askAi": "Ask AI",
+    "quickNote": "Quick Note",
+    "openSearch": "Open Search",
+    "chief": "Chief of Staff",
+    "kanban": "Kanban Board",
+    "projects": "Projects",
+    "tasks": "Tasks",
+    "notes": "Notes"
+  },
+  "ai": {
+    "title": "AI",
+    "newChat": "New conversation",
+    "placeholder": "Ask Hilm anything…",
+    "send": "Send",
+    "agents": "Agent",
+    "actions": "Actions",
+    "apply": "Apply",
+    "applied": "Actions applied",
+    "empty": "Start a conversation with your Chief of Staff."
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Personalize Hilm, appearance, and language.",
+    "appearance": "Appearance",
+    "appearanceDesc": "Theme and language preferences.",
+    "language": "Language",
+    "languageDesc": "Choose English or Arabic. Layout direction updates automatically.",
+    "profile": "Profile",
+    "profileDesc": "Your display name appears throughout your personal workspace.",
+    "displayName": "Display name",
+    "data": "Data",
+    "dataDesc": "Export tooling is being prepared.",
+    "export": "Open export scaffold",
+    "saved": "Settings saved",
+    "theme": "Theme",
+    "themeDesc": "Switch between light and dark mode.",
+    "light": "Light",
+    "dark": "Dark",
+    "notifications": "Notifications",
+    "notificationsDesc": "Email, push, and reminder defaults.",
+    "emailReminders": "Email reminders",
+    "emailRemindersDesc": "Send task reminder emails even when Hilm is closed.",
+    "pushNotifications": "Push notifications",
+    "pushNotificationsDesc": "Future-ready push channel (enable when configured).",
+    "defaultReminder": "Default reminder timing",
+    "perProject": "Email reminders per project"
+  },
+  "profile": {
+    "title": "Profile",
+    "settings": "Settings",
+    "settingsDesc": "Profile, theme, and language preferences.",
+    "dailyLog": "Daily log",
+    "dailyLogDesc": "Capture progress, wins, and blockers.",
+    "activity": "Activity",
+    "activityDesc": "Review the recent history of your workspace.",
+    "ideas": "Ideas",
+    "ideasDesc": "Explore and prioritize ideas (coming soon)."
+  },
+  "status": {
+    "backlog": "backlog",
+    "todo": "todo",
+    "in_progress": "in progress",
+    "waiting": "waiting",
+    "testing": "testing",
+    "done": "done",
+    "archived": "archived"
+  },
+  "priority": {
+    "none": "none",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "urgent": "urgent"
+  },
+  "health": {
+    "healthy": "healthy",
+    "warning": "warning",
+    "blocked": "blocked",
+    "critical": "critical"
+  },
+  "scaffold": {
+    "ideasTitle": "Ideas",
+    "ideasDesc": "Idea inbox with impact/effort scoring — coming next.",
+    "meetingsTitle": "Meetings",
+    "meetingsDesc": "Meeting notes and AI summaries — scaffolded for expansion.",
+    "releasesTitle": "Releases",
+    "releasesDesc": "Release notes and ship history — scaffolded for expansion.",
+    "documentsTitle": "Documents",
+    "documentsDesc": "Project documentation hub — scaffolded for expansion.",
+    "exportTitle": "Export",
+    "exportDesc": "Export and import your Hilm data — scaffolded for expansion.",
+    "calendarTitle": "Calendar",
+    "calendarDesc": "Due dates and reminders on a calendar — coming next. Task cards already carry project badges everywhere else."
+  },
+  "agents": {
+    "chief_of_staff": {
+      "name": "Chief of Staff",
+      "description": "Turns priorities into clear next steps."
+    },
+    "project_manager": {
+      "name": "Project Manager",
+      "description": "Keeps projects healthy, scoped, and moving."
+    },
+    "task_manager": {
+      "name": "Task Manager",
+      "description": "Organizes work into actionable tasks."
+    },
+    "documentation_writer": {
+      "name": "Documentation Writer",
+      "description": "Creates clear, useful product and technical docs."
+    },
+    "planning_assistant": {
+      "name": "Planning Assistant",
+      "description": "Builds realistic plans and milestones."
+    },
+    "architecture_advisor": {
+      "name": "Architecture Advisor",
+      "description": "Evaluates technical options and trade-offs."
+    },
+    "meeting_summarizer": {
+      "name": "Meeting Summarizer",
+      "description": "Captures decisions, action items, and follow-ups."
+    },
+    "qa_assistant": {
+      "name": "QA Assistant",
+      "description": "Finds risks and writes focused test plans."
+    }
+  },
+  "reminders": {
+    "5m": "5 minutes before",
+    "15m": "15 minutes before",
+    "30m": "30 minutes before",
+    "1h": "1 hour before",
+    "sameDayMorning": "Same day (morning)",
+    "1d": "1 day before",
+    "2d": "2 days before",
+    "1w": "1 week before",
+    "custom": "Custom reminder"
+  }
+}

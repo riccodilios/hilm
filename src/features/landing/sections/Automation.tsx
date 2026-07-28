@@ -1,26 +1,17 @@
+import { useTranslation } from 'react-i18next'
 import { FadeIn, Section, SectionHeading } from '@/features/landing/primitives'
 
-const actions = [
-  'Complete tasks',
-  'Create tasks',
-  'Update project status',
-  'Generate documentation',
-  'Create meeting summaries',
-  'Generate release notes',
-  'Track progress',
-  'Find blockers',
-  'Suggest priorities',
-  'Maintain project history',
-]
-
 export function AutomationSection() {
+  const { t } = useTranslation()
+  const actions = t('landing.automationActions', { returnObjects: true }) as string[]
+
   return (
     <Section>
       <FadeIn>
         <SectionHeading
-          eyebrow="Automation"
-          title="Chat that executes — not just answers."
-          description="Hilm returns structured actions. Your projects, tasks, docs, and activity update automatically."
+          eyebrow={t('landing.automationEyebrow')}
+          title={t('landing.automationTitle')}
+          description={t('landing.automationDescription')}
         />
       </FadeIn>
 

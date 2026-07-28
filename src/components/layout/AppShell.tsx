@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import {
   Brain,
   CheckSquare,
@@ -12,28 +13,30 @@ import { cn } from '@/lib/utils'
 import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { useOnline } from '@/hooks/useOnline'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
-
-const nav = [
-  { to: '/app', label: 'Home', icon: Home, end: true },
-  { to: '/app/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/app/tasks', label: 'Tasks', icon: CheckSquare },
-  { to: '/app/ai', label: 'AI', icon: Brain },
-  { to: '/app/profile', label: 'Profile', icon: UserRound },
-]
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 
 export function AppShell() {
   const location = useLocation()
   const online = useOnline()
+  const { t } = useTranslation()
+
+  const nav = [
+    { to: '/app', label: t('nav.home'), icon: Home, end: true },
+    { to: '/app/projects', label: t('nav.projects'), icon: FolderKanban },
+    { to: '/app/tasks', label: t('nav.tasks'), icon: CheckSquare },
+    { to: '/app/ai', label: t('nav.ai'), icon: Brain },
+    { to: '/app/profile', label: t('nav.profile'), icon: UserRound },
+  ]
 
   return (
     <div className="relative min-h-dvh bg-background">
       <CommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(255,255,255,0.03),_transparent_40%),radial-gradient(ellipse_at_bottom_right,_rgba(96,165,250,0.05),_transparent_45%)]" />
 
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border-subtle bg-surface/60 px-3 py-5 backdrop-blur-xl lg:flex">
+      <aside className="fixed inset-y-0 start-0 z-40 hidden w-60 flex-col border-e border-border-subtle bg-surface/60 px-3 py-5 backdrop-blur-xl lg:flex">
         <div className="mb-8 px-3">
-          <p className="text-lg font-medium tracking-tight">Hilm</p>
-          <p className="text-xs text-muted">Personal OS</p>
+          <p className="text-lg font-medium tracking-tight">{t('brand.name')}</p>
+          <p className="text-xs text-muted">{t('brand.tagline')}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {nav.map((item) => (
@@ -55,20 +58,23 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('hilm:open-command'))}
-          className="mt-auto flex items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-3 py-2 text-sm text-muted hover:text-foreground"
-        >
-          <Search className="size-4" />
-          <span className="flex-1 text-left">Search</span>
-          <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-fg">
-            ⌘K
-          </kbd>
-        </button>
+        <div className="mt-auto space-y-2">
+          <LanguageSwitcher className="w-full justify-between" />
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hilm:open-command'))}
+            className="flex w-full items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-3 py-2 text-sm text-muted hover:text-foreground"
+          >
+            <Search className="size-4" />
+            <span className="flex-1 text-start">{t('common.search')}</span>
+            <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-fg">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
       </aside>
 
-      <div className="relative lg:pl-60">
+      <div className="relative lg:ps-60">
         {!online ? <OfflineBanner /> : null}
         <main className="mx-auto min-h-dvh w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:pb-10 lg:pt-8">
           <AnimatePresence mode="wait">
