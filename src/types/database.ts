@@ -663,6 +663,35 @@ export type Database = {
           in_app_notifications?: boolean
         }
       >
+      push_subscriptions: Table<
+        {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent?: string | null
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          user_agent?: string | null
+          updated_at?: string
+        }
+      >
       attachments: Table<
         {
           id: string

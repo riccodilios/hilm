@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import webpush from 'npm:web-push@3.6.7'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,7 +100,7 @@ async function sendResendEmail(input: {
 }) {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   const from = Deno.env.get('RESEND_FROM_EMAIL') ?? 'Hilm <onboarding@resend.dev>'
-  if (!apiKey) throw new Error('RESEND_API_KEY is not configured')
+  if (!apiKey) return { skipped: true as const }
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -117,6 +118,15 @@ async function sendResendEmail(input: {
   })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
+}
+
+function configureWebPush() {
+  const publicKey = Deno.env.get('VAPID_PUBLIC_KEY')
+  const privateKey = Deno.env.get('VAPID_PRIVATE_KEY')
+  const subject = Deno.env.get('VAPID_SUBJECT') || 'mailto:noreply@hillm.netlify.app'
+  if (!publicKey || !privateKey) return false
+  webpush.setVapidDetails(subject, publicKey, privateKey)
+  return true
 }
 
 Deno.serve(async (request) => {
@@ -139,6 +149,7 @@ Deno.serve(async (request) => {
     const appUrl = (Deno.env.get('APP_URL') || Deno.env.get('SITE_URL') || '').replace(/\/$/, '')
     if (!appUrl) throw new Error('APP_URL must be set for reminder deep links')
 
+    const webPushReady = configureWebPush()
     const admin = createClient(url, serviceKey)
     const now = new Date()
     const windowEnd = new Date(now.getTime() + 60_000).toISOString()
@@ -156,7 +167,9 @@ Deno.serve(async (request) => {
 
     if (error) throw error
 
-    let sent = 0
+    let emailed = 0
+    let pushed = 0
+
     for (const raw of dueReminders ?? []) {
       const reminder = raw as unknown as ReminderRow
       if (reminder.tasks.status === 'done' || reminder.tasks.status === 'archived') {
@@ -188,9 +201,10 @@ Deno.serve(async (request) => {
         email?.split('@')[0] ||
         ''
 
-      const openUrl = `${appUrl}/app/projects/${reminder.project_id}?task=${reminder.task_id}`
+      const taskHref = `/app/tasks/${reminder.task_id}`
+      const openUrl = `${appUrl}${taskHref}`
       const dueLabel = formatDue(reminder.tasks)
-      const channels = reminder.channels?.length ? reminder.channels : ['email']
+      const channels = reminder.channels?.length ? reminder.channels : ['email', 'in_app']
 
       const emailAllowed =
         channels.includes('email') &&
@@ -206,18 +220,59 @@ Deno.serve(async (request) => {
         projectPref?.push_notifications !== false
 
       if (emailAllowed && email) {
-        const mail = buildEmail({
-          userName,
-          projectName: reminder.projects.name,
-          projectColor: reminder.projects.color,
-          taskTitle: reminder.tasks.title,
-          priority: reminder.tasks.priority,
-          dueLabel,
-          openUrl,
-          appUrl,
+        try {
+          const mail = buildEmail({
+            userName,
+            projectName: reminder.projects.name,
+            projectColor: reminder.projects.color,
+            taskTitle: reminder.tasks.title,
+            priority: reminder.tasks.priority,
+            dueLabel,
+            openUrl,
+            appUrl,
+          })
+          const result = await sendResendEmail({ to: email, ...mail })
+          if (!('skipped' in result && result.skipped)) emailed += 1
+        } catch (mailError) {
+          console.error('email failed', mailError)
+        }
+      }
+
+      if (pushAllowed && webPushReady) {
+        const { data: subs } = await admin
+          .from('push_subscriptions')
+          .select('id, endpoint, p256dh, auth')
+          .eq('user_id', reminder.user_id)
+
+        const payload = JSON.stringify({
+          title: `Reminder — ${reminder.tasks.title}`,
+          body: `${reminder.projects.name} · Due ${dueLabel}`,
+          href: taskHref,
+          tag: `task-${reminder.task_id}`,
         })
-        await sendResendEmail({ to: email, ...mail })
-        sent += 1
+
+        for (const sub of subs ?? []) {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              payload,
+            )
+            pushed += 1
+          } catch (pushError) {
+            const statusCode =
+              pushError && typeof pushError === 'object' && 'statusCode' in pushError
+                ? Number((pushError as { statusCode?: number }).statusCode)
+                : 0
+            if (statusCode === 404 || statusCode === 410) {
+              await admin.from('push_subscriptions').delete().eq('id', sub.id)
+            } else {
+              console.error('push failed', pushError)
+            }
+          }
+        }
       }
 
       if (inAppAllowed || pushAllowed) {
@@ -230,7 +285,7 @@ Deno.serve(async (request) => {
           entity_type: 'task',
           entity_id: reminder.task_id,
           project_id: reminder.project_id,
-          href: `/app/tasks/${reminder.task_id}`,
+          href: taskHref,
           metadata: {
             reminder_id: reminder.id,
             push: pushAllowed,
@@ -248,22 +303,30 @@ Deno.serve(async (request) => {
         reminder_datetime: reminder.remind_at,
       }).eq('id', reminder.task_id)
 
+      const channelSummary = [
+        emailed ? 'email' : null,
+        pushAllowed ? 'push' : null,
+        inAppAllowed ? 'in_app' : null,
+      ].filter(Boolean).join(', ')
+
       await admin.from('activity_events').insert({
         user_id: reminder.user_id,
         entity_type: 'task',
         entity_id: reminder.task_id,
         project_id: reminder.project_id,
         action: 'reminder_sent',
-        summary: `Reminder email sent for "${reminder.tasks.title}"`,
+        summary: `Reminder sent for "${reminder.tasks.title}"${channelSummary ? ` (${channelSummary})` : ''}`,
         metadata: {
           reminder_id: reminder.id,
           channels,
+          emailed: Boolean(emailAllowed && email),
+          pushed: pushAllowed,
         },
       })
     }
 
     return Response.json(
-      { ok: true, processed: dueReminders?.length ?? 0, emailed: sent },
+      { ok: true, processed: dueReminders?.length ?? 0, emailed, pushed },
       { headers: corsHeaders },
     )
   } catch (error) {

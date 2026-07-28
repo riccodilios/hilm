@@ -4,7 +4,7 @@ AI Personal Operating System — mobile-first Progressive Web App.
 
 ## Stack
 
-React · TypeScript · Vite · Tailwind CSS · shadcn-style UI · React Router · Framer Motion · TanStack Query · Supabase · OpenRouter (via Edge Functions) · PWA
+React · TypeScript · Vite · Tailwind CSS · shadcn-style UI · React Router · Framer Motion · TanStack Query · Supabase · OpenRouter (via Edge Functions) · PWA · Web Push
 
 ## Production
 
@@ -12,72 +12,43 @@ Live site: [https://hillm.netlify.app](https://hillm.netlify.app)
 
 ### Netlify environment variables
 
-Set these in **Netlify → Site configuration → Environment variables** (then trigger a redeploy):
-
 ```bash
 VITE_APP_URL=https://hillm.netlify.app
 VITE_SUPABASE_URL=https://lrvmlayzmvswfqsqroni.supabase.co
 VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+VITE_VAPID_PUBLIC_KEY=your-vapid-public-key
 ```
 
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are also accepted.
+`NEXT_PUBLIC_*` aliases are also accepted.
+
+### Push notifications (no custom domain)
+
+Web Push works on the Netlify HTTPS subdomain. Users enable it in **Settings → Push notifications** (best after Add to Home Screen).
+
+1. Generate keys: `npx web-push generate-vapid-keys`
+2. Put the **public** key in Netlify as `VITE_VAPID_PUBLIC_KEY`
+3. Put public + **private** keys in Supabase secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
+4. Deploy `send-task-reminders` and schedule it every minute
+
+### Email reminders
+
+Code is ready. Set `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on the edge function.  
+Resend cannot verify `*.netlify.app` — use `onboarding@resend.dev` for testing, or verify any domain you own for production email to all users.
 
 ### Supabase Auth URL configuration
 
-Dashboard → Authentication → URL configuration:
-
 - **Site URL:** `https://hillm.netlify.app`
-- **Redirect URLs:**
-  - `https://hillm.netlify.app/auth/callback`
-  - `http://localhost:5173/auth/callback`
+- **Redirect URLs:** `https://hillm.netlify.app/auth/callback`, `http://localhost:5173/auth/callback`
 
 ## Setup
 
-1. Copy env file and fill credentials:
-
 ```bash
 cp .env.example .env
-```
-
-Set `VITE_APP_URL` to your environment URL (dev/staging/prod). Never leave production pointing at localhost.
-
-2. Apply SQL migrations in order under [`supabase/migrations`](supabase/migrations).
-
-3. Deploy Edge Functions:
-
-```bash
-supabase functions deploy ai-chat
-supabase functions deploy send-task-reminders
-```
-
-Secrets:
-
-```bash
-supabase secrets set APP_URL=https://hillm.netlify.app OPENROUTER_API_KEY=... OPENROUTER_DEFAULT_MODEL=google/gemini-2.5-flash RESEND_API_KEY=... RESEND_FROM_EMAIL="Hilm <noreply@yourdomain.com>" CRON_SECRET=...
-```
-
-4. Schedule reminders (every minute) to `POST /functions/v1/send-task-reminders` with header `x-cron-secret: $CRON_SECRET`.
-
-5. Install and run:
-
-```bash
 npm install
 npm run dev
 ```
 
-## Environment variables
-
-| Variable | Where | Purpose |
-|----------|--------|---------|
-| `VITE_APP_URL` | Netlify / `.env` | Canonical app URL for auth redirects + deep links |
-| `VITE_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` | Netlify / `.env` | Supabase API URL |
-| `VITE_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Netlify / `.env` | Supabase anon/publishable key |
-| `DATABASE_URL` | `.env` | Postgres URI (CLI/migrations only) |
-| `OPENROUTER_API_KEY` | Edge secrets | LLM provider key |
-| `OPENROUTER_DEFAULT_MODEL` | Edge secrets | Defaults to `google/gemini-2.5-flash` |
-| `APP_URL` | Edge secrets | Same production URL used in reminder emails |
-| `RESEND_API_KEY` | Edge secrets | Transactional email delivery |
-| `CRON_SECRET` | Edge secrets | Protects reminder cron endpoint |
+Apply SQL migrations under [`supabase/migrations`](supabase/migrations).
 
 ## Scripts
 

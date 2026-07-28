@@ -19,6 +19,7 @@ import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
+import { syncPushPreference, isWebPushSupported, getVapidPublicKey } from '@/features/notifications/push'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -35,6 +36,8 @@ export function SettingsPage() {
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [projectEmail, setProjectEmail] = useState<Record<string, boolean>>({})
 
+  const [pushBusy, setPushBusy] = useState(false)
+
   useEffect(() => {
     if (profile.data) setDisplayName(profile.data.display_name ?? '')
   }, [profile.data])
@@ -49,6 +52,34 @@ export function SettingsPage() {
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
     }
   }, [settings.data, setTheme])
+
+  async function handlePushToggle(checked: boolean) {
+    setPushBusy(true)
+    try {
+      if (checked) {
+        if (!isWebPushSupported()) {
+          toast.error(t('settings.pushUnsupported'))
+          return
+        }
+        if (!getVapidPublicKey()) {
+          toast.error(t('settings.pushMissingKey'))
+          return
+        }
+        await syncPushPreference(true)
+        setPushNotifications(true)
+        toast.success(t('settings.pushEnabled'))
+      } else {
+        await syncPushPreference(false)
+        setPushNotifications(false)
+        toast.success(t('settings.pushDisabled'))
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('settings.pushFailed'))
+      setPushNotifications(false)
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   useEffect(() => {
     async function loadProjectPrefs() {
@@ -177,7 +208,11 @@ export function SettingsPage() {
                 <p className="text-sm font-medium">{t('settings.pushNotifications')}</p>
                 <p className="text-xs text-muted">{t('settings.pushNotificationsDesc')}</p>
               </div>
-              <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
+              <Switch
+                checked={pushNotifications}
+                disabled={pushBusy}
+                onCheckedChange={(checked) => void handlePushToggle(checked)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="default-reminder">{t('settings.defaultReminder')}</Label>

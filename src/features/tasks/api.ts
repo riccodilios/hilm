@@ -70,6 +70,16 @@ async function upsertPrimaryReminder(input: {
 
   if (!input.remindAt) return null
 
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('email_reminders_enabled, push_notifications_enabled')
+    .eq('user_id', input.userId)
+    .maybeSingle()
+
+  const channels: Array<'email' | 'push' | 'in_app'> = ['in_app']
+  if (settings?.email_reminders_enabled !== false) channels.push('email')
+  if (settings?.push_notifications_enabled) channels.push('push')
+
   const { data, error } = await supabase
     .from('task_reminders')
     .insert({
@@ -78,7 +88,7 @@ async function upsertPrimaryReminder(input: {
       project_id: input.projectId,
       remind_at: input.remindAt,
       reminder_type: input.reminderType,
-      channels: ['email', 'in_app'],
+      channels,
     })
     .select('*')
     .single()
