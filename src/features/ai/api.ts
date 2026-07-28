@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
 import { aiActionsArraySchema } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
@@ -122,11 +123,11 @@ export async function* streamChat(input: {
   }
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`, {
+    const response = await fetch(`${getSupabaseUrl()}/functions/v1/ai-chat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+        apikey: getSupabaseAnonKey(),
         'Content-Type': 'application/json',
         Accept: 'text/event-stream, application/json',
       },

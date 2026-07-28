@@ -1,11 +1,22 @@
 /**
  * Canonical app URL for auth redirects, deep links, and emails.
- * Never hardcode localhost in production — set VITE_APP_URL / APP_URL per environment.
+ * Never hardcode localhost in production — set VITE_APP_URL / NEXT_PUBLIC_APP_URL per environment.
  */
+function readEnv(...keys: string[]) {
+  for (const key of keys) {
+    const value = (import.meta.env[key] as string | undefined)?.trim()
+    if (value) return value
+  }
+  return undefined
+}
+
 export function getAppUrl(): string {
-  const fromEnv =
-    (import.meta.env.VITE_APP_URL as string | undefined)?.trim() ||
-    (import.meta.env.VITE_SITE_URL as string | undefined)?.trim()
+  const fromEnv = readEnv(
+    'VITE_APP_URL',
+    'NEXT_PUBLIC_APP_URL',
+    'VITE_SITE_URL',
+    'NEXT_PUBLIC_SITE_URL',
+  )
 
   if (fromEnv) {
     return fromEnv.replace(/\/$/, '')
@@ -33,6 +44,23 @@ export function getTaskDeepLink(taskId: string, projectId?: string | null): stri
 
 export function getProjectDeepLink(projectId: string): string {
   return `${getAppUrl()}/app/projects/${projectId}`
+}
+
+export function getSupabaseUrl() {
+  return (
+    readEnv('VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL') ?? ''
+  )
+}
+
+export function getSupabaseAnonKey() {
+  return (
+    readEnv(
+      'VITE_SUPABASE_ANON_KEY',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'VITE_SUPABASE_PUBLISHABLE_KEY',
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    ) ?? ''
+  )
 }
 
 export const isDev = import.meta.env.DEV
