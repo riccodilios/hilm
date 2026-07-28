@@ -20,6 +20,11 @@
   to = "/.netlify/functions/ai-chat"
   status = 200
 
+[[redirects]]
+  from = "/api/ai-daily-log"
+  to = "/.netlify/functions/ai-daily-log"
+  status = 200
+
 # Keep API/functions ahead of the SPA fallback
 [[redirects]]
   from = "/api/send-task-reminders"
