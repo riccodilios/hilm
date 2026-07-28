@@ -1,9 +1,5 @@
--- Schedule reminder worker against the Netlify HTTPS app (no custom domain).
--- Uses Web Push + in-app only; email is optional and not required.
--- Auth secret is read from private.server_secrets (never hardcode in SQL).
-
-create extension if not exists pg_net with schema extensions;
-create extension if not exists pg_cron with schema pg_catalog;
+-- Re-point cron at Netlify using CRON_SECRET from private.server_secrets
+-- (avoids embedding secrets in migration source / Netlify secret scan).
 
 do $$
 begin

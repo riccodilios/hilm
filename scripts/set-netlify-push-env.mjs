@@ -69,7 +69,7 @@ const vars = {
   VAPID_PRIVATE_KEY: local.VAPID_PRIVATE_KEY,
   VAPID_SUBJECT: local.VAPID_SUBJECT || 'mailto:noreply@hillm.netlify.app',
   DATABASE_URL: local.DATABASE_URL,
-  CRON_SECRET: local.CRON_SECRET || 'hilm-cron-change-me-in-prod',
+  CRON_SECRET: local.CRON_SECRET,
   VITE_SUPABASE_URL: local.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: local.VITE_SUPABASE_ANON_KEY,
 }

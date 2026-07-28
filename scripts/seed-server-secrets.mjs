@@ -27,7 +27,7 @@ const rows = [
   ['VAPID_PRIVATE_KEY', env.VAPID_PRIVATE_KEY],
   ['VAPID_SUBJECT', env.VAPID_SUBJECT || 'mailto:noreply@hillm.netlify.app'],
   ['APP_URL', env.APP_URL || 'https://hillm.netlify.app'],
-  ['CRON_SECRET', env.CRON_SECRET || 'hilm-cron-change-me-in-prod'],
+  ['CRON_SECRET', env.CRON_SECRET],
 ]
 
 for (const [key, value] of rows) {

@@ -21,7 +21,7 @@ VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_
 VAPID_PRIVATE_KEY=...   # from .vapid.local — server only, never VITE_
 VAPID_SUBJECT=mailto:noreply@hillm.netlify.app
 DATABASE_URL=postgresql://...   # same as local .env — server only
-CRON_SECRET=hilm-cron-change-me-in-prod
+CRON_SECRET=   # long random string — set via scripts/set-netlify-push-env.mjs
 APP_URL=https://hillm.netlify.app
 ```
 
