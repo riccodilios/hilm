@@ -37,6 +37,8 @@ export function isSpeechDictationSupported() {
 
 export function useSpeechDictation(opts: {
   lang?: string
+  /** When true, recognition restarts after silence / browser pause so the user can keep talking. */
+  keepAlive?: boolean
   onFinal: (transcript: string) => void
   onError?: (message: string) => void
 }) {
@@ -45,6 +47,9 @@ export function useSpeechDictation(opts: {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const onFinalRef = useRef(opts.onFinal)
   const onErrorRef = useRef(opts.onError)
+  const keepAliveRef = useRef(Boolean(opts.keepAlive))
+  const intentionalStopRef = useRef(false)
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const supported = isSpeechDictationSupported()
 
   useEffect(() => {
@@ -56,16 +61,32 @@ export function useSpeechDictation(opts: {
   }, [opts.onError])
 
   useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort()
-      recognitionRef.current = null
+    keepAliveRef.current = Boolean(opts.keepAlive)
+  }, [opts.keepAlive])
+
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      intentionalStopRef.current = true
+      clearRestartTimer()
+      recognitionRef.current?.abort()
+      recognitionRef.current = null
+    }
+  }, [clearRestartTimer])
+
   const stop = useCallback(() => {
+    intentionalStopRef.current = true
+    clearRestartTimer()
     recognitionRef.current?.stop()
     setListening(false)
-  }, [])
+    setInterim('')
+  }, [clearRestartTimer])
 
   const start = useCallback(() => {
     const Ctor = getSpeechRecognitionCtor()
@@ -74,7 +95,10 @@ export function useSpeechDictation(opts: {
       return
     }
 
+    intentionalStopRef.current = false
+    clearRestartTimer()
     recognitionRef.current?.abort()
+
     const recognition = new Ctor()
     recognition.lang = opts.lang || 'en-US'
     recognition.continuous = true
@@ -95,15 +119,37 @@ export function useSpeechDictation(opts: {
     }
 
     recognition.onerror = (event) => {
+      // Silence / aborted are normal while keep-alive dictation is running.
       if (event.error === 'aborted' || event.error === 'no-speech') return
+      if (keepAliveRef.current && event.error === 'network') return
       onErrorRef.current?.(event.error)
+      intentionalStopRef.current = true
       setListening(false)
       setInterim('')
     }
 
     recognition.onend = () => {
-      setListening(false)
       setInterim('')
+      if (intentionalStopRef.current || !keepAliveRef.current) {
+        setListening(false)
+        return
+      }
+      // Browsers end recognition after pauses even with continuous=true — restart quietly.
+      clearRestartTimer()
+      restartTimerRef.current = setTimeout(() => {
+        if (intentionalStopRef.current || !keepAliveRef.current) {
+          setListening(false)
+          return
+        }
+        try {
+          recognition.start()
+          setListening(true)
+        } catch {
+          // Some browsers require a fresh instance after onend.
+          recognitionRef.current = null
+          start()
+        }
+      }, 180)
     }
 
     recognitionRef.current = recognition
@@ -115,7 +161,7 @@ export function useSpeechDictation(opts: {
       onErrorRef.current?.('start-failed')
       setListening(false)
     }
-  }, [opts.lang])
+  }, [clearRestartTimer, opts.lang])
 
   const toggle = useCallback(() => {
     if (listening) stop()

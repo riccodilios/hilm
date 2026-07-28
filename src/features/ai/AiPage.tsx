@@ -43,6 +43,15 @@ function speechLangFromI18n(lng: string) {
   return lng.startsWith('ar') ? 'ar-SA' : 'en-US'
 }
 
+function appendVoiceText(current: string, addition: string) {
+  const next = addition.trim()
+  if (!next) return current
+  const base = current.trimEnd()
+  if (!base) return next
+  const needsSpace = !/[\s\n]$/.test(base)
+  return `${base}${needsSpace ? ' ' : ''}${next}`
+}
+
 function actionLabel(action: AiAction) {
   switch (action.type) {
     case 'task.create':
@@ -206,12 +215,10 @@ export function AiPage() {
 
   const dictation = useSpeechDictation({
     lang: speechLangFromI18n(i18n.language),
+    keepAlive: voiceMode && !streaming,
     onFinal: (transcript) => {
       if (streamingRef.current) return
-      const next = transcript.trim()
-      if (!next) return
-      setInput(next)
-      void sendMessageRef.current(next)
+      setInput((prev) => appendVoiceText(prev, transcript))
     },
     onError: (code) => {
       setVoiceMode(false)
@@ -278,7 +285,6 @@ export function AiPage() {
   }
 
   const displayedMessages: DraftMessage[] = [...(messages.data ?? []), ...(draft ? [draft] : [])]
-  const composerValue = dictation.listening && dictation.interim ? dictation.interim : input
   const chatTitle = selectedConversation?.title || t('ai.newChat')
 
   return (
@@ -514,20 +520,19 @@ export function AiPage() {
                 unsupportedKey="ai.voiceUnsupported"
                 className="shrink-0"
               />
-              <Textarea
-                value={composerValue}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    void sendMessage()
-                  }
-                }}
-                placeholder={voiceMode ? t('ai.voicePlaceholder') : t('ai.placeholder')}
-                className="min-h-10 resize-none border-0 bg-transparent px-2 py-1 shadow-none focus-visible:ring-0"
-                rows={1}
-                readOnly={dictation.listening && Boolean(dictation.interim)}
-              />
+                <Textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      void sendMessage()
+                    }
+                  }}
+                  placeholder={voiceMode ? t('ai.voicePlaceholder') : t('ai.placeholder')}
+                  className="min-h-10 resize-none border-0 bg-transparent px-2 py-1 shadow-none focus-visible:ring-0"
+                  rows={1}
+                />
               <Button type="submit" size="icon" disabled={!input.trim() || streaming} aria-label={t('ai.send')}>
                 {streaming ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
               </Button>
