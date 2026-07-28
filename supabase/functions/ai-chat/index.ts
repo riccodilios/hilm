@@ -97,9 +97,26 @@ Deno.serve(async (request) => {
       .select('openrouter_api_key_encrypted, default_model')
       .eq('user_id', user.id)
       .single()
-    if (settingsError || !settings?.openrouter_api_key_encrypted) throw new Error('Add an OpenRouter API key in Settings first')
+    if (settingsError) throw settingsError
 
-    const apiKey = await decryptKey(settings.openrouter_api_key_encrypted, Deno.env.get('ENCRYPTION_SECRET'))
+    const envOpenRouterKey = Deno.env.get('OPENROUTER_API_KEY')
+    let apiKey = envOpenRouterKey ?? ''
+    if (settings?.openrouter_api_key_encrypted) {
+      apiKey = await decryptKey(
+        settings.openrouter_api_key_encrypted,
+        Deno.env.get('ENCRYPTION_SECRET'),
+      )
+    }
+    if (!apiKey) {
+      throw new Error(
+        'Add OPENROUTER_API_KEY as an Edge Function secret, or paste your key in Settings',
+      )
+    }
+
+    const defaultModel =
+      Deno.env.get('OPENROUTER_DEFAULT_MODEL') ??
+      settings?.default_model ??
+      'anthropic/claude-sonnet-4'
     const activeProjectId = body.projectId ?? conversation.project_id
     const [{ data: history }, { data: projects }, { data: tasks }] = await Promise.all([
       admin.from('ai_messages').select('role, content').eq('conversation_id', body.conversationId).order('created_at', { ascending: false }).limit(16),
@@ -126,7 +143,7 @@ Tasks: ${JSON.stringify(scopedTasks)}`
         'X-Title': 'Hilm',
       },
       body: JSON.stringify({
-        model: body.model ?? conversation.model ?? settings.default_model,
+        model: body.model ?? conversation.model ?? defaultModel,
         stream: true,
         messages: [
           { role: 'system', content: systemPrompt },

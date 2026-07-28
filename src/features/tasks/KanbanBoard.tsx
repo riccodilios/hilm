@@ -22,7 +22,7 @@ function TaskCard({ task, overlay = false }: { task: Task; overlay?: boolean }) 
   return (
     <Link
       ref={setNodeRef}
-      to={`/tasks/${task.id}`}
+      to={`/app/tasks/${task.id}`}
       {...attributes}
       {...listeners}
       onClick={(event) => {

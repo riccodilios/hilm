@@ -10,7 +10,7 @@ export function KanbanPage() {
       <PageHeader
         title="Task board"
         description="Move work forward, one column at a time."
-        actions={<Button asChild><Link to="/tasks?new=1"><Plus /> New task</Link></Button>}
+        actions={<Button asChild><Link to="/app/tasks?new=1"><Plus /> New task</Link></Button>}
       />
       <KanbanBoard />
     </div>

@@ -15,7 +15,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (!loading && user) return <Navigate to="/" replace />
+  if (!loading && user) return <Navigate to="/app" replace />
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,7 +27,7 @@ export function LoginPage() {
     try {
       await signIn(email, password)
       toast.success('Welcome back')
-      navigate('/')
+      navigate('/app')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sign in failed')
     } finally {

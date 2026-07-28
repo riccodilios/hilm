@@ -92,7 +92,7 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Button asChild type="button" variant="secondary">
-              <Link to="/export"><Download className="size-4" /> Open export scaffold</Link>
+              <Link to="/app/export"><Download className="size-4" /> Open export scaffold</Link>
             </Button>
           </CardContent>
         </Card>

@@ -37,11 +37,11 @@ export function TaskDetailPage() {
   })
 
   if (isLoading) return <Skeleton className="h-96" />
-  if (!task) return <EmptyState title="Task not found" action={<Button asChild><Link to="/tasks">Back to tasks</Link></Button>} />
+  if (!task) return <EmptyState title="Task not found" action={<Button asChild><Link to="/app/tasks">Back to tasks</Link></Button>} />
 
   return (
     <div className="max-w-3xl">
-      <Button variant="ghost" size="sm" asChild className="mb-4"><Link to="/tasks"><ChevronLeft /> Tasks</Link></Button>
+      <Button variant="ghost" size="sm" asChild className="mb-4"><Link to="/app/tasks"><ChevronLeft /> Tasks</Link></Button>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-medium tracking-tight">Task details</h1>
         <Button disabled={task.status === 'done' || save.isPending} onClick={() => save.mutate({ status: 'done' })}><Check /> {task.status === 'done' ? 'Completed' : 'Complete task'}</Button>

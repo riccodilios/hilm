@@ -11,13 +11,14 @@ import {
 import { cn } from '@/lib/utils'
 import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { useOnline } from '@/hooks/useOnline'
+import { CommandPalette } from '@/features/command-palette/CommandPalette'
 
 const nav = [
-  { to: '/', label: 'Home', icon: Home, end: true },
-  { to: '/projects', label: 'Projects', icon: FolderKanban },
-  { to: '/tasks', label: 'Tasks', icon: CheckSquare },
-  { to: '/ai', label: 'AI', icon: Brain },
-  { to: '/profile', label: 'Profile', icon: UserRound },
+  { to: '/app', label: 'Home', icon: Home, end: true },
+  { to: '/app/projects', label: 'Projects', icon: FolderKanban },
+  { to: '/app/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/app/ai', label: 'AI', icon: Brain },
+  { to: '/app/profile', label: 'Profile', icon: UserRound },
 ]
 
 export function AppShell() {
@@ -26,6 +27,7 @@ export function AppShell() {
 
   return (
     <div className="relative min-h-dvh bg-background">
+      <CommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(255,255,255,0.03),_transparent_40%),radial-gradient(ellipse_at_bottom_right,_rgba(96,165,250,0.05),_transparent_45%)]" />
 
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border-subtle bg-surface/60 px-3 py-5 backdrop-blur-xl lg:flex">

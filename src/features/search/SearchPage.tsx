@@ -103,21 +103,21 @@ export function SearchPage() {
         <div className="space-y-8">
           <ResultSection title="Projects" empty={results.projects.length === 0}>
             {results.projects.map((p) => (
-              <Link key={p.id} to={`/projects/${p.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={p.id} to={`/app/projects/${p.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {p.name}
               </Link>
             ))}
           </ResultSection>
           <ResultSection title="Tasks" empty={results.tasks.length === 0}>
             {results.tasks.map((t) => (
-              <Link key={t.id} to={`/tasks/${t.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={t.id} to={`/app/tasks/${t.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {t.title}
               </Link>
             ))}
           </ResultSection>
           <ResultSection title="Notes" empty={results.notes.length === 0}>
             {results.notes.map((n) => (
-              <Link key={n.id} to={`/notes/${n.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={n.id} to={`/app/notes/${n.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {n.title}
               </Link>
             ))}
@@ -131,7 +131,7 @@ export function SearchPage() {
           </ResultSection>
           <ResultSection title="AI conversations" empty={results.conversations.length === 0}>
             {results.conversations.map((c) => (
-              <Link key={c.id} to={`/ai?c=${c.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={c.id} to={`/app/ai?c=${c.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {c.title}
               </Link>
             ))}

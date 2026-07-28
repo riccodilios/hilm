@@ -44,7 +44,7 @@ export function HomePage() {
         description={format(new Date(), 'EEEE, MMMM d')}
         actions={
           <Button asChild variant="secondary" size="sm">
-            <Link to="/ai">
+            <Link to="/app/ai">
               <Sparkles className="size-4" />
               Ask AI
             </Link>
@@ -70,7 +70,7 @@ export function HomePage() {
             </div>
             <div className="mt-6">
               <Button asChild>
-                <Link to={`/tasks/${data.focus.id}`}>
+                <Link to={`/app/tasks/${data.focus.id}`}>
                   Open task <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -82,10 +82,10 @@ export function HomePage() {
             <h2 className="mt-3 text-2xl font-medium tracking-tight">Inbox zero — create a task or ask AI what to do next.</h2>
             <div className="mt-6 flex gap-2">
               <Button asChild>
-                <Link to="/tasks?new=1">New task</Link>
+                <Link to="/app/tasks?new=1">New task</Link>
               </Button>
               <Button asChild variant="secondary">
-                <Link to="/ai">Ask Chief of Staff</Link>
+                <Link to="/app/ai">Ask Chief of Staff</Link>
               </Button>
             </div>
           </>
@@ -115,7 +115,7 @@ export function HomePage() {
             {[...data.overdueTasks, ...data.todayTasks].slice(0, 8).map((task) => (
               <Link
                 key={task.id}
-                to={`/tasks/${task.id}`}
+                to={`/app/tasks/${task.id}`}
                 className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
                 <div className="min-w-0">
@@ -141,7 +141,7 @@ export function HomePage() {
             {data.upcoming.slice(0, 8).map((task) => (
               <Link
                 key={task.id}
-                to={`/tasks/${task.id}`}
+                to={`/app/tasks/${task.id}`}
                 className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
                 <p className="truncate text-sm">{task.title}</p>
@@ -164,7 +164,7 @@ export function HomePage() {
             {data.projects.slice(0, 6).map((project) => (
               <Link
                 key={project.id}
-                to={`/projects/${project.id}`}
+                to={`/app/projects/${project.id}`}
                 className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
                 <span
@@ -186,7 +186,7 @@ export function HomePage() {
             {data.projects.length === 0 ? (
               <p className="text-sm text-muted">
                 No projects yet.{' '}
-                <Link to="/projects" className="underline">
+                <Link to="/app/projects" className="underline">
                   Create one
                 </Link>
               </p>
@@ -237,7 +237,7 @@ export function HomePage() {
               <p className="text-sm text-muted">No log for today yet.</p>
             )}
             <Button asChild variant="ghost" size="sm" className="mt-3 px-0">
-              <Link to="/daily-log">Open daily log</Link>
+              <Link to="/app/daily-log">Open daily log</Link>
             </Button>
           </CardContent>
         </Card>
@@ -250,7 +250,7 @@ export function HomePage() {
             {data.recentNotes.map((note) => (
               <Link
                 key={note.id}
-                to={`/notes/${note.id}`}
+                to={`/app/notes/${note.id}`}
                 className="block rounded-lg px-2 py-2 hover:bg-surface-2"
               >
                 <p className="text-sm">{note.title}</p>

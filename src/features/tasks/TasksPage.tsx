@@ -49,7 +49,7 @@ export function TasksPage() {
       <PageHeader
         title="Tasks"
         description="Keep your next actions clear and moving."
-        actions={<><Button variant="secondary" asChild><Link to="/tasks/board"><Columns3 /> Board</Link></Button><Button onClick={() => setOpen(true)}><Plus /> New task</Button></>}
+        actions={<><Button variant="secondary" asChild><Link to="/app/tasks/board"><Columns3 /> Board</Link></Button><Button onClick={() => setOpen(true)}><Plus /> New task</Button></>}
       />
       <div className="mb-5 flex flex-wrap gap-2">
         <Button size="sm" variant={!status ? 'default' : 'secondary'} onClick={() => setStatus(undefined)}>All</Button>
@@ -61,7 +61,7 @@ export function TasksPage() {
         <EmptyState title="No tasks found" description="Capture your next action to get started." action={<Button onClick={() => setOpen(true)}><Plus /> New task</Button>} />
       ) : (
         <div className="space-y-2">
-          {tasks.map((task) => <Link key={task.id} to={`/tasks/${task.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface">
+          {tasks.map((task) => <Link key={task.id} to={`/app/tasks/${task.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface">
             <div className="min-w-0"><p className="truncate font-medium">{task.title}</p><p className="mt-1 text-xs text-muted">{task.due_at ? `Due ${new Date(task.due_at).toLocaleDateString()}` : 'No due date'}</p></div>
             <div className="flex shrink-0 items-center gap-2"><PriorityBadge priority={task.priority} /><StatusBadge status={task.status} /></div>
           </Link>)}

@@ -32,17 +32,17 @@ export default defineConfig({
           {
             name: "Today's Tasks",
             short_name: 'Today',
-            url: '/?focus=today',
+            url: '/app?focus=today',
           },
           {
             name: 'Ask AI',
             short_name: 'AI',
-            url: '/ai',
+            url: '/app/ai',
           },
           {
             name: 'New Task',
             short_name: 'Task',
-            url: '/tasks?new=1',
+            url: '/app/tasks?new=1',
           },
         ],
       },

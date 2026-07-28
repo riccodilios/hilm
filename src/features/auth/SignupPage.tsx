@@ -16,7 +16,7 @@ export function SignupPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (!loading && user) return <Navigate to="/" replace />
+  if (!loading && user) return <Navigate to="/app" replace />
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,7 +28,7 @@ export function SignupPage() {
     try {
       await signUp(email, password, displayName)
       toast.success('Account created — check email if confirmation is required')
-      navigate('/')
+      navigate('/app')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sign up failed')
     } finally {

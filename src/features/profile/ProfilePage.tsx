@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
 const links = [
-  { to: '/settings', label: 'Settings', description: 'Profile, theme, and AI provider preferences.', icon: Settings },
-  { to: '/daily-log', label: 'Daily log', description: 'Capture progress, wins, and blockers.', icon: BookOpen },
-  { to: '/activity', label: 'Activity', description: 'Review the recent history of your workspace.', icon: Activity },
-  { to: '/ideas', label: 'Ideas', description: 'Explore and prioritize ideas (coming soon).', icon: Lightbulb },
+  { to: '/app/settings', label: 'Settings', description: 'Profile, theme, and AI provider preferences.', icon: Settings },
+  { to: '/app/daily-log', label: 'Daily log', description: 'Capture progress, wins, and blockers.', icon: BookOpen },
+  { to: '/app/activity', label: 'Activity', description: 'Review the recent history of your workspace.', icon: Activity },
+  { to: '/app/ideas', label: 'Ideas', description: 'Explore and prioritize ideas (coming soon).', icon: Lightbulb },
 ]
 
 export function ProfilePage() {

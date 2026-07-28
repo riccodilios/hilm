@@ -38,7 +38,19 @@ npm install
 npm run dev
 ```
 
-6. Sign up, open **Settings**, paste your **OpenRouter API key**, pick a default model.
+6. Sign up, then either:
+   - Put `OPENROUTER_API_KEY` in `.env` and set it as a Supabase Edge secret, **or**
+   - Paste your OpenRouter key in **Settings** (BYOK)
+
+## Environment variables
+
+| Variable | Where | Purpose |
+|----------|--------|---------|
+| `VITE_SUPABASE_URL` | `.env` | `https://<project-ref>.supabase.co` (API URL, not Postgres) |
+| `VITE_SUPABASE_ANON_KEY` | `.env` | Supabase anon/public key |
+| `DATABASE_URL` | `.env` | Postgres URI for migrations/CLI only |
+| `OPENROUTER_API_KEY` | `.env` + Edge secrets | OpenRouter key (never `VITE_` — not shipped to browser) |
+| `OPENROUTER_DEFAULT_MODEL` | `.env` + Edge secrets | Default model id |
 
 ## Scripts
 

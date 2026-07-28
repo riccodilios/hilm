@@ -122,7 +122,7 @@ export function ProjectsPage() {
           {data.map((project) => (
             <Link
               key={project.id}
-              to={`/projects/${project.id}`}
+              to={`/app/projects/${project.id}`}
               className="group rounded-2xl border border-border-subtle bg-surface/70 p-5 transition-colors hover:border-border hover:bg-surface"
             >
               <div className="flex items-start justify-between gap-3">

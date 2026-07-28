@@ -5,8 +5,14 @@ import { RequireAuth } from '@/features/auth/RequireAuth'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { SignupPage } from '@/features/auth/SignupPage'
 import { Skeleton } from '@/components/ui/page'
-import { CommandPalette } from '@/features/command-palette/CommandPalette'
+import { LandingSkeleton } from '@/features/landing/LandingSkeleton'
 
+const LandingPage = lazy(() =>
+  import('@/features/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
+const PrivacyPage = lazy(() =>
+  import('@/features/landing/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+)
 const HomePage = lazy(() =>
   import('@/features/home/HomePage').then((m) => ({ default: m.HomePage })),
 )
@@ -51,9 +57,9 @@ const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
 
-function PageFallback() {
+function AppFallback() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-6">
       <Skeleton className="h-10 w-48" />
       <Skeleton className="h-40 w-full" />
       <Skeleton className="h-64 w-full" />
@@ -64,68 +70,116 @@ function PageFallback() {
 export function AppRouter() {
   return (
     <BrowserRouter>
-      <CommandPalette />
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route element={<RequireAuth />}>
-            <Route element={<AppShell />}>
-              <Route index element={<HomePage />} />
-              <Route path="projects" element={<ProjectsPage />} />
-              <Route path="projects/:id" element={<ProjectDetailPage />} />
-              <Route path="tasks" element={<TasksPage />} />
-              <Route path="tasks/board" element={<KanbanPage />} />
-              <Route path="tasks/:id" element={<TaskDetailPage />} />
-              <Route path="ai" element={<AiPage />} />
-              <Route path="notes" element={<NotesPage />} />
-              <Route path="notes/:id" element={<NoteEditorPage />} />
-              <Route path="daily-log" element={<DailyLogPage />} />
-              <Route path="activity" element={<ActivityPage />} />
-              <Route path="search" element={<SearchPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route
-                path="ideas"
-                element={
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<LandingSkeleton />}>
+              <LandingPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <Suspense fallback={<LandingSkeleton />}>
+              <PrivacyPage />
+            </Suspense>
+          }
+        />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+
+        <Route element={<RequireAuth />}>
+          <Route
+            path="/app"
+            element={
+              <Suspense fallback={<AppFallback />}>
+                <AppShell />
+              </Suspense>
+            }
+          >
+            <Route
+              index
+              element={
+                <Suspense fallback={<AppFallback />}>
+                  <HomePage />
+                </Suspense>
+              }
+            />
+            <Route path="projects" element={<Suspense fallback={<AppFallback />}><ProjectsPage /></Suspense>} />
+            <Route path="projects/:id" element={<Suspense fallback={<AppFallback />}><ProjectDetailPage /></Suspense>} />
+            <Route path="tasks" element={<Suspense fallback={<AppFallback />}><TasksPage /></Suspense>} />
+            <Route path="tasks/board" element={<Suspense fallback={<AppFallback />}><KanbanPage /></Suspense>} />
+            <Route path="tasks/:id" element={<Suspense fallback={<AppFallback />}><TaskDetailPage /></Suspense>} />
+            <Route path="ai" element={<Suspense fallback={<AppFallback />}><AiPage /></Suspense>} />
+            <Route path="notes" element={<Suspense fallback={<AppFallback />}><NotesPage /></Suspense>} />
+            <Route path="notes/:id" element={<Suspense fallback={<AppFallback />}><NoteEditorPage /></Suspense>} />
+            <Route path="daily-log" element={<Suspense fallback={<AppFallback />}><DailyLogPage /></Suspense>} />
+            <Route path="activity" element={<Suspense fallback={<AppFallback />}><ActivityPage /></Suspense>} />
+            <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
+            <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
+            <Route
+              path="ideas"
+              element={
+                <Suspense fallback={<AppFallback />}>
                   <ScaffoldPage
                     title="Ideas"
                     description="Idea inbox with impact/effort scoring — coming next."
                   />
-                }
-              />
-              <Route
-                path="meetings"
-                element={
+                </Suspense>
+              }
+            />
+            <Route
+              path="meetings"
+              element={
+                <Suspense fallback={<AppFallback />}>
                   <ScaffoldPage
                     title="Meetings"
                     description="Meeting notes and AI summaries — scaffolded for expansion."
                   />
-                }
-              />
-              <Route
-                path="releases"
-                element={
+                </Suspense>
+              }
+            />
+            <Route
+              path="releases"
+              element={
+                <Suspense fallback={<AppFallback />}>
                   <ScaffoldPage
                     title="Releases"
                     description="Release notes and ship history — scaffolded for expansion."
                   />
-                }
-              />
-              <Route
-                path="documents"
-                element={
+                </Suspense>
+              }
+            />
+            <Route
+              path="documents"
+              element={
+                <Suspense fallback={<AppFallback />}>
                   <ScaffoldPage
                     title="Documents"
                     description="Project documentation hub — scaffolded for expansion."
                   />
-                }
-              />
-            </Route>
+                </Suspense>
+              }
+            />
+            <Route
+              path="export"
+              element={
+                <Suspense fallback={<AppFallback />}>
+                  <ScaffoldPage
+                    title="Export"
+                    description="Export and import your Hilm data — scaffolded for expansion."
+                  />
+                </Suspense>
+              }
+            />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   )
 }
