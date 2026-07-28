@@ -31,6 +31,7 @@ export function applyDocumentLanguage(lng: string) {
   document.documentElement.lang = language
   document.documentElement.dir = dir
   document.documentElement.dataset.locale = language
+  document.title = language === 'ar' ? 'حلم' : 'Hilm'
   return { language, dir }
 }
 

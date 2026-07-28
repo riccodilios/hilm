@@ -24,7 +24,8 @@
     "arabic": "Arabic",
     "noResults": "No results.",
     "comingSoon": "Scaffolded for expansion",
-    "comingSoonBody": "Schema and navigation are ready. Full UI ships in a later phase."
+    "comingSoonBody": "Schema and navigation are ready. Full UI ships in a later phase.",
+    "signOut": "Sign out"
   },
   "nav": {
     "home": "Home",
@@ -386,7 +387,11 @@
     "pushNotifications": "Push notifications",
     "pushNotificationsDesc": "Future-ready push channel (enable when configured).",
     "defaultReminder": "Default reminder timing",
-    "perProject": "Email reminders per project"
+    "perProject": "Email reminders per project",
+    "account": "Account",
+    "accountDesc": "Sign out of Hilm on this device.",
+    "signOut": "Sign out",
+    "signedOut": "Signed out"
   },
   "profile": {
     "title": "Profile",

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, Save } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Download, LogOut, Save } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings } from '@/features/settings/api'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,6 +22,8 @@ import { requireUserId } from '@/lib/supabase/activity'
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
@@ -96,6 +99,18 @@ export function SettingsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: settingsKeys.all })
       toast.success(t('settings.saved'))
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const logout = useMutation({
+    mutationFn: async () => {
+      await signOut()
+    },
+    onSuccess: () => {
+      queryClient.clear()
+      toast.success(t('settings.signedOut'))
+      navigate('/login', { replace: true })
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -225,6 +240,23 @@ export function SettingsPage() {
               <Link to="/app/export">
                 <Download className="size-4" /> {t('settings.export')}
               </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.account')}</CardTitle>
+            <CardDescription>{t('settings.accountDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={logout.isPending}
+              onClick={() => logout.mutate()}
+            >
+              <LogOut className="size-4" /> {t('settings.signOut')}
             </Button>
           </CardContent>
         </Card>
