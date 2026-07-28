@@ -1,9 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import {
-  Bell,
   Brain,
   CheckSquare,
   FolderKanban,
@@ -16,29 +14,17 @@ import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { useOnline } from '@/hooks/useOnline'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import {
-  countUnreadNotifications,
-  notificationsKeys,
-} from '@/features/notifications/api'
 
 export function AppShell() {
   const location = useLocation()
   const online = useOnline()
   const { t } = useTranslation()
-  const unread = useQuery({
-    queryKey: notificationsKeys.unreadCount(),
-    queryFn: countUnreadNotifications,
-    staleTime: 15_000,
-    refetchInterval: 60_000,
-  })
-  const unreadCount = unread.data ?? 0
 
   const nav = [
     { to: '/app', label: t('nav.home'), icon: Home, end: true },
     { to: '/app/projects', label: t('nav.projects'), icon: FolderKanban },
     { to: '/app/tasks', label: t('nav.tasks'), icon: CheckSquare },
     { to: '/app/ai', label: t('nav.ai'), icon: Brain },
-    { to: '/app/notifications', label: t('nav.notifications'), icon: Bell, badge: unreadCount },
     { to: '/app/profile', label: t('nav.profile'), icon: UserRound },
   ]
 
@@ -68,12 +54,7 @@ export function AppShell() {
               }
             >
               <item.icon className="size-4" />
-              <span className="flex-1">{item.label}</span>
-              {item.badge ? (
-                <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[10px] font-medium text-background">
-                  {item.badge > 99 ? '99+' : item.badge}
-                </span>
-              ) : null}
+              {item.label}
             </NavLink>
           ))}
         </nav>
@@ -110,7 +91,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-surface/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-surface/90 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-lg items-stretch justify-between">
           {nav.map((item) => (
             <NavLink
@@ -119,18 +100,13 @@ export function AppShell() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px]',
+                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px]',
                   isActive ? 'text-foreground' : 'text-muted',
                 )
               }
             >
               <item.icon className="size-5" />
-              {item.badge ? (
-                <span className="absolute end-1/2 top-1.5 translate-x-3 rounded-full bg-foreground px-1 text-[9px] font-medium leading-4 text-background rtl:-translate-x-3">
-                  {item.badge > 9 ? '9+' : item.badge}
-                </span>
-              ) : null}
-              <span className="truncate">{item.label}</span>
+              {item.label}
             </NavLink>
           ))}
         </div>

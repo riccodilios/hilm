@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Columns3, Plus } from 'lucide-react'
+import { Bell, Columns3, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { createTask, listTasks, tasksKeys } from '@/features/tasks/api'
 import { homeKeys } from '@/features/home/api'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { TaskListItem } from '@/features/tasks/TaskListItem'
 import { TaskActionsDialog } from '@/features/tasks/TaskActionsDialog'
+import {
+  countUnreadNotifications,
+  notificationsKeys,
+} from '@/features/notifications/api'
 import { REMINDER_OPTIONS, type ReminderType, type TaskWithProject } from '@/features/tasks/reminders'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -31,6 +35,13 @@ export function TasksPage() {
   const [dueTime, setDueTime] = useState('')
   const [reminderType, setReminderType] = useState<ReminderType>('1h')
   const [menuTask, setMenuTask] = useState<TaskWithProject | null>(null)
+  const unread = useQuery({
+    queryKey: notificationsKeys.unreadCount(),
+    queryFn: countUnreadNotifications,
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+  })
+  const unreadCount = unread.data ?? 0
   const { data: tasks, isLoading } = useQuery({
     queryKey: tasksKeys.list(status),
     queryFn: () => listTasks(status ? { status } : undefined),
@@ -71,6 +82,16 @@ export function TasksPage() {
         description={t('tasks.actionsHint')}
         actions={
           <>
+            <Button variant="secondary" size="icon" asChild className="relative">
+              <Link to="/app/notifications" aria-label={t('nav.notifications')}>
+                <Bell className="size-4" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium leading-none text-background">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                ) : null}
+              </Link>
+            </Button>
             <Button variant="secondary" asChild>
               <Link to="/app/tasks/board">
                 <Columns3 /> {t('tasks.board')}
