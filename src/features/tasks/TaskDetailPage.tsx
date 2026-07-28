@@ -226,15 +226,6 @@ export function TaskDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="due-time">{t('tasks.dueTime')}</Label>
-                <Input
-                  id="due-time"
-                  type="time"
-                  defaultValue={task.due_time?.slice(0, 5) ?? ''}
-                  onBlur={(event) => save.mutate({ due_time: event.target.value || null })}
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="reminder-type">{t('tasks.reminder')}</Label>
                 <select
                   id="reminder-type"

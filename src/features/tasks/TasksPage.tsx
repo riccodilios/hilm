@@ -13,6 +13,7 @@ import {
   countUnreadNotifications,
   notificationsKeys,
 } from '@/features/notifications/api'
+import { NotificationsList } from '@/features/notifications/NotificationsList'
 import { REMINDER_OPTIONS, type ReminderType, type TaskWithProject } from '@/features/tasks/reminders'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -28,11 +29,11 @@ export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [status, setStatus] = useState<TaskStatus | undefined>()
   const [open, setOpen] = useState(searchParams.get('new') === '1')
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState('')
   const [priority, setPriority] = useState<Priority>('none')
   const [dueAt, setDueAt] = useState('')
-  const [dueTime, setDueTime] = useState('')
   const [reminderType, setReminderType] = useState<ReminderType>('1h')
   const [menuTask, setMenuTask] = useState<TaskWithProject | null>(null)
   const unread = useQuery({
@@ -60,7 +61,6 @@ export function TasksPage() {
       setProjectId('')
       setPriority('none')
       setDueAt('')
-      setDueTime('')
       setReminderType('1h')
       toast.success(t('tasks.new'))
     },
@@ -82,15 +82,19 @@ export function TasksPage() {
         description={t('tasks.actionsHint')}
         actions={
           <>
-            <Button variant="secondary" size="icon" asChild className="relative">
-              <Link to="/app/notifications" aria-label={t('nav.notifications')}>
-                <Bell className="size-4" />
-                {unreadCount > 0 ? (
-                  <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium leading-none text-background">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                ) : null}
-              </Link>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="relative"
+              aria-label={t('nav.notifications')}
+              onClick={() => setNotificationsOpen(true)}
+            >
+              <Bell className="size-4" />
+              {unreadCount > 0 ? (
+                <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-medium leading-none text-background">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              ) : null}
             </Button>
             <Button variant="secondary" asChild>
               <Link to="/app/tasks/board">
@@ -103,6 +107,15 @@ export function TasksPage() {
           </>
         }
       />
+      <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('nav.notifications')}</DialogTitle>
+            <DialogDescription>{t('notifications.panelDesc')}</DialogDescription>
+          </DialogHeader>
+          <NotificationsList compact />
+        </DialogContent>
+      </Dialog>
       <div className="mb-5 flex flex-wrap gap-2">
         <Button size="sm" variant={!status ? 'default' : 'secondary'} onClick={() => setStatus(undefined)}>
           {t('common.open')}
@@ -165,7 +178,6 @@ export function TasksPage() {
                 projectId,
                 priority,
                 dueDate: dueAt || null,
-                dueTime: dueTime || null,
                 reminderType,
               })
             }}
@@ -216,16 +228,7 @@ export function TasksPage() {
                 <Label htmlFor="task-due">{t('tasks.due')}</Label>
                 <Input id="task-due" type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-due-time">{t('tasks.dueTime')}</Label>
-                <Input
-                  id="task-due-time"
-                  type="time"
-                  value={dueTime}
-                  onChange={(event) => setDueTime(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="task-reminder">{t('tasks.reminder')}</Label>
                 <select
                   id="task-reminder"

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
-import { aiActionsArraySchema } from '@/types/ai-actions'
+import { parseAiActions } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
 import type { Inserts, Tables } from '@/types/database'
@@ -90,8 +90,7 @@ export async function listMessages(conversationId: string) {
 }
 
 function parseActions(value: unknown): AiAction[] {
-  const parsed = aiActionsArraySchema.safeParse(value)
-  return parsed.success ? parsed.data : []
+  return parseAiActions(value)
 }
 
 function parseSseEvent(raw: string): ChatStreamEvent | null {

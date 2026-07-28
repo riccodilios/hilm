@@ -26,8 +26,12 @@ function actionsFromContent(content: string) {
   const match = content.match(/```actions(?:\s+json)?\s*\n([\s\S]*?)```/i)
   if (!match) return []
   try {
-    const actions = JSON.parse(match[1])
-    return Array.isArray(actions) ? actions : []
+    const parsed = JSON.parse(match[1].trim())
+    if (Array.isArray(parsed)) return parsed
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { actions?: unknown }).actions)) {
+      return (parsed as { actions: unknown[] }).actions
+    }
+    return []
   } catch {
     return []
   }

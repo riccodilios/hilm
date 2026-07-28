@@ -27,10 +27,10 @@ export type TaskWithProject = Tables<'tasks'> & {
   projects?: Pick<Tables<'projects'>, 'id' | 'name' | 'color' | 'icon'> | null
 }
 
-export function combineDueAt(dueDate?: string | null, dueTime?: string | null): string | null {
+export function combineDueAt(dueDate?: string | null): string | null {
   if (!dueDate) return null
-  const time = dueTime && dueTime.length >= 4 ? dueTime.slice(0, 8) : '09:00:00'
-  const iso = new Date(`${dueDate}T${time.length === 5 ? `${time}:00` : time}`)
+  // Date-only due dates use morning local time so reminder offsets stay meaningful.
+  const iso = new Date(`${dueDate}T09:00:00`)
   if (Number.isNaN(iso.getTime())) return null
   return iso.toISOString()
 }

@@ -103,7 +103,6 @@ export async function createTask(input: {
   priority?: Priority
   status?: TaskStatus
   dueDate?: string | null
-  dueTime?: string | null
   dueAt?: string | null
   reminderType?: ReminderType
   customReminderAt?: string | null
@@ -111,7 +110,8 @@ export async function createTask(input: {
 }) {
   if (!input.projectId) throw new Error('Every task must belong to a project')
   const userId = await requireUserId()
-  const dueAt = input.dueAt ?? combineDueAt(input.dueDate, input.dueTime)
+  const dueDate = input.dueDate ?? (input.dueAt ? input.dueAt.slice(0, 10) : null)
+  const dueAt = input.dueAt ?? combineDueAt(dueDate)
   const reminderType = input.reminderType ?? '1h'
   const reminderDatetime = computeRemindAt(dueAt, reminderType, input.customReminderAt)
 
@@ -123,8 +123,8 @@ export async function createTask(input: {
     priority: input.priority ?? 'none',
     status: input.status ?? 'todo',
     due_at: dueAt,
-    due_date: input.dueDate ?? (dueAt ? dueAt.slice(0, 10) : null),
-    due_time: input.dueTime ?? null,
+    due_date: dueDate,
+    due_time: null,
     reminder_at: reminderDatetime,
     reminder_datetime: reminderDatetime,
     reminder_type: reminderType,
@@ -171,8 +171,8 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
   if (patch.due_date !== undefined || patch.due_time !== undefined) {
     const current = await getTask(id)
     const dueDate = patch.due_date !== undefined ? patch.due_date : current.due_date
-    const dueTime = patch.due_time !== undefined ? patch.due_time : current.due_time
-    next.due_at = combineDueAt(dueDate, dueTime)
+    next.due_time = null
+    next.due_at = combineDueAt(dueDate)
   }
 
   if (patch.status === 'done' && !patch.completed_at) {

@@ -1,10 +1,11 @@
 import { createNote } from '@/features/notes/api'
+import { createIdea } from '@/features/ideas/api'
 import { createProject, listProjects, updateProject } from '@/features/projects/api'
 import { createRoadmapItem } from '@/features/roadmap/api'
 import { upsertDailyLog } from '@/features/daily-log/api'
 import { createTask, moveTask, updateTask } from '@/features/tasks/api'
 import { recordActivity, requireUserId } from '@/lib/supabase/activity'
-import { aiActionsArraySchema } from '@/types/ai-actions'
+import { parseAiActions } from '@/types/ai-actions'
 import type { AiAction } from '@/types/ai-actions'
 import type { Priority, TaskStatus } from '@/types/domain'
 
@@ -16,7 +17,14 @@ export type ActionExecutionResult = {
 }
 
 export async function executeAiActions(input: AiAction[]): Promise<ActionExecutionResult[]> {
-  const actions = aiActionsArraySchema.parse(input)
+  const actions = parseAiActions(input)
+  if (!actions.length) {
+    return input.map((action) => ({
+      action,
+      success: false,
+      error: 'Action payload was invalid',
+    }))
+  }
 
   return Promise.all(
     actions.map(async (action): Promise<ActionExecutionResult> => {
@@ -26,10 +34,9 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
           case 'task.complete':
             data = await updateTask(action.taskId, { status: 'done' })
             break
-          case 'task.create':
-            {
-              const projectId = action.projectId ?? (await listProjects())[0]?.id
-              if (!projectId) throw new Error('Create a project before creating a task')
+          case 'task.create': {
+            const projectId = action.projectId ?? (await listProjects())[0]?.id
+            if (!projectId) throw new Error('Create a project before creating a task')
             data = await createTask({
               title: action.title,
               description: action.description,
@@ -39,7 +46,7 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
               dueAt: action.dueAt,
             })
             break
-            }
+          }
           case 'task.move':
             data = await moveTask(action.taskId, action.status as TaskStatus)
             break
@@ -52,7 +59,12 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
             })
             break
           case 'project.create':
-            data = await createProject(action)
+            data = await createProject({
+              name: action.name,
+              description: action.description,
+              color: action.color,
+              icon: action.icon,
+            })
             break
           case 'project.update':
             data = await updateProject(action.projectId, {
@@ -63,7 +75,11 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
             })
             break
           case 'note.create':
-            data = await createNote(action)
+            data = await createNote({
+              title: action.title,
+              body: action.body,
+              projectId: action.projectId,
+            })
             break
           case 'roadmap.create':
             data = await createRoadmapItem({
@@ -98,7 +114,18 @@ export async function executeAiActions(input: AiAction[]): Promise<ActionExecuti
             break
           }
           case 'idea.create':
-            throw new Error('Idea actions are not supported yet')
+            data = await createIdea({
+              title: action.title,
+              description: action.description,
+              projectId: action.projectId,
+              impact: action.impact,
+              effort: action.effort,
+            })
+            break
+          default: {
+            const exhaustive: never = action
+            throw new Error(`Unsupported action: ${(exhaustive as AiAction).type}`)
+          }
         }
 
         return { action, success: true, data }

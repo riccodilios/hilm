@@ -57,11 +57,6 @@ const ProfilePage = lazy(() =>
 const SearchPage = lazy(() =>
   import('@/features/search/SearchPage').then((m) => ({ default: m.SearchPage })),
 )
-const NotificationsPage = lazy(() =>
-  import('@/features/notifications/NotificationsPage').then((m) => ({
-    default: m.NotificationsPage,
-  })),
-)
 const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
@@ -135,7 +130,7 @@ export function AppRouter() {
             <Route path="daily-log" element={<Suspense fallback={<AppFallback />}><DailyLogPage /></Suspense>} />
             <Route path="activity" element={<Suspense fallback={<AppFallback />}><ActivityPage /></Suspense>} />
             <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
-            <Route path="notifications" element={<Suspense fallback={<AppFallback />}><NotificationsPage /></Suspense>} />
+            <Route path="notifications" element={<Navigate to="/app/tasks" replace />} />
             <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
             <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
             <Route

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Activity, Bell, BookOpen, Lightbulb, Settings, UserRound } from 'lucide-react'
+import { Activity, BookOpen, Lightbulb, Settings, UserRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { getProfile, settingsKeys } from '@/features/settings/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +11,6 @@ export function ProfilePage() {
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
   const links = [
     { to: '/app/settings', label: t('profile.settings'), description: t('profile.settingsDesc'), icon: Settings },
-    { to: '/app/notifications', label: t('nav.notifications'), description: t('settings.notificationsDesc'), icon: Bell },
     { to: '/app/daily-log', label: t('profile.dailyLog'), description: t('profile.dailyLogDesc'), icon: BookOpen },
     { to: '/app/activity', label: t('profile.activity'), description: t('profile.activityDesc'), icon: Activity },
     { to: '/app/ideas', label: t('profile.ideas'), description: t('profile.ideasDesc'), icon: Lightbulb },
