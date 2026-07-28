@@ -10,6 +10,11 @@
   node_bundler = "esbuild"
   directory = "netlify/functions"
 
+[[redirects]]
+  from = "/api/ai-chat"
+  to = "/.netlify/functions/ai-chat"
+  status = 200
+
 # Keep API/functions ahead of the SPA fallback
 [[redirects]]
   from = "/api/send-task-reminders"

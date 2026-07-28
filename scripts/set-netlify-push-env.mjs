@@ -72,6 +72,8 @@ const vars = {
   CRON_SECRET: local.CRON_SECRET,
   VITE_SUPABASE_URL: local.VITE_SUPABASE_URL,
   VITE_SUPABASE_ANON_KEY: local.VITE_SUPABASE_ANON_KEY,
+  OPENROUTER_API_KEY: local.OPENROUTER_API_KEY,
+  OPENROUTER_DEFAULT_MODEL: local.OPENROUTER_DEFAULT_MODEL || 'google/gemini-2.5-flash',
 }
 
 for (const [key, value] of Object.entries(vars)) {
@@ -83,7 +85,8 @@ for (const [key, value] of Object.entries(vars)) {
     key === 'VAPID_PRIVATE_KEY' ||
     key === 'DATABASE_URL' ||
     key === 'CRON_SECRET' ||
-    key === 'VITE_SUPABASE_ANON_KEY'
+    key === 'VITE_SUPABASE_ANON_KEY' ||
+    key === 'OPENROUTER_API_KEY'
   const contexts = isSecret
     ? ['production', 'deploy-preview', 'branch-deploy', 'dev']
     : ['all']

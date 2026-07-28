@@ -1,9 +1,23 @@
 import { supabase } from '@/lib/supabase/client'
-import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
+import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
 import { aiActionsArraySchema } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
 import type { Inserts, Tables } from '@/types/database'
+
+function getAiChatUrl() {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin.replace(/\/$/, '')
+    // Production / Netlify preview: use Hilm's server-side OpenRouter key via Netlify.
+    if (!/localhost|127\.0\.0\.1/i.test(origin)) {
+      return `${origin}/api/ai-chat`
+    }
+  }
+  const app = getAppUrl()
+  if (app && !/localhost|127\.0\.0\.1/i.test(app)) return `${app.replace(/\/$/, '')}/api/ai-chat`
+  // Local Vite: fall back to Supabase Edge (needs OPENROUTER_API_KEY secret there).
+  return `${getSupabaseUrl()}/functions/v1/ai-chat`
+}
 
 export const aiKeys = {
   all: ['ai'] as const,
@@ -123,7 +137,7 @@ export async function* streamChat(input: {
   }
 
   try {
-    const response = await fetch(`${getSupabaseUrl()}/functions/v1/ai-chat`, {
+    const response = await fetch(getAiChatUrl(), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -133,7 +147,16 @@ export async function* streamChat(input: {
       },
       body: JSON.stringify(input),
     })
-    if (!response.ok) throw new Error((await response.text()) || 'AI request failed')
+    if (!response.ok) {
+      const text = await response.text()
+      try {
+        const payload = JSON.parse(text) as { error?: string }
+        throw new Error(payload.error || text || 'AI request failed')
+      } catch (error) {
+        if (error instanceof SyntaxError) throw new Error(text || 'AI request failed')
+        throw error
+      }
+    }
 
     const contentType = response.headers.get('content-type') ?? ''
     if (!contentType.includes('text/event-stream') || !response.body) {

@@ -200,7 +200,7 @@
     "security": {
       "encrypted": {
         "title": "Encrypted credentials",
-        "body": "API keys are encrypted at rest and never embedded in the client bundle."
+        "body": "API calls use Hilm’s server key — never embedded in the client bundle."
       },
       "storage": {
         "title": "Secure storage",
@@ -208,7 +208,7 @@
       },
       "privateAi": {
         "title": "Private AI",
-        "body": "Requests proxy through your backend with your key — Hilm does not harvest your work."
+        "body": "Requests proxy through Hilm’s backend with the platform key — your chats stay in your workspace."
       },
       "offline": {
         "title": "Offline support",
@@ -229,7 +229,7 @@
   "privacy": {
     "title": "Privacy",
     "description": "Hilm is designed so your operating system stays yours.",
-    "p1": "Account data, projects, and AI conversation history are stored in your Supabase project under row-level security. OpenRouter API keys are encrypted at rest and never shipped in the client bundle.",
+    "p1": "Account data, projects, and AI conversation history are stored in your Supabase project under row-level security. AI requests use Hilm’s OpenRouter key on the server — never shipped in the client bundle.",
     "p2": "Offline caches live on your device via IndexedDB and the service worker. You can request export of your data from Settings as that surface ships.",
     "p3": "Contact {{email}} for privacy questions."
   },
