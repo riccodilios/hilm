@@ -20,7 +20,7 @@ VITE_VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcS
 VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_HtLP4w4pcsdhJd6i6o5xe35I
 VAPID_PRIVATE_KEY=...   # from .vapid.local — server only, never VITE_
 VAPID_SUBJECT=mailto:noreply@hillm.netlify.app
-DATABASE_URL=postgresql://...   # same as local .env — server only
+DATABASE_URL=postgresql://...   # use Supabase **pooler** URL on Netlify (IPv4) — not db.*.supabase.co
 CRON_SECRET=   # long random string — set via scripts/set-netlify-push-env.mjs
 APP_URL=https://hillm.netlify.app
 ```
