@@ -1,11 +1,21 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "22"
 
-# SPA fallback — all routes serve index.html
+[functions]
+  node_bundler = "esbuild"
+  directory = "netlify/functions"
+
+# Keep API/functions ahead of the SPA fallback
+[[redirects]]
+  from = "/api/send-task-reminders"
+  to = "/.netlify/functions/send-task-reminders"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

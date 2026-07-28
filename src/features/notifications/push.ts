@@ -23,7 +23,8 @@ export function getVapidPublicKey() {
   return (
     (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim() ||
     (import.meta.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string | undefined)?.trim() ||
-    ''
+    // Public key only — safe client fallback for hillm.netlify.app
+    'BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_HtLP4w4pcsdhJd6i6o5xe35I'
   )
 }
 

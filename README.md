@@ -2,56 +2,43 @@
 
 AI Personal Operating System — mobile-first Progressive Web App.
 
-## Stack
-
-React · TypeScript · Vite · Tailwind CSS · shadcn-style UI · React Router · Framer Motion · TanStack Query · Supabase · OpenRouter (via Edge Functions) · PWA · Web Push
-
 ## Production
 
-Live site: [https://hillm.netlify.app](https://hillm.netlify.app)
+Live: [https://hillm.netlify.app](https://hillm.netlify.app)
 
-### Netlify environment variables
+### Notifications without a custom domain
+
+Hilm uses **Web Push + in-app** reminders. That works on the Netlify HTTPS subdomain — you do **not** need to buy or verify a domain.
+
+1. Set these **Netlify** env vars (Site configuration → Environment variables), then redeploy:
 
 ```bash
 VITE_APP_URL=https://hillm.netlify.app
 VITE_SUPABASE_URL=https://lrvmlayzmvswfqsqroni.supabase.co
-VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-key
-VITE_VAPID_PUBLIC_KEY=your-vapid-public-key
+VITE_SUPABASE_ANON_KEY=...
+VITE_VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_HtLP4w4pcsdhJd6i6o5xe35I
+VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_HtLP4w4pcsdhJd6i6o5xe35I
+VAPID_PRIVATE_KEY=...   # from .vapid.local — server only, never VITE_
+VAPID_SUBJECT=mailto:noreply@hillm.netlify.app
+DATABASE_URL=postgresql://...   # same as local .env — server only
+CRON_SECRET=hilm-cron-change-me-in-prod
+APP_URL=https://hillm.netlify.app
 ```
 
-`NEXT_PUBLIC_*` aliases are also accepted.
+2. After deploy, enable **Settings → Push notifications** (Add to Home Screen recommended).
 
-### Push notifications (no custom domain)
+3. Reminder worker runs every minute via:
+   - Netlify scheduled function `send-task-reminders`
+   - Supabase `pg_cron` → HTTP POST to that function (backup)
 
-Web Push works on the Netlify HTTPS subdomain. Users enable it in **Settings → Push notifications** (best after Add to Home Screen).
+Email (Resend) stays optional forever and is **not** required for reminders to work.
 
-1. Generate keys: `npx web-push generate-vapid-keys`
-2. Put the **public** key in Netlify as `VITE_VAPID_PUBLIC_KEY`
-3. Put public + **private** keys in Supabase secrets (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
-4. Deploy `send-task-reminders` and schedule it every minute
+### Auth redirects
 
-### Email reminders
-
-Code is ready. Set `RESEND_API_KEY` + `RESEND_FROM_EMAIL` on the edge function.  
-Resend cannot verify `*.netlify.app` — use `onboarding@resend.dev` for testing, or verify any domain you own for production email to all users.
-
-### Supabase Auth URL configuration
-
-- **Site URL:** `https://hillm.netlify.app`
-- **Redirect URLs:** `https://hillm.netlify.app/auth/callback`, `http://localhost:5173/auth/callback`
-
-## Setup
-
-```bash
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Apply SQL migrations under [`supabase/migrations`](supabase/migrations).
+Supabase Auth → Site URL `https://hillm.netlify.app`  
+Redirect: `https://hillm.netlify.app/auth/callback`
 
 ## Scripts
 
-- `npm run dev` — local development
-- `npm run build` — production build
-- `npm run preview` — preview production build
+- `npm run dev` / `npm run build` / `npm run preview`
+- `node scripts/print-push-secrets.mjs` — prints VAPID values for Netlify
