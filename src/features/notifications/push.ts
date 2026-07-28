@@ -30,17 +30,18 @@ export function getVapidPublicKey() {
 
 async function getRegistration() {
   if (!('serviceWorker' in navigator)) throw new Error('Service worker unavailable')
-  const existing = await navigator.serviceWorker.getRegistration()
-  if (existing) {
-    await navigator.serviceWorker.ready
-    return existing
+  let existing = await navigator.serviceWorker.getRegistration()
+  if (!existing) {
+    // vite-plugin-pwa registers automatically; wait for it
+    for (let i = 0; i < 20; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      existing = await navigator.serviceWorker.getRegistration()
+      if (existing) break
+    }
   }
-  // vite-plugin-pwa registers automatically; wait briefly if still installing
-  await new Promise((resolve) => setTimeout(resolve, 400))
-  const reg = await navigator.serviceWorker.getRegistration()
-  if (!reg) throw new Error('Service worker not ready — refresh and try again')
+  if (!existing) throw new Error('Service worker not ready — refresh and try again')
   await navigator.serviceWorker.ready
-  return reg
+  return existing
 }
 
 export async function enablePushNotifications() {

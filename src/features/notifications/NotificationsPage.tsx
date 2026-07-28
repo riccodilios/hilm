@@ -4,42 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase/client'
-import { requireUserId } from '@/lib/supabase/activity'
+import {
+  listNotifications,
+  markNotificationRead,
+  notificationsKeys,
+} from '@/features/notifications/api'
 import { ProjectBadge } from '@/components/ProjectBadge'
 import { Button } from '@/components/ui/button'
 import { EmptyState, PageHeader, Skeleton } from '@/components/ui/page'
 
-type NotificationRow = {
-  id: string
-  title: string
-  body: string | null
-  href: string | null
-  read_at: string | null
-  created_at: string
-  project_id: string | null
-  projects: { id: string; name: string; color: string; icon: string | null } | null
-}
-
-export const notificationsKeys = {
-  all: ['notifications'] as const,
-  list: () => [...notificationsKeys.all, 'list'] as const,
-}
-
-async function listNotifications() {
-  const userId = await requireUserId()
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, title, body, href, read_at, created_at, project_id, projects(id, name, color, icon)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50)
-  if (error) throw error
-  return (data ?? []).map((row) => ({
-    ...row,
-    projects: Array.isArray(row.projects) ? row.projects[0] ?? null : row.projects,
-  })) as NotificationRow[]
-}
+export { notificationsKeys } from '@/features/notifications/api'
 
 export function NotificationsPage() {
   const { t } = useTranslation()
@@ -47,16 +21,12 @@ export function NotificationsPage() {
   const { data, isLoading } = useQuery({
     queryKey: notificationsKeys.list(),
     queryFn: listNotifications,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const markRead = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
-    },
+    mutationFn: markNotificationRead,
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKeys.all }),
     onError: (error: Error) => toast.error(error.message),
   })

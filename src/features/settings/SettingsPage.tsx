@@ -20,6 +20,7 @@ import { listProjects, projectsKeys } from '@/features/projects/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { syncPushPreference, isWebPushSupported, getVapidPublicKey } from '@/features/notifications/push'
+import { syncUnsentReminderChannels } from '@/features/notifications/api'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -66,11 +67,31 @@ export function SettingsPage() {
           return
         }
         await syncPushPreference(true)
+        await updateSettings({
+          push_notifications_enabled: true,
+          notification_prefs: {
+            email_reminders: emailReminders,
+            push_notifications: true,
+            default_reminder_type: defaultReminder,
+          },
+        })
+        await syncUnsentReminderChannels()
         setPushNotifications(true)
+        await queryClient.invalidateQueries({ queryKey: settingsKeys.all })
         toast.success(t('settings.pushEnabled'))
       } else {
         await syncPushPreference(false)
+        await updateSettings({
+          push_notifications_enabled: false,
+          notification_prefs: {
+            email_reminders: emailReminders,
+            push_notifications: false,
+            default_reminder_type: defaultReminder,
+          },
+        })
+        await syncUnsentReminderChannels()
         setPushNotifications(false)
+        await queryClient.invalidateQueries({ queryKey: settingsKeys.all })
         toast.success(t('settings.pushDisabled'))
       }
     } catch (error) {
@@ -126,6 +147,7 @@ export function SettingsPage() {
           ),
         ),
       ])
+      await syncUnsentReminderChannels()
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: settingsKeys.all })

@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { get, set, del } from 'idb-keyval'
@@ -34,7 +34,15 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 1000 * 60 * 60 * 24,
-        buster: 'v1',
+        buster: 'v2',
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            const root = query.queryKey[0]
+            // Keep focus/notifications fresh — don't restore stale dashboard from IndexedDB
+            if (root === 'home' || root === 'notifications') return false
+            return defaultShouldDehydrateQuery(query)
+          },
+        },
       }}
     >
       {children}

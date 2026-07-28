@@ -5,6 +5,8 @@ import { Link, useParams } from 'react-router-dom'
 import { Check, ChevronLeft, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { getTask, listSubtasks, tasksKeys, updateTask } from '@/features/tasks/api'
+import { homeKeys } from '@/features/home/api'
+import { activityKeys } from '@/features/activity/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
@@ -57,7 +59,11 @@ export function TaskDetailPage() {
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateTask>[1]) => updateTask(id!, patch),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: tasksKeys.all })
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+        qc.invalidateQueries({ queryKey: activityKeys.all }),
+      ])
       toast.success(t('tasks.updated'))
     },
     onError: (error: Error) => toast.error(error.message),

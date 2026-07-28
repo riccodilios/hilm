@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { moveTask, listTasks, tasksKeys } from '@/features/tasks/api'
+import { homeKeys } from '@/features/home/api'
 import { Badge, PriorityBadge } from '@/components/ui/badge'
 import { ProjectBadge } from '@/components/ProjectBadge'
 import { EmptyState, Skeleton } from '@/components/ui/page'
@@ -75,7 +76,12 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
   })
   const move = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TaskStatus }) => moveTask(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tasksKeys.all }),
+    onSuccess: () => {
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+      ])
+    },
     onError: (error: Error) => toast.error(error.message),
   })
   const columns = useMemo(

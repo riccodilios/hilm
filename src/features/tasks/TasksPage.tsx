@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Columns3, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { createTask, listTasks, tasksKeys } from '@/features/tasks/api'
+import { homeKeys } from '@/features/home/api'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { Button } from '@/components/ui/button'
@@ -34,7 +35,10 @@ export function TasksPage() {
   const create = useMutation({
     mutationFn: createTask,
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: tasksKeys.all })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+      ])
       setOpen(false)
       setSearchParams({})
       setTitle('')

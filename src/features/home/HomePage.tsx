@@ -1,9 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 import { getDashboardData, homeKeys } from '@/features/home/api'
+import { updateTask, tasksKeys } from '@/features/tasks/api'
+import { activityKeys } from '@/features/activity/api'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
@@ -13,9 +16,25 @@ import { formatRelative } from '@/lib/utils'
 
 export function HomePage() {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const { data, isLoading, error } = useQuery({
     queryKey: homeKeys.dashboard(),
     queryFn: getDashboardData,
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
+
+  const completeFocus = useMutation({
+    mutationFn: (taskId: string) => updateTask(taskId, { status: 'done' }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+        qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: activityKeys.all }),
+      ])
+      toast.success(t('home.focusCompleted'))
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   if (isLoading) {
@@ -72,11 +91,20 @@ export function HomePage() {
                 </span>
               ) : null}
             </div>
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
                 <Link to={`/app/tasks/${data.focus.id}`}>
                   {t('home.openTask')} <ArrowRight className="size-4" />
                 </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={completeFocus.isPending}
+                onClick={() => completeFocus.mutate(data.focus!.id)}
+              >
+                <Check className="size-4" />
+                {t('home.markDone')}
               </Button>
             </div>
           </>

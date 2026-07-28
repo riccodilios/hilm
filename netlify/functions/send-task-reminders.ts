@@ -143,23 +143,26 @@ export default async (request: Request) => {
       const dueLabel = formatDue(row)
       const taskHref = `/app/tasks/${row.task_id}`
 
-      const pushAllowed =
-        channels.includes('push') &&
-        row.push_notifications_enabled === true &&
-        row.project_push !== false
+      // Live prefs win over the channels snapshot (toggle/save often lagged behind creates).
+      const inAppAllowed = row.project_in_app !== false
+      const pushPrefOn =
+        row.push_notifications_enabled === true || channels.includes('push')
+      const pushCandidate = pushPrefOn && row.project_push !== false
 
-      const inAppAllowed = channels.includes('in_app') && row.project_in_app !== false
+      const subs = pushCandidate
+        ? await client.query<{
+            id: string
+            endpoint: string
+            p256dh: string
+            auth: string
+          }>(`select id, endpoint, p256dh, auth from public.push_subscriptions where user_id = $1`, [
+            row.user_id,
+          ])
+        : { rows: [] as Array<{ id: string; endpoint: string; p256dh: string; auth: string }> }
+
+      const pushAllowed = pushCandidate && subs.rows.length > 0
 
       if (pushAllowed) {
-        const subs = await client.query<{
-          id: string
-          endpoint: string
-          p256dh: string
-          auth: string
-        }>(`select id, endpoint, p256dh, auth from public.push_subscriptions where user_id = $1`, [
-          row.user_id,
-        ])
-
         const payload = JSON.stringify({
           title: `Reminder — ${row.task_title}`,
           body: `${row.project_name} · Due ${dueLabel}`,
@@ -189,7 +192,8 @@ export default async (request: Request) => {
         }
       }
 
-      if (inAppAllowed || pushAllowed) {
+      // Always create an in-app row unless the project muted in-app notifications.
+      if (inAppAllowed) {
         await client.query(
           `insert into public.notifications
             (user_id, channel, type, title, body, entity_type, entity_id, project_id, href, metadata)
@@ -202,7 +206,12 @@ export default async (request: Request) => {
             row.task_id,
             row.project_id,
             taskHref,
-            JSON.stringify({ reminder_id: row.id, push: pushAllowed }),
+            JSON.stringify({
+              reminder_id: row.id,
+              push: pushAllowed,
+              push_attempted: pushCandidate,
+              push_subs: subs.rows.length,
+            }),
           ],
         )
       }
