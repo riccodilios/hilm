@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page'
 import { Textarea } from '@/components/ui/textarea'
+import { AiMarkdown } from '@/features/ai/AiMarkdown'
 import { cn } from '@/lib/utils'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiMessage } from '@/features/ai/api'
@@ -231,12 +232,23 @@ export function AiPage() {
                   <p className="mt-2 text-sm text-muted">{t('ai.empty')}</p>
                 </div>
               ) : displayedMessages.map((message) => (
-                <div key={message.id} className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
-                  <div className={cn(
-                    'max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6',
-                    message.role === 'user' ? 'bg-accent text-accent-foreground' : 'bg-surface-2 text-foreground',
-                  )}>
-                    {message.content || (message.pending ? <LoaderCircle className="size-4 animate-spin" /> : '')}
+                <div
+                  key={message.id}
+                  className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
+                >
+                  <div
+                    className={cn(
+                      'max-w-[min(88%,42rem)] rounded-2xl px-4 py-3',
+                      message.role === 'user'
+                        ? 'bg-accent text-accent-fg'
+                        : 'border border-border-subtle bg-surface-2 text-foreground',
+                    )}
+                  >
+                    {message.content ? (
+                      <AiMarkdown content={message.content} inverse={message.role === 'user'} />
+                    ) : message.pending ? (
+                      <LoaderCircle className="size-4 animate-spin opacity-70" />
+                    ) : null}
                   </div>
                 </div>
               ))}
