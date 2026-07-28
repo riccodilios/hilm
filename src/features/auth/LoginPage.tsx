@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -7,16 +7,25 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/features/auth/AuthProvider'
+import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
+import { mapAuthError, normalizeEmail } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 
 export function LoginPage() {
-  const { signIn, user, loading } = useAuth()
+  const { signIn, resendSignupEmail, user, loading } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+  const [showResend, setShowResend] = useState(false)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const id = window.setTimeout(() => setCooldown((value) => Math.max(0, value - 1)), 1000)
+    return () => window.clearTimeout(id)
+  }, [cooldown])
 
   if (!loading && user) return <Navigate to="/app" replace />
 
@@ -26,15 +35,43 @@ export function LoginPage() {
       toast.error(t('auth.missingEnv'))
       return
     }
+    if (cooldown > 0) {
+      toast.error(t('auth.errors.rateLimitWait', { seconds: cooldown }))
+      return
+    }
     setSubmitting(true)
+    setShowResend(false)
     try {
-      await signIn(email, password)
+      await signIn(normalizeEmail(email), password)
       toast.success(t('auth.welcomeBack'))
       navigate('/app')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('auth.signInTitle'))
+      const mapped = mapAuthError(err)
+      if (mapped.key === 'auth.errors.emailNotConfirmed') setShowResend(true)
+      const wait =
+        err && typeof err === 'object' && 'waitSeconds' in err
+          ? Number((err as { waitSeconds?: number }).waitSeconds) || 60
+          : mapped.waitSeconds || 0
+      if (wait > 0) setCooldown(wait)
+      toast.error(authErrorMessage(err, t))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function onResend() {
+    if (!email || cooldown > 0) return
+    try {
+      await resendSignupEmail(normalizeEmail(email))
+      setCooldown(60)
+      toast.success(t('auth.resendSent'))
+    } catch (err) {
+      const wait =
+        err && typeof err === 'object' && 'waitSeconds' in err
+          ? Number((err as { waitSeconds?: number }).waitSeconds) || 60
+          : 0
+      if (wait > 0) setCooldown(wait)
+      toast.error(authErrorMessage(err, t))
     }
   }
 
@@ -59,6 +96,7 @@ export function LoginPage() {
               id="email"
               type="email"
               autoComplete="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -75,11 +113,31 @@ export function LoginPage() {
               required
             />
           </div>
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? t('auth.signingIn') : t('common.signIn')}
+          <Button type="submit" className="w-full" disabled={submitting || cooldown > 0}>
+            {cooldown > 0
+              ? t('auth.resendWait', { seconds: cooldown })
+              : submitting
+                ? t('auth.signingIn')
+                : t('common.signIn')}
           </Button>
-          <Link to="/auth/forgot-password" className="block text-center text-sm text-muted underline-offset-4 hover:text-foreground hover:underline">
-            Forgot password?
+          {showResend ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              disabled={cooldown > 0}
+              onClick={() => void onResend()}
+            >
+              {cooldown > 0
+                ? t('auth.resendWait', { seconds: cooldown })
+                : t('auth.resendEmail')}
+            </Button>
+          ) : null}
+          <Link
+            to="/auth/forgot-password"
+            className="block text-center text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+          >
+            {t('auth.forgotPassword')}
           </Link>
         </form>
         <p className="mt-6 text-center text-sm text-muted">

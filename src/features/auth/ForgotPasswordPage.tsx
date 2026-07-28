@@ -6,11 +6,13 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import { getAuthCallbackUrl } from '@/lib/env'
+import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
+import { normalizeEmail } from '@/lib/auth'
+import { isSupabaseConfigured } from '@/lib/supabase/client'
 
 export function ForgotPasswordPage() {
   const { t } = useTranslation()
+  const { resetPassword } = useAuth()
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
@@ -23,14 +25,11 @@ export function ForgotPasswordPage() {
     }
     setSubmitting(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: getAuthCallbackUrl('/auth/reset-password'),
-      })
-      if (error) throw error
+      await resetPassword(normalizeEmail(email))
       setSent(true)
       toast.success(t('auth.resetEmailSent'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('auth.callbackFailed'))
+      toast.error(authErrorMessage(err, t))
     } finally {
       setSubmitting(false)
     }

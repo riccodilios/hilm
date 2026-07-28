@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { ProjectIcon } from '@/features/projects/icons'
 
 type ProjectBadgeProps = {
   name: string
@@ -15,7 +16,6 @@ export function ProjectBadge({
   className,
   size = 'sm',
 }: ProjectBadgeProps) {
-  const initial = (icon || name || '?').slice(0, 1).toUpperCase()
   return (
     <span
       className={cn(
@@ -27,12 +27,12 @@ export function ProjectBadge({
     >
       <span
         className={cn(
-          'inline-flex shrink-0 items-center justify-center rounded-[4px] text-[10px] font-semibold text-background',
+          'inline-flex shrink-0 items-center justify-center rounded-[4px] text-background',
           size === 'sm' ? 'size-3.5' : 'size-4',
         )}
         style={{ backgroundColor: color || '#60a5fa' }}
       >
-        {initial}
+        <ProjectIcon icon={icon} size={size === 'sm' ? 9 : 11} className="text-background" />
       </span>
       <span className="truncate">[{name}]</span>
     </span>

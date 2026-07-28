@@ -10,21 +10,29 @@ function readEnv(...keys: string[]) {
   return undefined
 }
 
+function isLocalHost(url: string) {
+  return /localhost|127\.0\.0\.1/i.test(url)
+}
+
 export function getAppUrl(): string {
   const fromEnv = readEnv(
     'VITE_APP_URL',
     'NEXT_PUBLIC_APP_URL',
     'VITE_SITE_URL',
     'NEXT_PUBLIC_SITE_URL',
-  )
-
-  if (fromEnv) {
-    return fromEnv.replace(/\/$/, '')
-  }
+  )?.replace(/\/$/, '')
 
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
+    const origin = window.location.origin.replace(/\/$/, '')
+    // Never let a localhost env value override a real production host (common Netlify misconfig).
+    if (fromEnv) {
+      if (isLocalHost(fromEnv) && !isLocalHost(origin)) return origin
+      return fromEnv
+    }
+    return origin
   }
+
+  if (fromEnv) return fromEnv
 
   // Build-time fallback only (SSR / tooling). Prefer configuring VITE_APP_URL.
   return ''
@@ -47,9 +55,7 @@ export function getProjectDeepLink(projectId: string): string {
 }
 
 export function getSupabaseUrl() {
-  return (
-    readEnv('VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL') ?? ''
-  )
+  return readEnv('VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL') ?? ''
 }
 
 export function getSupabaseAnonKey() {

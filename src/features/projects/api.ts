@@ -77,6 +77,26 @@ export async function updateProject(id: string, patch: Updates<'projects'>) {
   return data as Tables<'projects'>
 }
 
+export async function deleteProject(id: string) {
+  const userId = await requireUserId()
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ status: 'archived' })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  await recordActivity({
+    userId,
+    entityType: 'project',
+    entityId: id,
+    projectId: id,
+    action: 'archived',
+    summary: `Archived project ${data.name}`,
+  })
+  return data as Tables<'projects'>
+}
+
 export async function refreshProjectCompletion(projectId: string) {
   const { data: tasks, error } = await supabase
     .from('tasks')
