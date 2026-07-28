@@ -11,6 +11,11 @@
   directory = "netlify/functions"
 
 [[redirects]]
+  from = "/api/notify-test"
+  to = "/.netlify/functions/notify-test"
+  status = 200
+
+[[redirects]]
   from = "/api/ai-chat"
   to = "/.netlify/functions/ai-chat"
   status = 200

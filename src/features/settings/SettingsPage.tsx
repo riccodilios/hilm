@@ -19,7 +19,14 @@ import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
-import { syncPushPreference, isWebPushSupported, getVapidPublicKey } from '@/features/notifications/push'
+import {
+  syncPushPreference,
+  isWebPushSupported,
+  getVapidPublicKey,
+  getLocalPushStatus,
+  sendTestNotification,
+  getPushBlockerReason,
+} from '@/features/notifications/push'
 import { syncUnsentReminderChannels } from '@/features/notifications/api'
 
 export function SettingsPage() {
@@ -38,6 +45,32 @@ export function SettingsPage() {
   const [projectEmail, setProjectEmail] = useState<Record<string, boolean>>({})
 
   const [pushBusy, setPushBusy] = useState(false)
+  const [testBusy, setTestBusy] = useState(false)
+  const [deviceStatus, setDeviceStatus] = useState<string>('')
+
+  async function refreshDeviceStatus() {
+    try {
+      const blocker = getPushBlockerReason()
+      if (blocker === 'ios_homescreen') {
+        setDeviceStatus(t('settings.pushIosHomescreen'))
+        return
+      }
+      if (blocker === 'unsupported') {
+        setDeviceStatus(t('settings.pushUnsupported'))
+        return
+      }
+      const status = await getLocalPushStatus()
+      if (status.serverSubscription) setDeviceStatus(t('settings.pushDeviceReady'))
+      else if (status.permission === 'denied') setDeviceStatus(t('settings.pushPermissionDenied'))
+      else setDeviceStatus(t('settings.pushDeviceMissing'))
+    } catch {
+      setDeviceStatus('')
+    }
+  }
+
+  useEffect(() => {
+    void refreshDeviceStatus()
+  }, [t])
 
   useEffect(() => {
     if (profile.data) setDisplayName(profile.data.display_name ?? '')
@@ -78,6 +111,7 @@ export function SettingsPage() {
         await syncUnsentReminderChannels()
         setPushNotifications(true)
         await queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+        await refreshDeviceStatus()
         toast.success(t('settings.pushEnabled'))
       } else {
         await syncPushPreference(false)
@@ -92,13 +126,30 @@ export function SettingsPage() {
         await syncUnsentReminderChannels()
         setPushNotifications(false)
         await queryClient.invalidateQueries({ queryKey: settingsKeys.all })
+        await refreshDeviceStatus()
         toast.success(t('settings.pushDisabled'))
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('settings.pushFailed'))
       setPushNotifications(false)
+      await refreshDeviceStatus()
     } finally {
       setPushBusy(false)
+    }
+  }
+
+  async function handleTestNotification() {
+    setTestBusy(true)
+    try {
+      const result = await sendTestNotification()
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      if (result.pushed && result.pushed > 0) toast.success(t('settings.testPushOk'))
+      else toast.message(t('settings.testInAppOk'), { description: result.hint })
+      await refreshDeviceStatus()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('settings.testFailed'))
+    } finally {
+      setTestBusy(false)
     }
   }
 
@@ -229,6 +280,7 @@ export function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">{t('settings.pushNotifications')}</p>
                 <p className="text-xs text-muted">{t('settings.pushNotificationsDesc')}</p>
+                {deviceStatus ? <p className="mt-1 text-xs text-muted">{deviceStatus}</p> : null}
               </div>
               <Switch
                 checked={pushNotifications}
@@ -236,6 +288,14 @@ export function SettingsPage() {
                 onCheckedChange={(checked) => void handlePushToggle(checked)}
               />
             </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={testBusy}
+              onClick={() => void handleTestNotification()}
+            >
+              {testBusy ? t('common.loading') : t('settings.testNotification')}
+            </Button>
             <div className="space-y-2">
               <Label htmlFor="default-reminder">{t('settings.defaultReminder')}</Label>
               <select

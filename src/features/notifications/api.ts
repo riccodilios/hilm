@@ -22,14 +22,28 @@ export async function listNotifications() {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, title, body, href, read_at, created_at, project_id, projects(id, name, color, icon)')
+    .select('id, title, body, href, read_at, created_at, project_id')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
+
+  const projectIds = [...new Set((data ?? []).map((row) => row.project_id).filter(Boolean))] as string[]
+  const projectMap = new Map<
+    string,
+    { id: string; name: string; color: string; icon: string | null }
+  >()
+  if (projectIds.length) {
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('id, name, color, icon')
+      .in('id', projectIds)
+    for (const project of projects ?? []) projectMap.set(project.id, project)
+  }
+
   return (data ?? []).map((row) => ({
     ...row,
-    projects: Array.isArray(row.projects) ? (row.projects[0] ?? null) : row.projects,
+    projects: row.project_id ? projectMap.get(row.project_id) ?? null : null,
   })) as NotificationRow[]
 }
 

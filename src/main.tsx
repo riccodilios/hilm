@@ -2,12 +2,16 @@ import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { registerSW } from 'virtual:pwa-register'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { QueryProvider } from '@/lib/query/client'
 import { AppRouter } from '@/app/router'
 import { ThemeProvider, useTheme } from '@/hooks/useTheme'
+import { NotificationListener } from '@/features/notifications/NotificationListener'
 import '@/i18n'
 import '@/styles/globals.css'
+
+registerSW({ immediate: true })
 
 function App() {
   const { i18n } = useTranslation()
@@ -22,6 +26,7 @@ function App() {
   return (
     <QueryProvider>
       <AuthProvider>
+        <NotificationListener />
         <AppRouter />
         <Toaster
           theme={theme}
