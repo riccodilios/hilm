@@ -235,6 +235,26 @@ export async function moveTask(id: string, status: TaskStatus, position?: number
   })
 }
 
+export async function archiveTask(id: string) {
+  return updateTask(id, { status: 'archived' })
+}
+
+export async function deleteTask(id: string) {
+  const userId = await requireUserId()
+  const current = await getTask(id)
+  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  if (error) throw error
+  await recordActivity({
+    userId,
+    entityType: 'task',
+    entityId: id,
+    projectId: current.project_id,
+    action: 'deleted',
+    summary: `Deleted task ${current.title}`,
+  })
+  await refreshProjectCompletion(current.project_id)
+}
+
 export async function listSubtasks(taskId: string) {
   const { data, error } = await supabase
     .from('subtasks')

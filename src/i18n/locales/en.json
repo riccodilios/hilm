@@ -333,7 +333,15 @@
     "voiceHearing": "Hearing",
     "voiceUnsupported": "Voice input isn’t supported in this browser",
     "voiceDenied": "Microphone permission denied",
-    "voiceFailed": "Couldn’t start voice input"
+    "voiceFailed": "Couldn’t start voice input",
+    "open": "Open",
+    "edit": "Edit",
+    "archive": "Archive",
+    "archived": "Task archived",
+    "delete": "Delete",
+    "deleted": "Task deleted",
+    "deleteConfirm": "Delete “{{title}}”? This can’t be undone.",
+    "actionsHint": "Hold a task or right-click for options."
   },
   "notes": {
     "title": "Notes",
