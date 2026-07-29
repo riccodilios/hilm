@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { moveTask, listTasks, tasksKeys } from '@/features/tasks/api'
 import { homeKeys } from '@/features/home/api'
+import { projectsKeys } from '@/features/projects/api'
 import { TaskActionsDialog } from '@/features/tasks/TaskActionsDialog'
 import { useLongPress } from '@/hooks/useLongPress'
 import { Badge, PriorityBadge } from '@/components/ui/badge'
@@ -133,6 +134,7 @@ export function KanbanBoard({ projectId }: { projectId?: string }) {
       void Promise.all([
         qc.invalidateQueries({ queryKey: tasksKeys.all }),
         qc.invalidateQueries({ queryKey: homeKeys.all }),
+        qc.invalidateQueries({ queryKey: projectsKeys.all }),
       ])
     },
     onError: (error: Error) => toast.error(error.message),

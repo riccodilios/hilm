@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ExternalLink, FileText, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { getProject, projectsKeys, updateProject } from '@/features/projects/api'
+import { homeKeys } from '@/features/home/api'
 import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
 import { listTasks, tasksKeys } from '@/features/tasks/api'
 import { TaskListItem } from '@/features/tasks/TaskListItem'
@@ -43,7 +44,15 @@ export function ProjectDetailPage() {
   const { data: roadmap } = useQuery({ queryKey: roadmapKeys.byProject(id ?? ''), queryFn: () => listRoadmap(id!), enabled: Boolean(id) })
   const { data: notes } = useQuery({ queryKey: notesKeys.list(id), queryFn: () => listNotes(id), enabled: Boolean(id) })
   useEffect(() => { if (project) setSettings({ name: project.name, description: project.description ?? '', color: project.color, icon: project.icon ?? 'folder', status: project.status, priority: project.priority }) }, [project])
-  const invalidateProject = () => Promise.all([qc.invalidateQueries({ queryKey: projectsKeys.all }), qc.invalidateQueries({ queryKey: tasksKeys.all }), qc.invalidateQueries({ queryKey: activityKeys.all }), qc.invalidateQueries({ queryKey: notesKeys.all }), qc.invalidateQueries({ queryKey: roadmapKeys.all })])
+  const invalidateProject = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: projectsKeys.all }),
+      qc.invalidateQueries({ queryKey: tasksKeys.all }),
+      qc.invalidateQueries({ queryKey: activityKeys.all }),
+      qc.invalidateQueries({ queryKey: notesKeys.all }),
+      qc.invalidateQueries({ queryKey: roadmapKeys.all }),
+      qc.invalidateQueries({ queryKey: homeKeys.all }),
+    ])
   const save = useMutation({ mutationFn: () => updateProject(id!, { name: settings.name.trim(), description: settings.description, color: settings.color, icon: settings.icon, status: settings.status, priority: settings.priority }), onSuccess: async () => { await invalidateProject(); toast.success(t('projects.settingsSaved')) }, onError: (error: Error) => toast.error(error.message) })
   const addRoadmap = useMutation({ mutationFn: () => createRoadmapItem({ projectId: id!, title: roadmapTitle.trim(), horizon: roadmapHorizon }), onSuccess: async () => { await qc.invalidateQueries({ queryKey: roadmapKeys.all }); setRoadmapTitle(''); toast.success('Roadmap item added') }, onError: (error: Error) => toast.error(error.message) })
   const addNote = useMutation({ mutationFn: () => createNote({ title: 'Untitled note', projectId: id }), onSuccess: async (note) => { await qc.invalidateQueries({ queryKey: notesKeys.all }); window.location.assign(`/app/notes/${note.id}`) }, onError: (error: Error) => toast.error(error.message) })

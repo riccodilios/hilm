@@ -69,7 +69,19 @@ export const aiActionSchema = z.discriminatedUnion('type', [
     name: z.string().optional(),
     description: z.string().optional(),
     completionPct: z.coerce.number().min(0).max(100).optional(),
-    health: z.enum(['healthy', 'warning', 'blocked', 'critical']).optional(),
+    health: z
+      .enum([
+        'unengaged',
+        'started',
+        'active',
+        'healthy',
+        'near_completion',
+        'blocked',
+        'stalled',
+        'warning',
+        'critical',
+      ])
+      .optional(),
   }),
   z.object({
     type: z.literal('note.create'),

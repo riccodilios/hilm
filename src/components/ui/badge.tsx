@@ -1,11 +1,17 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import type { ProjectHealth } from '@/features/projects/health'
 import type { HealthStatus, Priority, TaskStatus } from '@/types/domain'
 
-const healthStyles: Record<HealthStatus, string> = {
+const healthStyles: Record<string, string> = {
+  unengaged: 'bg-zinc-500/15 text-zinc-400',
+  started: 'bg-sky-500/15 text-sky-400',
+  active: 'bg-amber-500/15 text-amber-400',
   healthy: 'bg-success/15 text-success',
-  warning: 'bg-warning/15 text-warning',
+  near_completion: 'bg-violet-500/15 text-violet-400',
   blocked: 'bg-danger/15 text-danger',
+  stalled: 'bg-zinc-700/40 text-zinc-300',
+  warning: 'bg-warning/15 text-warning',
   critical: 'bg-danger/25 text-danger',
 }
 
@@ -32,9 +38,13 @@ export function Badge({
   )
 }
 
-export function HealthBadge({ health }: { health: HealthStatus }) {
+export function HealthBadge({ health }: { health: HealthStatus | ProjectHealth }) {
   const { t } = useTranslation()
-  return <Badge className={healthStyles[health]}>{t(`health.${health}`)}</Badge>
+  return (
+    <Badge className={healthStyles[health] ?? healthStyles.unengaged}>
+      {t(`health.${health}`, { defaultValue: health.replaceAll('_', ' ') })}
+    </Badge>
+  )
 }
 
 export function PriorityBadge({ priority }: { priority: Priority }) {

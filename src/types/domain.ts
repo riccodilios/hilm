@@ -9,7 +9,16 @@ export type TaskStatus =
 
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived'
 export type Priority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
-export type HealthStatus = 'healthy' | 'warning' | 'blocked' | 'critical'
+export type HealthStatus =
+  | 'unengaged'
+  | 'started'
+  | 'active'
+  | 'healthy'
+  | 'near_completion'
+  | 'blocked'
+  | 'stalled'
+  | 'warning'
+  | 'critical'
 export type RoadmapHorizon = 'now' | 'next' | 'later' | 'future'
 export type IdeaStatus = 'inbox' | 'exploring' | 'accepted' | 'rejected' | 'converted'
 

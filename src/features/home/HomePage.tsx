@@ -7,21 +7,44 @@ import { toast } from 'sonner'
 import { getDashboardData, homeKeys } from '@/features/home/api'
 import { updateTask, tasksKeys } from '@/features/tasks/api'
 import { activityKeys } from '@/features/activity/api'
+import { ProjectInsightCard } from '@/features/projects/ProjectInsightCard'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
+import { Badge, PriorityBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProjectBadge } from '@/components/ProjectBadge'
+import { formatDueRemaining } from '@/lib/dates'
 import { formatRelative } from '@/lib/utils'
+import type { TaskWithProject } from '@/features/tasks/reminders'
+
+function DueTaskRow({ task, locale }: { task: TaskWithProject; locale: string }) {
+  return (
+    <Link
+      to={`/app/tasks/${task.id}`}
+      className="flex items-start justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-2"
+    >
+      <div className="min-w-0 space-y-1.5">
+        {task.projects ? <ProjectBadge {...task.projects} /> : null}
+        <p className="truncate text-sm font-medium">{task.title}</p>
+        <p className="text-xs text-muted">
+          {formatDueRemaining(task, { locale }) || '—'}
+        </p>
+      </div>
+      <PriorityBadge priority={task.priority} />
+    </Link>
+  )
+}
 
 export function HomePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
+  const locale = i18n.language
   const { data, isLoading, error } = useQuery({
     queryKey: homeKeys.dashboard(),
     queryFn: getDashboardData,
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 
   const completeFocus = useMutation({
@@ -85,9 +108,9 @@ export function HomePage() {
               <Badge className="bg-surface-3 text-muted capitalize">
                 {data.focus.status.replace('_', ' ')}
               </Badge>
-              {data.focus.due_at ? (
+              {data.focus.due_at || data.focus.due_date ? (
                 <span className="text-sm text-muted">
-                  {t('tasks.due')} {format(new Date(data.focus.due_at), 'MMM d, h:mm a')}
+                  {formatDueRemaining(data.focus, { locale })}
                 </span>
               ) : null}
             </div>
@@ -141,77 +164,52 @@ export function HomePage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>{t('home.todayOverdue')}</CardTitle>
+            <CardTitle>{t('home.dueToday')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {[...data.overdueTasks, ...data.todayTasks].slice(0, 8).map((task) => (
-              <Link
-                key={task.id}
-                to={`/app/tasks/${task.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{task.title}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">{task.projects ? <ProjectBadge {...task.projects} /> : null}<span>{task.due_at ? format(new Date(task.due_at), 'MMM d') : t('home.noDueDate')}</span></div>
-                </div>
-                <PriorityBadge priority={task.priority} />
-              </Link>
+          <CardContent className="space-y-1">
+            {data.overdueTasks.length ? (
+              <div className="mb-3 space-y-1 border-b border-border-subtle pb-3">
+                <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-danger">
+                  {t('home.overdue')}
+                </p>
+                {data.overdueTasks.slice(0, 4).map((task) => (
+                  <DueTaskRow key={task.id} task={task} locale={locale} />
+                ))}
+              </div>
+            ) : null}
+            {data.todayTasks.map((task) => (
+              <DueTaskRow key={task.id} task={task} locale={locale} />
             ))}
-            {data.overdueTasks.length + data.todayTasks.length === 0 ? (
-              <p className="text-sm text-muted">{t('home.nothingDue')}</p>
+            {data.todayTasks.length === 0 && data.overdueTasks.length === 0 ? (
+              <p className="px-2 text-sm text-muted">{t('home.nothingDueToday')}</p>
             ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>{t('home.upcoming')}</CardTitle>
+            <CardTitle>{t('home.dueTomorrow')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {data.upcoming.slice(0, 8).map((task) => (
-              <Link
-                key={task.id}
-                to={`/app/tasks/${task.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
-              >
-                <div className="min-w-0"><p className="truncate text-sm">{task.title}</p>{task.projects ? <ProjectBadge {...task.projects} className="mt-1" /> : null}</div>
-                <span className="shrink-0 text-xs text-muted">
-                  {task.due_at ? format(new Date(task.due_at), 'MMM d') : ''}
-                </span>
-              </Link>
+          <CardContent className="space-y-1">
+            {data.tomorrowTasks.map((task) => (
+              <DueTaskRow key={task.id} task={task} locale={locale} />
             ))}
-            {data.upcoming.length === 0 ? (
-              <p className="text-sm text-muted">{t('home.noUpcoming')}</p>
+            {data.tomorrowTasks.length === 0 ? (
+              <p className="px-2 text-sm text-muted">{t('home.nothingDueTomorrow')}</p>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex-row items-center justify-between">
             <CardTitle>{t('home.projectHealth')}</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/app/projects">{t('home.viewProjects')}</Link>
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="grid gap-3 sm:grid-cols-2">
             {data.projects.slice(0, 6).map((project) => (
-              <Link
-                key={project.id}
-                to={`/app/projects/${project.id}`}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-surface-2"
-              >
-                <span
-                  className="size-2.5 rounded-full"
-                  style={{ backgroundColor: project.color }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{project.name}</p>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-3">
-                    <div
-                      className="h-full rounded-full bg-accent/80"
-                      style={{ width: `${project.completion_pct}%` }}
-                    />
-                  </div>
-                </div>
-                <HealthBadge health={project.health} />
-              </Link>
+              <ProjectInsightCard key={project.id} project={project} />
             ))}
             {data.projects.length === 0 ? (
               <p className="text-sm text-muted">
@@ -220,6 +218,20 @@ export function HomePage() {
                   {t('home.createOne')}
                 </Link>
               </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('home.upcoming')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {data.upcoming.slice(0, 8).map((task) => (
+              <DueTaskRow key={task.id} task={task} locale={locale} />
+            ))}
+            {data.upcoming.length === 0 ? (
+              <p className="px-2 text-sm text-muted">{t('home.noUpcoming')}</p>
             ) : null}
           </CardContent>
         </Card>
@@ -251,17 +263,20 @@ export function HomePage() {
           <CardContent>
             {data.dailyLog ? (
               <div className="space-y-2 text-sm">
-                <p>
-                  <span className="text-muted">{t('home.workedOn')} — </span>
-                  {data.dailyLog.worked_on || '—'}
-                </p>
-                <p>
-                  <span className="text-muted">{t('home.blockers')} — </span>
-                  {data.dailyLog.blockers || '—'}
-                </p>
                 {data.dailyLog.ai_summary ? (
                   <p className="rounded-lg bg-surface-2 p-3 text-muted">{data.dailyLog.ai_summary}</p>
-                ) : null}
+                ) : (
+                  <>
+                    <p>
+                      <span className="text-muted">{t('home.workedOn')} — </span>
+                      {data.dailyLog.worked_on || '—'}
+                    </p>
+                    <p>
+                      <span className="text-muted">{t('home.blockers')} — </span>
+                      {data.dailyLog.blockers || '—'}
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted">{t('home.noLog')}</p>

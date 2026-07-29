@@ -8,6 +8,7 @@ import { QueryProvider } from '@/lib/query/client'
 import { AppRouter } from '@/app/router'
 import { ThemeProvider, useTheme } from '@/hooks/useTheme'
 import { NotificationListener } from '@/features/notifications/NotificationListener'
+import { WorkspaceRealtime } from '@/features/home/WorkspaceRealtime'
 import '@/i18n'
 import '@/styles/globals.css'
 
@@ -27,6 +28,7 @@ function App() {
     <QueryProvider>
       <AuthProvider>
         <NotificationListener />
+        <WorkspaceRealtime />
         <AppRouter />
         <Toaster
           theme={theme}
