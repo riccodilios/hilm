@@ -291,6 +291,7 @@
     "timeline": "الجدول",
     "overview": "نظرة عامة",
     "todaySchedule": "جدول اليوم",
+    "daySchedule": "{{day}}",
     "openBlocks": "مفتوحة",
     "emptyTimeline": "لا شيء مجدول لهذا اليوم. أفلت مهمة هنا أو أضف كتلة.",
     "doubleComplete": "انقر مرتين للإكمال",

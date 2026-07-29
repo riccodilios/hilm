@@ -291,6 +291,7 @@
     "timeline": "Timeline",
     "overview": "Overview",
     "todaySchedule": "Today’s timeline",
+    "daySchedule": "{{day}}",
     "openBlocks": "open",
     "emptyTimeline": "Nothing scheduled on this day. Drop a task here or add a block.",
     "doubleComplete": "Double-click to complete",

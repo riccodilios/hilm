@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { format, parseISO } from 'date-fns'
+import { ar, enUS } from 'date-fns/locale'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { todayLocalISO } from '@/lib/dates'
 import { ProjectIcon } from '@/features/projects/icons'
 import {
   HOUR_HEIGHT,
@@ -30,7 +33,15 @@ export function MissionTimeline({
   onReschedule: (taskId: string, dayKey: string, hour: number) => void
   onComplete: (taskId: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
+  const isToday = dayKey === todayLocalISO()
+  const scheduleTitle = isToday
+    ? t('mission.todaySchedule')
+    : t('mission.daySchedule', {
+        day: format(parseISO(dayKey), 'EEEE, MMM d', { locale: dateLocale }),
+      })
+
   const [nowHour, setNowHour] = useState(() => {
     const now = new Date()
     return now.getHours() + now.getMinutes() / 60
@@ -55,17 +66,17 @@ export function MissionTimeline({
   )
 
   const blocks = useMemo(() => packDayTimeline(filtered, dayKey), [filtered, dayKey])
-  const showNow = nowHour >= WORK_DAY_START && nowHour <= WORK_DAY_END
+  const showNow = isToday && nowHour >= WORK_DAY_START && nowHour <= WORK_DAY_END
   const nowTop = (nowHour - WORK_DAY_START) * HOUR_HEIGHT
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('mission.timeline')}</p>
-          <h2 className="mt-1 text-lg font-medium">{t('mission.todaySchedule')}</h2>
+          <h2 className="mt-1 truncate text-lg font-medium">{scheduleTitle}</h2>
         </div>
-        <p className="text-xs text-muted">
+        <p className="shrink-0 text-xs text-muted">
           {blocks.filter((block) => block.task.status !== 'done').length} {t('mission.openBlocks')}
         </p>
       </div>
