@@ -174,7 +174,6 @@ export async function refreshProjectCompletion(projectId: string) {
       completion_pct: pct,
       health: toPersistedHealthStatus(computed.health),
       health_explanation: computed.explanation,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', projectId)
     .select('*')
