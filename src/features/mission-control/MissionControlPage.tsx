@@ -28,7 +28,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { addLocalDays, taskDueDateKey, todayLocalISO, toLocalDateKey } from '@/lib/dates'
-import type { TaskWithProject } from '@/features/tasks/reminders'
 
 type MobilePane = 'calendar' | 'timeline' | 'overview'
 
