@@ -76,10 +76,11 @@ export function AppShell() {
 
       <div className="relative lg:ps-60">
         {!online ? <OfflineBanner /> : null}
-        <main className="mx-auto min-h-dvh w-full max-w-6xl px-4 pb-24 pt-6 sm:px-6 lg:pb-10 lg:pt-8">
+        <main className="mx-auto min-h-dvh w-full max-w-6xl overflow-x-hidden px-4 pb-24 pt-6 sm:px-6 lg:pb-10 lg:pt-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
+              className="w-full min-w-0"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}

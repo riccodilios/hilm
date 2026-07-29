@@ -87,7 +87,7 @@ export function ProjectInsightCard({
     <Link
       to={`/app/projects/${project.id}`}
       className={cn(
-        'flex gap-3 rounded-xl border border-border-subtle bg-surface/60 p-3 transition-colors hover:border-border hover:bg-surface',
+        'flex w-full min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface/60 p-3 transition-colors hover:border-border hover:bg-surface',
         compact && 'items-center',
       )}
     >

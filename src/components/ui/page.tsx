@@ -34,12 +34,12 @@ export function PageHeader({
   actions?: React.ReactNode
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-3xl">{title}</h1>
+    <div className="mb-6 flex w-full min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <h1 className="break-words text-2xl font-medium tracking-tight text-foreground sm:text-3xl">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   )
 }

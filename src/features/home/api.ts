@@ -95,7 +95,8 @@ export async function getDashboardData() {
     .filter((task) => {
       const key = taskDueDateKey(task)
       if (!key) return false
-      return key > tomorrowKey && key <= addLocalDays(todayKey, 7)
+      // Include tomorrow through the next 7 days (no separate tomorrow widget).
+      return key > todayKey && key <= addLocalDays(todayKey, 7)
     })
     .sort(sortByDue)
 

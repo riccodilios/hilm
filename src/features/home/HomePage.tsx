@@ -21,12 +21,12 @@ function DueTaskRow({ task, locale }: { task: TaskWithProject; locale: string })
   return (
     <Link
       to={`/app/tasks/${task.id}`}
-      className="flex items-start justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-2"
+      className="flex w-full min-w-0 items-start justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-2"
     >
-      <div className="min-w-0 space-y-1.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
         {task.projects ? <ProjectBadge {...task.projects} /> : null}
         <p className="truncate text-sm font-medium">{task.title}</p>
-        <p className="text-xs text-muted">
+        <p className="truncate text-xs text-muted">
           {formatDueRemaining(task, { locale }) || '—'}
         </p>
       </div>
@@ -62,8 +62,8 @@ export function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-64" />
+      <div className="w-full min-w-0 space-y-4">
+        <Skeleton className="h-10 w-48 max-w-full" />
         <Skeleton className="h-40 w-full" />
         <div className="grid gap-4 md:grid-cols-2">
           <Skeleton className="h-48" />
@@ -83,7 +83,7 @@ export function HomePage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto w-full min-w-0 max-w-full">
       <PageHeader
         title={t('home.title')}
         description={format(new Date(), 'EEEE, MMMM d')}
@@ -97,11 +97,13 @@ export function HomePage() {
         }
       />
 
-      <section className="mb-8 rounded-2xl border border-border bg-gradient-to-br from-surface via-surface to-surface-2 p-6 sm:p-8">
+      <section className="mb-8 w-full min-w-0 rounded-2xl border border-border bg-gradient-to-br from-surface via-surface to-surface-2 p-5 sm:p-8">
         {data.focus ? (
           <>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">{t('home.focusNow')}</p>
-            <h2 className="mt-3 text-2xl font-medium tracking-tight sm:text-3xl">{data.focus.title}</h2>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('home.focusNow')}</p>
+            <h2 className="mt-3 break-words text-2xl font-medium tracking-tight sm:text-3xl">
+              {data.focus.title}
+            </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PriorityBadge priority={data.focus.priority} />
               {data.focus.projects ? <ProjectBadge {...data.focus.projects} /> : null}
@@ -133,9 +135,9 @@ export function HomePage() {
           </>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted">{t('home.focusNow')}</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('home.focusNow')}</p>
             <h2 className="mt-3 text-2xl font-medium tracking-tight">{t('home.inboxZero')}</h2>
-            <div className="mt-6 flex gap-2">
+            <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
                 <Link to="/app/tasks?new=1">{t('home.newTask')}</Link>
               </Button>
@@ -147,26 +149,29 @@ export function HomePage() {
         )}
       </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-6 grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: t('home.statOpen'), value: data.stats.openCount },
           { label: t('home.statOverdue'), value: data.stats.overdueCount },
           { label: t('home.statDone'), value: data.stats.doneThisWeek },
           { label: t('home.statProjects'), value: data.stats.projectCount },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border border-border-subtle bg-surface/60 px-4 py-3">
-            <p className="text-xs text-muted">{stat.label}</p>
+          <div
+            key={stat.label}
+            className="min-w-0 rounded-xl border border-border-subtle bg-surface/60 px-3 py-3 sm:px-4"
+          >
+            <p className="truncate text-xs text-muted">{stat.label}</p>
             <p className="mt-1 text-2xl font-medium tabular-nums">{stat.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+      <div className="grid w-full min-w-0 gap-4 lg:grid-cols-2">
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>{t('home.dueToday')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="min-w-0 space-y-1">
             {data.overdueTasks.length ? (
               <div className="mb-3 space-y-1 border-b border-border-subtle pb-3">
                 <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-danger">
@@ -186,28 +191,28 @@ export function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
-            <CardTitle>{t('home.dueTomorrow')}</CardTitle>
+            <CardTitle>{t('home.upcoming')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1">
-            {data.tomorrowTasks.map((task) => (
+          <CardContent className="min-w-0 space-y-1">
+            {data.upcoming.slice(0, 8).map((task) => (
               <DueTaskRow key={task.id} task={task} locale={locale} />
             ))}
-            {data.tomorrowTasks.length === 0 ? (
-              <p className="px-2 text-sm text-muted">{t('home.nothingDueTomorrow')}</p>
+            {data.upcoming.length === 0 ? (
+              <p className="px-2 text-sm text-muted">{t('home.noUpcoming')}</p>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between">
+        <Card className="min-w-0 overflow-hidden lg:col-span-2">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>{t('home.projectHealth')}</CardTitle>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost" size="sm" className="self-start sm:self-auto">
               <Link to="/app/projects">{t('home.viewProjects')}</Link>
             </Button>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
+          <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2">
             {data.projects.slice(0, 6).map((project) => (
               <ProjectInsightCard key={project.id} project={project} />
             ))}
@@ -222,30 +227,16 @@ export function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('home.upcoming')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {data.upcoming.slice(0, 8).map((task) => (
-              <DueTaskRow key={task.id} task={task} locale={locale} />
-            ))}
-            {data.upcoming.length === 0 ? (
-              <p className="px-2 text-sm text-muted">{t('home.noUpcoming')}</p>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>{t('home.recentActivity')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="min-w-0 space-y-3">
             {data.activity.map((event) => (
-              <div key={event.id} className="flex gap-3">
+              <div key={event.id} className="flex min-w-0 gap-3">
                 <div className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-fg" />
-                <div className="min-w-0">
-                  <p className="text-sm">{event.summary}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm">{event.summary}</p>
                   <p className="text-xs text-muted">{formatRelative(event.created_at)}</p>
                 </div>
               </div>
@@ -256,22 +247,24 @@ export function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader>
             <CardTitle>{t('home.dailyLog')}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             {data.dailyLog ? (
               <div className="space-y-2 text-sm">
                 {data.dailyLog.ai_summary ? (
-                  <p className="rounded-lg bg-surface-2 p-3 text-muted">{data.dailyLog.ai_summary}</p>
+                  <p className="break-words rounded-lg bg-surface-2 p-3 text-muted">
+                    {data.dailyLog.ai_summary}
+                  </p>
                 ) : (
                   <>
-                    <p>
+                    <p className="break-words">
                       <span className="text-muted">{t('home.workedOn')} — </span>
                       {data.dailyLog.worked_on || '—'}
                     </p>
-                    <p>
+                    <p className="break-words">
                       <span className="text-muted">{t('home.blockers')} — </span>
                       {data.dailyLog.blockers || '—'}
                     </p>
@@ -287,18 +280,18 @@ export function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 overflow-hidden lg:col-span-2">
           <CardHeader>
             <CardTitle>{t('home.recentNotes')}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="min-w-0 space-y-2">
             {data.recentNotes.map((note) => (
               <Link
                 key={note.id}
                 to={`/app/notes/${note.id}`}
-                className="block rounded-lg px-2 py-2 hover:bg-surface-2"
+                className="block min-w-0 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
-                <p className="text-sm">{note.title}</p>
+                <p className="truncate text-sm">{note.title}</p>
                 <p className="text-xs text-muted">{formatRelative(note.updated_at)}</p>
               </Link>
             ))}
