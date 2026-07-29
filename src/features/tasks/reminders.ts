@@ -27,12 +27,22 @@ export type TaskWithProject = Tables<'tasks'> & {
   projects?: Pick<Tables<'projects'>, 'id' | 'name' | 'color' | 'icon'> | null
 }
 
-export function combineDueAt(dueDate?: string | null): string | null {
+export function combineDueAt(dueDate?: string | null, timeHHmm?: string | null): string | null {
   if (!dueDate) return null
-  // Date-only due dates use morning local time so reminder offsets stay meaningful.
-  const iso = new Date(`${dueDate}T09:00:00`)
+  const raw = timeHHmm?.trim() ?? ''
+  const time = /^\d{1,2}:\d{2}/.test(raw)
+    ? raw.slice(0, 5).padStart(5, '0')
+    : '09:00'
+  const iso = new Date(`${dueDate}T${time}:00`)
   if (Number.isNaN(iso.getTime())) return null
   return iso.toISOString()
+}
+
+/** Schedule a task on a local calendar day at a specific hour (Mission Control). */
+export function dueAtFromLocalSchedule(dueDate: string, hour: number, minute = 0) {
+  const hh = String(Math.max(0, Math.min(23, Math.floor(hour)))).padStart(2, '0')
+  const mm = String(Math.max(0, Math.min(59, Math.floor(minute)))).padStart(2, '0')
+  return combineDueAt(dueDate, `${hh}:${mm}`)
 }
 
 export function computeRemindAt(

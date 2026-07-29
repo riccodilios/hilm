@@ -57,6 +57,11 @@ const ProfilePage = lazy(() =>
 const SearchPage = lazy(() =>
   import('@/features/search/SearchPage').then((m) => ({ default: m.SearchPage })),
 )
+const MissionControlPage = lazy(() =>
+  import('@/features/mission-control/MissionControlPage').then((m) => ({
+    default: m.MissionControlPage,
+  })),
+)
 const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
@@ -134,13 +139,14 @@ export function AppRouter() {
             <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
             <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
             <Route
-              path="calendar"
+              path="mission-control"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.calendarTitle" descriptionKey="scaffold.calendarDesc" />
+                  <MissionControlPage />
                 </Suspense>
               }
             />
+            <Route path="calendar" element={<Navigate to="/app/mission-control" replace />} />
             <Route
               path="ideas"
               element={

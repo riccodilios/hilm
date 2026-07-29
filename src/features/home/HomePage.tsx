@@ -131,6 +131,9 @@ export function HomePage() {
                 <Check className="size-4" />
                 {t('home.markDone')}
               </Button>
+              <Button asChild variant="ghost">
+                <Link to="/app/mission-control">{t('mission.title')}</Link>
+              </Button>
             </div>
           </>
         ) : (

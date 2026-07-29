@@ -172,7 +172,10 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
     const current = await getTask(id)
     const dueDate = patch.due_date !== undefined ? patch.due_date : current.due_date
     next.due_time = null
-    next.due_at = combineDueAt(dueDate)
+    // Keep an explicit due_at (timed schedule) when Mission Control provides one.
+    if (patch.due_at === undefined) {
+      next.due_at = combineDueAt(dueDate)
+    }
   }
 
   if (patch.status === 'done' && !patch.completed_at) {
