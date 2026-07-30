@@ -20,7 +20,7 @@ import type { TaskWithProject } from '@/features/tasks/reminders'
 function DueTaskRow({ task, locale }: { task: TaskWithProject; locale: string }) {
   return (
     <Link
-      to={`/app/tasks/${task.id}`}
+      to={`/personal/tasks/${task.id}`}
       className="flex w-full min-w-0 items-start justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-2"
     >
       <div className="min-w-0 flex-1 space-y-1.5">
@@ -89,7 +89,7 @@ export function HomePage() {
         description={format(new Date(), 'EEEE, MMMM d')}
         actions={
           <Button asChild variant="secondary" size="sm">
-            <Link to="/app/ai">
+            <Link to="/personal/ai">
               <Sparkles className="size-4" />
               {t('home.askAi')}
             </Link>
@@ -118,7 +118,7 @@ export function HomePage() {
             </div>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
-                <Link to={`/app/tasks/${data.focus.id}`}>
+                <Link to={`/personal/tasks/${data.focus.id}`}>
                   {t('home.openTask')} <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -132,7 +132,7 @@ export function HomePage() {
                 {t('home.markDone')}
               </Button>
               <Button asChild variant="ghost">
-                <Link to="/app/mission-control">{t('mission.title')}</Link>
+                <Link to="/personal/mission-control">{t('mission.title')}</Link>
               </Button>
             </div>
           </>
@@ -142,10 +142,10 @@ export function HomePage() {
             <h2 className="mt-3 text-2xl font-medium tracking-tight">{t('home.inboxZero')}</h2>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
-                <Link to="/app/tasks?new=1">{t('home.newTask')}</Link>
+                <Link to="/personal/tasks?new=1">{t('home.newTask')}</Link>
               </Button>
               <Button asChild variant="secondary">
-                <Link to="/app/ai">{t('home.askChief')}</Link>
+                <Link to="/personal/ai">{t('home.askChief')}</Link>
               </Button>
             </div>
           </>
@@ -212,7 +212,7 @@ export function HomePage() {
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>{t('home.projectHealth')}</CardTitle>
             <Button asChild variant="ghost" size="sm" className="self-start sm:self-auto">
-              <Link to="/app/projects">{t('home.viewProjects')}</Link>
+              <Link to="/personal/projects">{t('home.viewProjects')}</Link>
             </Button>
           </CardHeader>
           <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -222,7 +222,7 @@ export function HomePage() {
             {data.projects.length === 0 ? (
               <p className="text-sm text-muted">
                 {t('home.noProjects')}{' '}
-                <Link to="/app/projects" className="underline">
+                <Link to="/personal/projects" className="underline">
                   {t('home.createOne')}
                 </Link>
               </p>
@@ -278,7 +278,7 @@ export function HomePage() {
               <p className="text-sm text-muted">{t('home.noLog')}</p>
             )}
             <Button asChild variant="ghost" size="sm" className="mt-3 px-0">
-              <Link to="/app/daily-log">{t('home.openDailyLog')}</Link>
+              <Link to="/personal/daily-log">{t('home.openDailyLog')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -291,7 +291,7 @@ export function HomePage() {
             {data.recentNotes.map((note) => (
               <Link
                 key={note.id}
-                to={`/app/notes/${note.id}`}
+                to={`/personal/notes/${note.id}`}
                 className="block min-w-0 rounded-lg px-2 py-2 hover:bg-surface-2"
               >
                 <p className="truncate text-sm">{note.title}</p>

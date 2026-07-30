@@ -6,7 +6,7 @@ export function LandingFooter() {
   const links = [
     { label: t('landing.footerPrivacy'), href: '/privacy' },
     { label: t('landing.footerGithub'), href: 'https://github.com/riccodilios/hilm', external: true },
-    { label: t('landing.footerDocs'), href: '/app/documents' },
+    { label: t('landing.footerDocs'), href: '/personal/documents' },
     { label: t('landing.footerContact'), href: 'mailto:hello@hilm.app' },
   ]
 

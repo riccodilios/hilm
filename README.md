@@ -35,8 +35,18 @@ Email (Resend) stays optional forever and is **not** required for reminders to w
 
 ### Auth redirects
 
-Supabase Auth → Site URL `https://hillm.netlify.app`  
-Redirect: `https://hillm.netlify.app/auth/callback`
+Never hardcode localhost in production.
+
+1. **Netlify env:** `VITE_APP_URL=https://hillm.netlify.app`
+2. **Local `.env`:** `VITE_APP_URL=http://localhost:5173`
+3. **Supabase Auth → URL Configuration:**
+   - Site URL (production): `https://hillm.netlify.app`
+   - Redirect URLs:
+     - `https://hillm.netlify.app/auth/callback**`
+     - `https://hillm.netlify.app/auth/confirm**`
+     - `http://localhost:5173/auth/callback**` (dev only)
+
+Signup / resend / magic-link / password-reset all call `getAuthCallbackUrl()` which reads `VITE_APP_URL` (and falls back to `window.location.origin`, never emitting localhost while on a production host).
 
 ## Scripts
 

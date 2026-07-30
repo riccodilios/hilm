@@ -86,7 +86,7 @@ export function TaskActionsDialog({
               if (!task) return
               const id = task.id
               onClose()
-              navigate(`/app/tasks/${id}`)
+              navigate(`/personal/tasks/${id}`)
             }}
           >
             <ExternalLink className="size-4" /> {t('tasks.open')}
@@ -98,7 +98,7 @@ export function TaskActionsDialog({
               if (!task) return
               const id = task.id
               onClose()
-              navigate(`/app/tasks/${id}`)
+              navigate(`/personal/tasks/${id}`)
             }}
           >
             <Pencil className="size-4" /> {t('tasks.edit')}

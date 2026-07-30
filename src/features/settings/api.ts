@@ -10,7 +10,7 @@ export const settingsKeys = {
 }
 
 const settingsSelect =
-  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, created_at, updated_at'
+  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, onboarding_completed, default_startup_mode, created_at, updated_at'
 
 export async function getSettings() {
   const userId = await requireUserId()
@@ -30,6 +30,8 @@ export async function updateSettings(patch: {
   default_reminder_type?: ReminderType
   email_reminders_enabled?: boolean
   push_notifications_enabled?: boolean
+  onboarding_completed?: boolean
+  default_startup_mode?: import('@/types/database').Database['public']['Enums']['startup_mode']
 }) {
   const userId = await requireUserId()
   const { data, error } = await supabase

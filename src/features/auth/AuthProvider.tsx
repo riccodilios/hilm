@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             password,
             options: {
               data: { display_name: displayName?.trim() || undefined },
-              emailRedirectTo: getAuthCallbackUrl('/app'),
+              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
             },
           }),
         )
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             type: 'signup',
             email: normalizeEmail(email),
             options: {
-              emailRedirectTo: getAuthCallbackUrl('/app'),
+              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
             },
           }),
         )
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           supabase.auth.signInWithOtp({
             email: normalizeEmail(email),
             options: {
-              emailRedirectTo: getAuthCallbackUrl('/app'),
+              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
               shouldCreateUser: true,
             },
           }),

@@ -202,7 +202,7 @@ export function MissionOverview({
             {focus.projects?.name ?? '—'} · {formatDueRemaining(focus, { locale })}
           </p>
           <Button asChild size="sm" variant="secondary" className="mt-3">
-            <Link to={`/app/tasks/${focus.id}`}>{t('mission.openFocus')}</Link>
+            <Link to={`/personal/tasks/${focus.id}`}>{t('mission.openFocus')}</Link>
           </Button>
         </div>
       ) : null}
@@ -293,7 +293,7 @@ export function MissionOverview({
           {projects.slice(0, 5).map((project) => (
             <Link
               key={project.id}
-              to={`/app/projects/${project.id}`}
+              to={`/personal/projects/${project.id}`}
               className="flex items-center justify-between gap-2 rounded-lg px-1 py-1.5 hover:bg-surface-2"
             >
               <span className="flex min-w-0 items-center gap-2">
@@ -313,7 +313,7 @@ export function MissionOverview({
             {overdue.slice(0, 4).map((task) => (
               <Link
                 key={task.id}
-                to={`/app/tasks/${task.id}`}
+                to={`/personal/tasks/${task.id}`}
                 className="block truncate text-sm hover:underline"
               >
                 {task.title}

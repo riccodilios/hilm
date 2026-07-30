@@ -56,6 +56,8 @@ export type Database = {
           default_reminder_type: Database['public']['Enums']['reminder_type']
           email_reminders_enabled: boolean
           push_notifications_enabled: boolean
+          onboarding_completed: boolean
+          default_startup_mode: Database['public']['Enums']['startup_mode']
           created_at: string
           updated_at: string
         },
@@ -69,6 +71,8 @@ export type Database = {
           default_reminder_type?: Database['public']['Enums']['reminder_type']
           email_reminders_enabled?: boolean
           push_notifications_enabled?: boolean
+          onboarding_completed?: boolean
+          default_startup_mode?: Database['public']['Enums']['startup_mode']
           created_at?: string
           updated_at?: string
         },
@@ -81,6 +85,8 @@ export type Database = {
           default_reminder_type?: Database['public']['Enums']['reminder_type']
           email_reminders_enabled?: boolean
           push_notifications_enabled?: boolean
+          onboarding_completed?: boolean
+          default_startup_mode?: Database['public']['Enums']['startup_mode']
           updated_at?: string
         }
       >
@@ -717,12 +723,199 @@ export type Database = {
           mime?: string | null
         }
       >
+      workspaces: Table<
+        {
+          id: string
+          name: string
+          slug: string
+          description: string | null
+          logo_url: string | null
+          color: string
+          invite_code: string
+          owner_id: string
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          name: string
+          slug: string
+          description?: string | null
+          logo_url?: string | null
+          color?: string
+          invite_code: string
+          owner_id: string
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          name?: string
+          slug?: string
+          description?: string | null
+          logo_url?: string | null
+          color?: string
+          invite_code?: string
+          owner_id?: string
+          updated_at?: string
+        }
+      >
+      workspace_members: Table<
+        {
+          workspace_id: string
+          user_id: string
+          role: Database['public']['Enums']['workspace_role']
+          joined_at: string
+        },
+        {
+          workspace_id: string
+          user_id: string
+          role?: Database['public']['Enums']['workspace_role']
+          joined_at?: string
+        },
+        {
+          role?: Database['public']['Enums']['workspace_role']
+        }
+      >
+      workspace_projects: Table<
+        {
+          id: string
+          workspace_id: string
+          created_by: string
+          name: string
+          description: string | null
+          icon: string | null
+          color: string
+          status: Database['public']['Enums']['project_status']
+          priority: Database['public']['Enums']['priority']
+          completion_pct: number
+          health: Database['public']['Enums']['health_status']
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          created_by: string
+          name: string
+          description?: string | null
+          icon?: string | null
+          color?: string
+          status?: Database['public']['Enums']['project_status']
+          priority?: Database['public']['Enums']['priority']
+          completion_pct?: number
+          health?: Database['public']['Enums']['health_status']
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          name?: string
+          description?: string | null
+          icon?: string | null
+          color?: string
+          status?: Database['public']['Enums']['project_status']
+          priority?: Database['public']['Enums']['priority']
+          completion_pct?: number
+          health?: Database['public']['Enums']['health_status']
+          updated_at?: string
+        }
+      >
+      workspace_tasks: Table<
+        {
+          id: string
+          workspace_id: string
+          project_id: string
+          created_by: string
+          assignee_id: string | null
+          title: string
+          description: string | null
+          priority: Database['public']['Enums']['priority']
+          status: Database['public']['Enums']['task_status']
+          estimated_hours: number | null
+          due_at: string | null
+          due_date: string | null
+          position: number
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          project_id: string
+          created_by: string
+          assignee_id?: string | null
+          title: string
+          description?: string | null
+          priority?: Database['public']['Enums']['priority']
+          status?: Database['public']['Enums']['task_status']
+          estimated_hours?: number | null
+          due_at?: string | null
+          due_date?: string | null
+          position?: number
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          project_id?: string
+          assignee_id?: string | null
+          title?: string
+          description?: string | null
+          priority?: Database['public']['Enums']['priority']
+          status?: Database['public']['Enums']['task_status']
+          estimated_hours?: number | null
+          due_at?: string | null
+          due_date?: string | null
+          position?: number
+          completed_at?: string | null
+          updated_at?: string
+        }
+      >
+      workspace_activity_events: Table<
+        {
+          id: string
+          workspace_id: string
+          actor_id: string | null
+          event_type: string
+          entity_type: string | null
+          entity_id: string | null
+          summary: string
+          payload: Json
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          actor_id?: string | null
+          event_type: string
+          entity_type?: string | null
+          entity_id?: string | null
+          summary: string
+          payload?: Json
+          created_at?: string
+        },
+        {
+          summary?: string
+          payload?: Json
+        }
+      >
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_workspace: {
+        Args: { p_name: string; p_description?: string | null; p_color?: string | null }
+        Returns: Database['public']['Tables']['workspaces']['Row']
+      }
+      join_workspace_by_invite: {
+        Args: { p_code: string }
+        Returns: Database['public']['Tables']['workspaces']['Row']
+      }
+      regenerate_workspace_invite: {
+        Args: { p_workspace_id: string }
+        Returns: string
+      }
     }
     Enums: {
       task_status:
@@ -749,6 +942,8 @@ export type Database = {
       idea_status: 'inbox' | 'exploring' | 'accepted' | 'rejected' | 'converted'
       reminder_type: '5m' | '15m' | '30m' | '1h' | 'same_day_morning' | '1d' | '2d' | '1w' | 'custom'
       notification_channel: 'email' | 'push' | 'in_app'
+      workspace_role: 'owner' | 'admin' | 'member' | 'viewer'
+      startup_mode: 'personal' | 'workspace'
     }
     CompositeTypes: {
       [_ in never]: never

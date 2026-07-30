@@ -97,7 +97,7 @@ export function TasksPage() {
               ) : null}
             </Button>
             <Button variant="secondary" asChild>
-              <Link to="/app/tasks/board">
+              <Link to="/personal/tasks/board">
                 <Columns3 /> {t('tasks.board')}
               </Link>
             </Button>

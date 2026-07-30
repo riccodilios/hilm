@@ -38,11 +38,14 @@ export function Badge({
   )
 }
 
-export function HealthBadge({ health }: { health: HealthStatus | ProjectHealth }) {
+export function HealthBadge({ health }: { health?: HealthStatus | ProjectHealth | null }) {
   const { t } = useTranslation()
+  const key = health || 'unengaged'
+  const label =
+    typeof health === 'string' ? health.replaceAll('_', ' ') : 'unengaged'
   return (
-    <Badge className={healthStyles[health] ?? healthStyles.unengaged}>
-      {t(`health.${health}`, { defaultValue: health.replaceAll('_', ' ') })}
+    <Badge className={healthStyles[key] ?? healthStyles.unengaged}>
+      {t(`health.${key}`, { defaultValue: label })}
     </Badge>
   )
 }

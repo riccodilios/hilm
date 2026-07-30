@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { supabase } from '@/lib/supabase/client'
+import { resolvePostAuthDestination } from '@/features/auth/startup'
 
 export function ResetPasswordPage() {
   const { t } = useTranslation()
@@ -21,7 +22,7 @@ export function ResetPasswordPage() {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
       toast.success(t('auth.passwordUpdated'))
-      navigate('/app', { replace: true })
+      navigate(await resolvePostAuthDestination(), { replace: true })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('auth.callbackFailed'))
     } finally {

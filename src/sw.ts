@@ -44,7 +44,7 @@ self.addEventListener('push', (event) => {
 
   const title = payload.title || 'Hilm'
   const body = payload.body || 'You have a reminder'
-  const href = payload.href || payload.url || '/app'
+  const href = payload.href || payload.url || '/personal'
   const tag = payload.tag || 'hilm-reminder'
 
   event.waitUntil(
@@ -61,7 +61,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const href =
-    (event.notification.data && (event.notification.data as { href?: string }).href) || '/app'
+    (event.notification.data && (event.notification.data as { href?: string }).href) || '/personal'
   const targetUrl = new URL(href, self.location.origin).href
 
   event.waitUntil(

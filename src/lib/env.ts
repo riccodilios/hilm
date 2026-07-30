@@ -1,6 +1,6 @@
 /**
  * Canonical app URL for auth redirects, deep links, and emails.
- * Never hardcode localhost in production — set VITE_APP_URL / NEXT_PUBLIC_APP_URL per environment.
+ * Never hardcode localhost in production — set VITE_APP_URL per environment.
  */
 function readEnv(...keys: string[]) {
   for (const key of keys) {
@@ -14,6 +14,10 @@ function isLocalHost(url: string) {
   return /localhost|127\.0\.0\.1/i.test(url)
 }
 
+/**
+ * Browser origin when available; otherwise env. Never returns a localhost URL
+ * while the user is on a production host (guards against bad Netlify env).
+ */
 export function getAppUrl(): string {
   const fromEnv = readEnv(
     'VITE_APP_URL',
@@ -24,34 +28,43 @@ export function getAppUrl(): string {
 
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = window.location.origin.replace(/\/$/, '')
-    // Never let a localhost env value override a real production host (common Netlify misconfig).
     if (fromEnv) {
+      // Production host must never emit localhost redirect URLs into emails.
       if (isLocalHost(fromEnv) && !isLocalHost(origin)) return origin
+      // Prefer current origin in local/dev so redirects match the tab the user is on.
+      if (isLocalHost(origin) && isLocalHost(fromEnv)) return origin
       return fromEnv
     }
     return origin
   }
 
   if (fromEnv) return fromEnv
-
-  // Build-time fallback only (SSR / tooling). Prefer configuring VITE_APP_URL.
   return ''
 }
 
-export function getAuthCallbackUrl(next = '/app'): string {
+/** Absolute auth callback used as emailRedirectTo / redirectTo for Supabase Auth. */
+export function getAuthCallbackUrl(next = '/onboarding'): string {
   const base = getAppUrl()
+  if (!base) {
+    console.warn('[hilm] getAppUrl() is empty — set VITE_APP_URL for reliable auth emails')
+  }
   const params = new URLSearchParams({ next })
   return `${base}/auth/callback?${params.toString()}`
 }
 
+/** Alias used by confirmation emails and docs. */
+export function getAuthConfirmUrl(next = '/onboarding'): string {
+  return getAuthCallbackUrl(next)
+}
+
 export function getTaskDeepLink(taskId: string, projectId?: string | null): string {
   const base = getAppUrl()
-  if (projectId) return `${base}/app/projects/${projectId}?task=${taskId}`
-  return `${base}/app/tasks/${taskId}`
+  if (projectId) return `${base}/personal/projects/${projectId}?task=${taskId}`
+  return `${base}/personal/tasks/${taskId}`
 }
 
 export function getProjectDeepLink(projectId: string): string {
-  return `${getAppUrl()}/app/projects/${projectId}`
+  return `${getAppUrl()}/personal/projects/${projectId}`
 }
 
 export function getSupabaseUrl() {

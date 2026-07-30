@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
+import { PostAuthRedirect } from '@/features/auth/PostAuthRedirect'
+import { resolvePostAuthDestination } from '@/features/auth/startup'
 import { mapAuthError, normalizeEmail } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 
@@ -27,7 +29,7 @@ export function LoginPage() {
     return () => window.clearTimeout(id)
   }, [cooldown])
 
-  if (!loading && user) return <Navigate to="/app" replace />
+  if (!loading && user) return <PostAuthRedirect />
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -44,7 +46,7 @@ export function LoginPage() {
     try {
       await signIn(normalizeEmail(email), password)
       toast.success(t('auth.welcomeBack'))
-      navigate('/app')
+      navigate(await resolvePostAuthDestination())
     } catch (err) {
       const mapped = mapAuthError(err)
       if (mapped.key === 'auth.errors.emailNotConfirmed') setShowResend(true)

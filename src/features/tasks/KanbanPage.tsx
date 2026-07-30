@@ -12,7 +12,7 @@ export function KanbanPage() {
       <PageHeader
         title={t('tasks.kanbanTitle')}
         description={t('tasks.emptyBoardBody')}
-        actions={<Button asChild><Link to="/app/tasks?new=1"><Plus /> {t('tasks.new')}</Link></Button>}
+        actions={<Button asChild><Link to="/personal/tasks?new=1"><Plus /> {t('tasks.new')}</Link></Button>}
       />
       <KanbanBoard />
     </div>

@@ -42,6 +42,7 @@ export function SettingsPage() {
   const [emailReminders, setEmailReminders] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
+  const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
   const [projectEmail, setProjectEmail] = useState<Record<string, boolean>>({})
 
   const [pushBusy, setPushBusy] = useState(false)
@@ -84,6 +85,7 @@ export function SettingsPage() {
       setEmailReminders(settings.data.email_reminders_enabled ?? true)
       setPushNotifications(settings.data.push_notifications_enabled ?? false)
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
+      setStartupMode(settings.data.default_startup_mode ?? 'personal')
     }
   }, [settings.data, setTheme])
 
@@ -178,6 +180,7 @@ export function SettingsPage() {
           email_reminders_enabled: emailReminders,
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,
+          default_startup_mode: startupMode,
           notification_prefs: {
             email_reminders: emailReminders,
             push_notifications: pushNotifications,
@@ -260,6 +263,41 @@ export function SettingsPage() {
               </div>
               <LanguageSwitcher />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.startup')}</CardTitle>
+            <CardDescription>{t('settings.startupDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(['personal', 'workspace'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setStartupMode(mode)}
+                className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-start transition ${
+                  startupMode === mode
+                    ? 'border-accent/40 bg-accent/10'
+                    : 'border-border-subtle bg-surface-2/40'
+                }`}
+              >
+                <span
+                  className={`mt-1 size-2.5 rounded-full ${
+                    startupMode === mode ? 'bg-accent' : 'bg-muted'
+                  }`}
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    {mode === 'personal' ? t('os.personal') : t('os.workspace')}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {mode === 'personal' ? t('settings.startupPersonal') : t('settings.startupWorkspace')}
+                  </span>
+                </span>
+              </button>
+            ))}
           </CardContent>
         </Card>
 
@@ -354,7 +392,7 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Button asChild type="button" variant="secondary">
-              <Link to="/app/export">
+              <Link to="/personal/export">
                 <Download className="size-4" /> {t('settings.export')}
               </Link>
             </Button>

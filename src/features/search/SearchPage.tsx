@@ -106,14 +106,14 @@ export function SearchPage() {
         <div className="space-y-8">
           <ResultSection title={t('search.projects')} empty={results.projects.length === 0} emptyLabel={t('search.noMatches')}>
             {results.projects.map((p) => (
-              <Link key={p.id} to={`/app/projects/${p.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={p.id} to={`/personal/projects/${p.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {p.name}
               </Link>
             ))}
           </ResultSection>
           <ResultSection title={t('search.tasks')} empty={results.tasks.length === 0} emptyLabel={t('search.noMatches')}>
             {results.tasks.map((t) => (
-              <Link key={t.id} to={`/app/tasks/${t.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={t.id} to={`/personal/tasks/${t.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 <p>{t.title}</p>
                 {t.projects ? <ProjectBadge {...t.projects} className="mt-1" /> : null}
               </Link>
@@ -121,7 +121,7 @@ export function SearchPage() {
           </ResultSection>
           <ResultSection title={t('search.notes')} empty={results.notes.length === 0} emptyLabel={t('search.noMatches')}>
             {results.notes.map((n) => (
-              <Link key={n.id} to={`/app/notes/${n.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={n.id} to={`/personal/notes/${n.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {n.title}
               </Link>
             ))}
@@ -135,7 +135,7 @@ export function SearchPage() {
           </ResultSection>
           <ResultSection title={t('search.conversations')} empty={results.conversations.length === 0} emptyLabel={t('search.noMatches')}>
             {results.conversations.map((c) => (
-              <Link key={c.id} to={`/app/ai?c=${c.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
+              <Link key={c.id} to={`/personal/ai?c=${c.id}`} className="block rounded-lg px-3 py-2 hover:bg-surface-2">
                 {c.title}
               </Link>
             ))}

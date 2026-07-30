@@ -105,14 +105,14 @@ export function CommandPalette() {
             </Command.Empty>
 
             <Command.Group heading={t('command.commands')} className="px-1 py-2 text-xs text-muted">
-              <Item onSelect={() => go('/app/tasks?new=1')} icon={Plus} label={t('command.newTask')} />
-              <Item onSelect={() => go('/app/projects')} icon={FolderKanban} label={t('command.newProject')} />
-              <Item onSelect={() => go('/app')} icon={Home} label={t('command.today')} />
-              <Item onSelect={() => go('/app/ai')} icon={Brain} label={t('command.askAi')} />
-              <Item onSelect={() => go('/app/notes')} icon={NotebookPen} label={t('command.quickNote')} />
-              <Item onSelect={() => go('/app/search')} icon={Search} label={t('command.openSearch')} />
-              <Item onSelect={() => go('/app/ai')} icon={Sparkles} label={t('command.chief')} />
-              <Item onSelect={() => go('/app/tasks/board')} icon={CheckSquare} label={t('command.kanban')} />
+              <Item onSelect={() => go('/personal/tasks?new=1')} icon={Plus} label={t('command.newTask')} />
+              <Item onSelect={() => go('/personal/projects')} icon={FolderKanban} label={t('command.newProject')} />
+              <Item onSelect={() => go('/personal')} icon={Home} label={t('command.today')} />
+              <Item onSelect={() => go('/personal/ai')} icon={Brain} label={t('command.askAi')} />
+              <Item onSelect={() => go('/personal/notes')} icon={NotebookPen} label={t('command.quickNote')} />
+              <Item onSelect={() => go('/personal/search')} icon={Search} label={t('command.openSearch')} />
+              <Item onSelect={() => go('/personal/ai')} icon={Sparkles} label={t('command.chief')} />
+              <Item onSelect={() => go('/personal/tasks/board')} icon={CheckSquare} label={t('command.kanban')} />
             </Command.Group>
 
             {filtered.projects.length ? (
@@ -120,7 +120,7 @@ export function CommandPalette() {
                 {filtered.projects.map((p) => (
                   <Item
                     key={p.id}
-                    onSelect={() => go(`/app/projects/${p.id}`)}
+                    onSelect={() => go(`/personal/projects/${p.id}`)}
                     icon={FolderKanban}
                     label={p.name}
                   />
@@ -133,7 +133,7 @@ export function CommandPalette() {
                 {filtered.tasks.map((t) => (
                   <Item
                     key={t.id}
-                    onSelect={() => go(`/app/tasks/${t.id}`)}
+                    onSelect={() => go(`/personal/tasks/${t.id}`)}
                     icon={CheckSquare}
                     label={t.title}
                   />
@@ -146,7 +146,7 @@ export function CommandPalette() {
                 {filtered.notes.map((n) => (
                   <Item
                     key={n.id}
-                    onSelect={() => go(`/app/notes/${n.id}`)}
+                    onSelect={() => go(`/personal/notes/${n.id}`)}
                     icon={NotebookPen}
                     label={n.title}
                   />

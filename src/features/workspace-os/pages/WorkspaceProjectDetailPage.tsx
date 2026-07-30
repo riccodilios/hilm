@@ -1,0 +1,71 @@
+import { Link, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import {
+  deleteWorkspaceProject,
+  getWorkspaceProject,
+  listWorkspaceTasks,
+  workspaceKeys,
+} from '@/features/workspace-os/api'
+import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { Button } from '@/components/ui/button'
+import { PageHeader, Skeleton } from '@/components/ui/page'
+
+export function WorkspaceProjectDetailPage() {
+  const { t } = useTranslation()
+  const { projectId = '' } = useParams()
+  const { workspaceId, canEdit } = useWorkspace()
+  const qc = useQueryClient()
+  const project = useQuery({
+    queryKey: workspaceKeys.project(workspaceId, projectId),
+    queryFn: () => getWorkspaceProject(workspaceId, projectId),
+  })
+  const tasks = useQuery({
+    queryKey: workspaceKeys.tasks(workspaceId),
+    queryFn: () => listWorkspaceTasks(workspaceId),
+  })
+
+  const remove = useMutation({
+    mutationFn: () => deleteWorkspaceProject(workspaceId, projectId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) })
+      toast.success(t('workspace.projectDeleted'))
+      window.location.assign(`/workspace/${workspaceId}/projects`)
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  if (project.isLoading) return <Skeleton className="h-40" />
+  if (!project.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
+
+  const projectTasks = (tasks.data ?? []).filter((task) => task.project_id === projectId)
+
+  return (
+    <div>
+      <PageHeader title={project.data.name} description={project.data.description || undefined} />
+      <div className="mt-4 flex gap-2">
+        <Button asChild variant="secondary">
+          <Link to={`/workspace/${workspaceId}/tasks?project=${projectId}`}>{t('nav.tasks')}</Link>
+        </Button>
+        {canEdit ? (
+          <Button variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>
+            {t('common.delete')}
+          </Button>
+        ) : null}
+      </div>
+      <div className="mt-6 space-y-2">
+        {projectTasks.map((task) => (
+          <Link
+            key={task.id}
+            to={`/workspace/${workspaceId}/tasks/${task.id}`}
+            className="block rounded-xl border border-border-subtle bg-surface/40 px-4 py-3 text-sm hover:bg-surface"
+          >
+            {task.title}
+          </Link>
+        ))}
+        {!projectTasks.length ? <p className="text-sm text-muted">{t('workspace.noTasks')}</p> : null}
+      </div>
+    </div>
+  )
+}

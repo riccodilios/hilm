@@ -66,6 +66,27 @@ export async function markNotificationRead(id: string) {
   if (error) throw error
 }
 
+export async function markAllNotificationsRead() {
+  const userId = await requireUserId()
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('read_at', null)
+  if (error) throw error
+}
+
+/** Deletes read notifications only — unread stay until marked read. */
+export async function clearReadNotifications() {
+  const userId = await requireUserId()
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('user_id', userId)
+    .not('read_at', 'is', null)
+  if (error) throw error
+}
+
 /** Keep unsent reminder channels aligned with current user notification prefs. */
 export async function syncUnsentReminderChannels() {
   const userId = await requireUserId()

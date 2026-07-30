@@ -119,7 +119,7 @@ export function TaskDetailPage() {
         title={t('tasks.notFound')}
         action={
           <Button asChild>
-            <Link to="/app/tasks">{t('tasks.back')}</Link>
+            <Link to="/personal/tasks">{t('tasks.back')}</Link>
           </Button>
         }
       />
@@ -129,7 +129,7 @@ export function TaskDetailPage() {
   return (
     <div className="max-w-3xl">
       <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to="/app/tasks">
+        <Link to="/personal/tasks">
           <ChevronLeft /> {t('tasks.title')}
         </Link>
       </Button>

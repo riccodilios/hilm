@@ -39,12 +39,12 @@ export function TaskListItem({
           longPressed.current = false
           return
         }
-        navigate(`/app/tasks/${task.id}`)
+        navigate(`/personal/tasks/${task.id}`)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          navigate(`/app/tasks/${task.id}`)
+          navigate(`/personal/tasks/${task.id}`)
         }
       }}
       {...longPress}

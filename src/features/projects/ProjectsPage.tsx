@@ -59,12 +59,12 @@ function ProjectCard({
           longPressed.current = false
           return
         }
-        navigate(`/app/projects/${project.id}`)
+        navigate(`/personal/projects/${project.id}`)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          navigate(`/app/projects/${project.id}`)
+          navigate(`/personal/projects/${project.id}`)
         }
       }}
       {...longPress}
@@ -287,7 +287,7 @@ export function ProjectsPage() {
                 if (!menuProject) return
                 const id = menuProject.id
                 setMenuProject(null)
-                navigate(`/app/projects/${id}`)
+                navigate(`/personal/projects/${id}`)
               }}
             >
               <ExternalLink className="size-4" /> {t('projects.open')}

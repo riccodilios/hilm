@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AppShell } from '@/components/layout/AppShell'
+import { PersonalShell } from '@/components/layout/PersonalShell'
+import { WorkspaceShell } from '@/components/layout/WorkspaceShell'
 import { RequireAuth } from '@/features/auth/RequireAuth'
+import { RequireOnboarding } from '@/features/auth/RequireOnboarding'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { SignupPage } from '@/features/auth/SignupPage'
 import { AuthCallbackPage } from '@/features/auth/AuthCallbackPage'
@@ -62,6 +64,74 @@ const MissionControlPage = lazy(() =>
     default: m.MissionControlPage,
   })),
 )
+const PersonalWorkspacesPage = lazy(() =>
+  import('@/features/personal/PersonalWorkspacesPage').then((m) => ({
+    default: m.PersonalWorkspacesPage,
+  })),
+)
+const OnboardingPage = lazy(() =>
+  import('@/features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage })),
+)
+const WorkspaceSelectorPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceSelectorPage').then((m) => ({
+    default: m.WorkspaceSelectorPage,
+  })),
+)
+const WorkspaceHomePage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceHomePage').then((m) => ({
+    default: m.WorkspaceHomePage,
+  })),
+)
+const WorkspaceProjectsPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceProjectsPage').then((m) => ({
+    default: m.WorkspaceProjectsPage,
+  })),
+)
+const WorkspaceProjectDetailPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceProjectDetailPage').then((m) => ({
+    default: m.WorkspaceProjectDetailPage,
+  })),
+)
+const WorkspaceTasksPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceTasksPage').then((m) => ({
+    default: m.WorkspaceTasksPage,
+  })),
+)
+const WorkspaceTaskDetailPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceTaskDetailPage').then((m) => ({
+    default: m.WorkspaceTaskDetailPage,
+  })),
+)
+const WorkspaceTeamPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceTeamPage').then((m) => ({
+    default: m.WorkspaceTeamPage,
+  })),
+)
+const WorkspaceSettingsPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceSettingsPage').then((m) => ({
+    default: m.WorkspaceSettingsPage,
+  })),
+)
+const WorkspaceActivityPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceActivityPage').then((m) => ({
+    default: m.WorkspaceActivityPage,
+  })),
+)
+const WorkspaceSprintPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceStubs').then((m) => ({
+    default: m.WorkspaceSprintPage,
+  })),
+)
+const WorkspaceRoadmapPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceStubs').then((m) => ({
+    default: m.WorkspaceRoadmapPage,
+  })),
+)
+const WorkspaceAiStubPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceStubs').then((m) => ({
+    default: m.WorkspaceAiStubPage,
+  })),
+)
 const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
@@ -79,6 +149,12 @@ function AppFallback() {
 function ScaffoldRoute({ titleKey, descriptionKey }: { titleKey: string; descriptionKey: string }) {
   const { t } = useTranslation()
   return <ScaffoldPage title={t(titleKey)} description={t(descriptionKey)} />
+}
+
+function AppToPersonalRedirect() {
+  const params = useParams()
+  const rest = params['*']
+  return <Navigate to={rest ? `/personal/${rest}` : '/personal'} replace />
 }
 
 export function AppRouter() {
@@ -104,90 +180,144 @@ export function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/auth/confirm" element={<AuthCallbackPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<RequireAuth />}>
           <Route
-            path="/app"
+            path="/onboarding"
             element={
               <Suspense fallback={<AppFallback />}>
-                <AppShell />
+                <OnboardingPage />
               </Suspense>
             }
-          >
+          />
+
+          <Route element={<RequireOnboarding />}>
             <Route
-              index
+              path="/personal"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <HomePage />
+                  <PersonalShell />
+                </Suspense>
+              }
+            >
+              <Route
+                index
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <HomePage />
+                  </Suspense>
+                }
+              />
+              <Route path="projects" element={<Suspense fallback={<AppFallback />}><ProjectsPage /></Suspense>} />
+              <Route path="projects/:id" element={<Suspense fallback={<AppFallback />}><ProjectDetailPage /></Suspense>} />
+              <Route path="tasks" element={<Suspense fallback={<AppFallback />}><TasksPage /></Suspense>} />
+              <Route path="tasks/board" element={<Suspense fallback={<AppFallback />}><KanbanPage /></Suspense>} />
+              <Route path="tasks/:id" element={<Suspense fallback={<AppFallback />}><TaskDetailPage /></Suspense>} />
+              <Route path="ai" element={<Suspense fallback={<AppFallback />}><AiPage /></Suspense>} />
+              <Route path="notes" element={<Suspense fallback={<AppFallback />}><NotesPage /></Suspense>} />
+              <Route path="notes/:id" element={<Suspense fallback={<AppFallback />}><NoteEditorPage /></Suspense>} />
+              <Route path="daily-log" element={<Suspense fallback={<AppFallback />}><DailyLogPage /></Suspense>} />
+              <Route path="activity" element={<Suspense fallback={<AppFallback />}><ActivityPage /></Suspense>} />
+              <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
+              <Route path="notifications" element={<Navigate to="/personal/tasks" replace />} />
+              <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
+              <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
+              <Route
+                path="mission-control"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <MissionControlPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="workspace"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <PersonalWorkspacesPage />
+                  </Suspense>
+                }
+              />
+              <Route path="calendar" element={<Navigate to="/personal/mission-control" replace />} />
+              <Route
+                path="ideas"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <ScaffoldRoute titleKey="scaffold.ideasTitle" descriptionKey="scaffold.ideasDesc" />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="meetings"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <ScaffoldRoute titleKey="scaffold.meetingsTitle" descriptionKey="scaffold.meetingsDesc" />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="releases"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <ScaffoldRoute titleKey="scaffold.releasesTitle" descriptionKey="scaffold.releasesDesc" />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="documents"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <ScaffoldRoute titleKey="scaffold.documentsTitle" descriptionKey="scaffold.documentsDesc" />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="export"
+                element={
+                  <Suspense fallback={<AppFallback />}>
+                    <ScaffoldRoute titleKey="scaffold.exportTitle" descriptionKey="scaffold.exportDesc" />
+                  </Suspense>
+                }
+              />
+            </Route>
+
+            <Route
+              path="/workspace"
+              element={
+                <Suspense fallback={<AppFallback />}>
+                  <WorkspaceSelectorPage />
                 </Suspense>
               }
             />
-            <Route path="projects" element={<Suspense fallback={<AppFallback />}><ProjectsPage /></Suspense>} />
-            <Route path="projects/:id" element={<Suspense fallback={<AppFallback />}><ProjectDetailPage /></Suspense>} />
-            <Route path="tasks" element={<Suspense fallback={<AppFallback />}><TasksPage /></Suspense>} />
-            <Route path="tasks/board" element={<Suspense fallback={<AppFallback />}><KanbanPage /></Suspense>} />
-            <Route path="tasks/:id" element={<Suspense fallback={<AppFallback />}><TaskDetailPage /></Suspense>} />
-            <Route path="ai" element={<Suspense fallback={<AppFallback />}><AiPage /></Suspense>} />
-            <Route path="notes" element={<Suspense fallback={<AppFallback />}><NotesPage /></Suspense>} />
-            <Route path="notes/:id" element={<Suspense fallback={<AppFallback />}><NoteEditorPage /></Suspense>} />
-            <Route path="daily-log" element={<Suspense fallback={<AppFallback />}><DailyLogPage /></Suspense>} />
-            <Route path="activity" element={<Suspense fallback={<AppFallback />}><ActivityPage /></Suspense>} />
-            <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
-            <Route path="notifications" element={<Navigate to="/app/tasks" replace />} />
-            <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
-            <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
+
             <Route
-              path="mission-control"
+              path="/workspace/:workspaceId"
               element={
                 <Suspense fallback={<AppFallback />}>
-                  <MissionControlPage />
+                  <WorkspaceShell />
                 </Suspense>
               }
-            />
-            <Route path="calendar" element={<Navigate to="/app/mission-control" replace />} />
-            <Route
-              path="ideas"
-              element={
-                <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.ideasTitle" descriptionKey="scaffold.ideasDesc" />
-                </Suspense>
-              }
-            />
-            <Route
-              path="meetings"
-              element={
-                <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.meetingsTitle" descriptionKey="scaffold.meetingsDesc" />
-                </Suspense>
-              }
-            />
-            <Route
-              path="releases"
-              element={
-                <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.releasesTitle" descriptionKey="scaffold.releasesDesc" />
-                </Suspense>
-              }
-            />
-            <Route
-              path="documents"
-              element={
-                <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.documentsTitle" descriptionKey="scaffold.documentsDesc" />
-                </Suspense>
-              }
-            />
-            <Route
-              path="export"
-              element={
-                <Suspense fallback={<AppFallback />}>
-                  <ScaffoldRoute titleKey="scaffold.exportTitle" descriptionKey="scaffold.exportDesc" />
-                </Suspense>
-              }
-            />
+            >
+              <Route index element={<Suspense fallback={<AppFallback />}><WorkspaceHomePage /></Suspense>} />
+              <Route path="projects" element={<Suspense fallback={<AppFallback />}><WorkspaceProjectsPage /></Suspense>} />
+              <Route path="projects/:projectId" element={<Suspense fallback={<AppFallback />}><WorkspaceProjectDetailPage /></Suspense>} />
+              <Route path="tasks" element={<Suspense fallback={<AppFallback />}><WorkspaceTasksPage /></Suspense>} />
+              <Route path="tasks/:taskId" element={<Suspense fallback={<AppFallback />}><WorkspaceTaskDetailPage /></Suspense>} />
+              <Route path="team" element={<Suspense fallback={<AppFallback />}><WorkspaceTeamPage /></Suspense>} />
+              <Route path="settings" element={<Suspense fallback={<AppFallback />}><WorkspaceSettingsPage /></Suspense>} />
+              <Route path="activity" element={<Suspense fallback={<AppFallback />}><WorkspaceActivityPage /></Suspense>} />
+              <Route path="sprint" element={<Suspense fallback={<AppFallback />}><WorkspaceSprintPage /></Suspense>} />
+              <Route path="roadmap" element={<Suspense fallback={<AppFallback />}><WorkspaceRoadmapPage /></Suspense>} />
+              <Route path="ai" element={<Suspense fallback={<AppFallback />}><WorkspaceAiStubPage /></Suspense>} />
+            </Route>
           </Route>
+
+          {/* Compat: old /app/* bookmarks */}
+          <Route path="/app/*" element={<AppToPersonalRedirect />} />
+          <Route path="/app" element={<Navigate to="/personal" replace />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

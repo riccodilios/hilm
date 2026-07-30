@@ -26,6 +26,7 @@ import {
   type HorizonZoom,
 } from '@/features/mission-control/lib/schedule'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
 import { addLocalDays, taskDueDateKey, todayLocalISO, toLocalDateKey } from '@/lib/dates'
 
@@ -51,6 +52,9 @@ export function MissionControlPage() {
   const tasks = tasksQuery.data ?? []
   const projects = projectsQuery.data ?? []
   const insights = dashQuery.data?.projects ?? []
+  const bootstrapping =
+    (tasksQuery.isLoading && !tasksQuery.data) ||
+    (projectsQuery.isLoading && !projectsQuery.data)
 
   const focus = useMemo(() => {
     const open = tasks.filter(
@@ -146,7 +150,7 @@ export function MissionControlPage() {
     },
     onSuccess: async (task) => {
       await invalidate()
-      navigate(`/app/tasks/${task.id}`)
+      navigate(`/personal/tasks/${task.id}`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -162,6 +166,21 @@ export function MissionControlPage() {
   const title = format(anchor, view === 'day' ? 'EEEE, MMM d' : view === 'week' ? "'Week of' MMM d" : 'MMMM yyyy', {
     locale: dateLocale,
   })
+
+  if (bootstrapping) {
+    return (
+      <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-col gap-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-8 w-full max-w-xl" />
+        <Skeleton className="h-20 w-full" />
+        <div className="grid min-h-[70dvh] gap-4 lg:grid-cols-3">
+          <Skeleton className="min-h-[420px]" />
+          <Skeleton className="min-h-[420px]" />
+          <Skeleton className="min-h-[420px]" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-col gap-4">
@@ -269,8 +288,8 @@ export function MissionControlPage() {
       <div className="grid min-h-[70dvh] gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
         <section
           className={cn(
-            'min-h-[420px] rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
-            mobilePane === 'calendar' ? 'block' : 'hidden lg:block',
+            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            mobilePane === 'calendar' ? 'flex' : 'hidden lg:flex',
           )}
         >
           <MissionCalendar
@@ -285,21 +304,21 @@ export function MissionControlPage() {
               setMobilePane('timeline')
             }}
             onDropTask={(taskId, dayKey) => reschedule.mutate({ taskId, dayKey, hour: 9 })}
-            onOpenTask={(task) => navigate(`/app/tasks/${task.id}`)}
+            onOpenTask={(task) => navigate(`/personal/tasks/${task.id}`)}
           />
         </section>
 
         <section
           className={cn(
-            'min-h-[420px] rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
-            mobilePane === 'timeline' ? 'block' : 'hidden lg:block',
+            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            mobilePane === 'timeline' ? 'flex' : 'hidden lg:flex',
           )}
         >
           <MissionTimeline
             dayKey={selectedDay}
             tasks={tasks}
             projectFilter={projectFilter}
-            onOpenTask={(task) => navigate(`/app/tasks/${task.id}`)}
+            onOpenTask={(task) => navigate(`/personal/tasks/${task.id}`)}
             onReschedule={(taskId, dayKey, hour) => reschedule.mutate({ taskId, dayKey, hour })}
             onComplete={(taskId) => complete.mutate(taskId)}
           />
@@ -307,8 +326,8 @@ export function MissionControlPage() {
 
         <section
           className={cn(
-            'min-h-[420px] rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
-            mobilePane === 'overview' ? 'block' : 'hidden lg:block',
+            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            mobilePane === 'overview' ? 'flex' : 'hidden lg:flex',
           )}
         >
           <MissionOverview

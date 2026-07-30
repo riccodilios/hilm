@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Mail } from 'lucide-react'
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
+import { PostAuthRedirect } from '@/features/auth/PostAuthRedirect'
+import { resolvePostAuthDestination } from '@/features/auth/startup'
 import { validateSignupInput } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 
@@ -31,7 +33,7 @@ export function SignupPage() {
     return () => window.clearTimeout(id)
   }, [cooldown])
 
-  if (!loading && user) return <Navigate to="/app" replace />
+  if (!loading && user) return <PostAuthRedirect />
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -55,7 +57,7 @@ export function SignupPage() {
       const result = await signUp(validated.email, password, displayName)
       if (!result.needsEmailConfirmation) {
         toast.success(t('auth.welcomeReady'))
-        navigate('/app', { replace: true })
+        navigate(await resolvePostAuthDestination(), { replace: true })
         return
       }
       setPendingEmail(result.email)

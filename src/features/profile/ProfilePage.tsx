@@ -10,11 +10,11 @@ export function ProfilePage() {
   const { t } = useTranslation()
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
   const links = [
-    { to: '/app/mission-control', label: t('mission.title'), description: t('mission.description'), icon: Crosshair },
-    { to: '/app/settings', label: t('profile.settings'), description: t('profile.settingsDesc'), icon: Settings },
-    { to: '/app/daily-log', label: t('profile.dailyLog'), description: t('profile.dailyLogDesc'), icon: BookOpen },
-    { to: '/app/activity', label: t('profile.activity'), description: t('profile.activityDesc'), icon: Activity },
-    { to: '/app/ideas', label: t('profile.ideas'), description: t('profile.ideasDesc'), icon: Lightbulb },
+    { to: '/personal/mission-control', label: t('mission.title'), description: t('mission.description'), icon: Crosshair },
+    { to: '/personal/settings', label: t('profile.settings'), description: t('profile.settingsDesc'), icon: Settings },
+    { to: '/personal/daily-log', label: t('profile.dailyLog'), description: t('profile.dailyLogDesc'), icon: BookOpen },
+    { to: '/personal/activity', label: t('profile.activity'), description: t('profile.activityDesc'), icon: Activity },
+    { to: '/personal/ideas', label: t('profile.ideas'), description: t('profile.ideasDesc'), icon: Lightbulb },
   ]
 
   if (profile.isLoading) return <div className="space-y-4"><Skeleton className="h-12 w-52" /><Skeleton className="h-48" /></div>
