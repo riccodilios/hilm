@@ -184,7 +184,7 @@ export function SettingsPage() {
           email_reminders_enabled: emailReminders,
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,
-          default_startup_mode: startupMode,
+          default_startup_mode: hideWorkspaceOs ? 'personal' : startupMode,
           hide_workspace_os: hideWorkspaceOs,
           notification_prefs: {
             email_reminders: emailReminders,
@@ -271,40 +271,42 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('settings.startup')}</CardTitle>
-            <CardDescription>{t('settings.startupDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(['personal', 'workspace'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setStartupMode(mode)}
-                className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-start transition ${
-                  startupMode === mode
-                    ? 'border-accent/40 bg-accent/10'
-                    : 'border-border-subtle bg-surface-2/40'
-                }`}
-              >
-                <span
-                  className={`mt-1 size-2.5 rounded-full ${
-                    startupMode === mode ? 'bg-accent' : 'bg-muted'
+        {!hideWorkspaceOs ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('settings.startup')}</CardTitle>
+              <CardDescription>{t('settings.startupDesc')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(['personal', 'workspace'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setStartupMode(mode)}
+                  className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-start transition ${
+                    startupMode === mode
+                      ? 'border-accent/40 bg-accent/10'
+                      : 'border-border-subtle bg-surface-2/40'
                   }`}
-                />
-                <span>
-                  <span className="block text-sm font-medium">
-                    {mode === 'personal' ? t('os.personal') : t('os.workspace')}
+                >
+                  <span
+                    className={`mt-1 size-2.5 rounded-full ${
+                      startupMode === mode ? 'bg-accent' : 'bg-muted'
+                    }`}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      {mode === 'personal' ? t('os.personal') : t('os.workspace')}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {mode === 'personal' ? t('settings.startupPersonal') : t('settings.startupWorkspace')}
+                    </span>
                   </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    {mode === 'personal' ? t('settings.startupPersonal') : t('settings.startupWorkspace')}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -317,7 +319,13 @@ export function SettingsPage() {
                 <p className="text-sm font-medium">{t('settings.hideWorkspaceOs')}</p>
                 <p className="text-xs text-muted">{t('settings.hideWorkspaceOsDesc')}</p>
               </div>
-              <Switch checked={hideWorkspaceOs} onCheckedChange={setHideWorkspaceOs} />
+              <Switch
+                checked={hideWorkspaceOs}
+                onCheckedChange={(checked) => {
+                  setHideWorkspaceOs(checked)
+                  if (checked) setStartupMode('personal')
+                }}
+              />
             </div>
           </CardContent>
         </Card>
