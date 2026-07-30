@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
+import { combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
 import type { Tables, Updates } from '@/types/database'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 
@@ -391,9 +392,14 @@ export async function createWorkspaceTask(
     status?: WorkspaceTask['status']
     dueDate?: string | null
     assigneeId?: string | null
+    reminderType?: ReminderType | null
   },
 ) {
   const userId = await requireUserId()
+  const dueDate = input.dueDate?.trim() || null
+  const dueAt = combineDueAt(dueDate)
+  const reminderType = input.reminderType ?? '1h'
+  const reminderAt = computeRemindAt(dueAt, reminderType)
   const { data, error } = await supabase
     .from('workspace_tasks')
     .insert({
@@ -404,8 +410,11 @@ export async function createWorkspaceTask(
       description: input.description ?? null,
       priority: input.priority ?? 'none',
       status: input.status ?? 'todo',
-      due_date: input.dueDate ?? null,
+      due_date: dueDate,
+      due_at: dueAt,
       assignee_id: input.assigneeId ?? null,
+      reminder_type: dueDate ? reminderType : null,
+      reminder_at: reminderAt,
     })
     .select('*')
     .single()
@@ -572,17 +581,90 @@ export async function getWorkspaceHome(workspaceId: string) {
     listWorkspaceMembers(workspaceId),
     listWorkspaceProjects(workspaceId),
     listWorkspaceTasks(workspaceId),
-    listWorkspaceActivity(workspaceId, 8),
+    listWorkspaceActivity(workspaceId, 10),
   ])
   const openTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  const dueKey = (task: WorkspaceTask) => {
+    if (task.due_date) return task.due_date.slice(0, 10)
+    if (task.due_at) {
+      const d = new Date(task.due_at)
+      if (Number.isNaN(d.getTime())) return null
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    return null
+  }
+
+  const priorityRank: Record<string, number> = {
+    urgent: 5,
+    high: 4,
+    medium: 3,
+    low: 2,
+    none: 1,
+  }
+
+  const overdueTasks = openTasks
+    .filter((task) => {
+      const key = dueKey(task)
+      return key != null && key < todayKey
+    })
+    .sort((a, b) => (dueKey(a) ?? '').localeCompare(dueKey(b) ?? ''))
+
+  const todayTasks = openTasks
+    .filter((task) => dueKey(task) === todayKey)
+    .sort((a, b) => (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0))
+
+  const upcoming = openTasks
+    .filter((task) => {
+      const key = dueKey(task)
+      return key != null && key > todayKey
+    })
+    .sort((a, b) => (dueKey(a) ?? '').localeCompare(dueKey(b) ?? ''))
+    .slice(0, 8)
+
+  const focus =
+    overdueTasks[0] ??
+    todayTasks[0] ??
+    [...openTasks].sort(
+      (a, b) => (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0),
+    )[0] ??
+    null
+
+  const projectCards = projects.slice(0, 6).map((project) => {
+    const projectTasks = tasks.filter((task) => task.project_id === project.id)
+    const open = projectTasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
+    const overdue = open.filter((task) => {
+      const key = dueKey(task)
+      return key != null && key < todayKey
+    }).length
+    return {
+      ...project,
+      remainingTasks: open.length,
+      overdueCount: overdue,
+      nextDeadline:
+        open
+          .map((task) => dueKey(task))
+          .filter((key): key is string => Boolean(key))
+          .sort()[0] ?? null,
+    }
+  })
+
   return {
     memberCount: members.length,
     projectCount: projects.length,
     openTaskCount: openTasks.length,
     doneTaskCount: tasks.filter((task) => task.status === 'done').length,
+    overdueCount: overdueTasks.length,
+    focus,
+    overdueTasks: overdueTasks.slice(0, 4),
+    todayTasks,
+    upcoming,
     recentActivity: activity,
-    projects: projects.slice(0, 5),
+    projects: projectCards,
     openTasks: openTasks.slice(0, 6),
+    members: members.slice(0, 8),
   }
 }
 

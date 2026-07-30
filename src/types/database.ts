@@ -838,6 +838,8 @@ export type Database = {
           due_date: string | null
           position: number
           completed_at: string | null
+          reminder_type: string | null
+          reminder_at: string | null
           created_at: string
           updated_at: string
         },
@@ -856,6 +858,8 @@ export type Database = {
           due_date?: string | null
           position?: number
           completed_at?: string | null
+          reminder_type?: string | null
+          reminder_at?: string | null
           created_at?: string
           updated_at?: string
         },
@@ -871,6 +875,8 @@ export type Database = {
           due_date?: string | null
           position?: number
           completed_at?: string | null
+          reminder_type?: string | null
+          reminder_at?: string | null
           updated_at?: string
         }
       >
