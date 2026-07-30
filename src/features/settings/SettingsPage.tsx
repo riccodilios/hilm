@@ -5,6 +5,7 @@ import { Download, LogOut, Save } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings } from '@/features/settings/api'
+import { aiKeys, getAiUsageSummary } from '@/features/ai/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,6 +38,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
+  const aiUsage = useQuery({ queryKey: aiKeys.usage(), queryFn: getAiUsageSummary })
   const projects = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
   const [displayName, setDisplayName] = useState('')
   const [emailReminders, setEmailReminders] = useState(true)
@@ -386,6 +388,56 @@ export function SettingsPage() {
                 </div>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.aiUsage')}</CardTitle>
+            <CardDescription>{t('settings.aiUsageDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aiUsage.isLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : aiUsage.data ? (
+              <>
+                <p className="text-sm">
+                  <span className="text-muted">{t('settings.aiPlan')}: </span>
+                  <span className="font-medium">{aiUsage.data.tier_name}</span>
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                    <p className="text-xs text-muted">{t('settings.aiRequestsToday')}</p>
+                    <p className="mt-1 text-sm font-medium">
+                      {aiUsage.data.usage.requests_day} / {aiUsage.data.limits.requests_per_day}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                    <p className="text-xs text-muted">{t('settings.aiTokensToday')}</p>
+                    <p className="mt-1 text-sm font-medium">
+                      {aiUsage.data.usage.tokens_day.toLocaleString()} /{' '}
+                      {aiUsage.data.limits.tokens_per_day.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                    <p className="text-xs text-muted">{t('settings.aiSpendToday')}</p>
+                    <p className="mt-1 text-sm font-medium">
+                      ${Number(aiUsage.data.usage.cost_day).toFixed(4)} / $
+                      {Number(aiUsage.data.limits.cost_usd_per_day).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                    <p className="text-xs text-muted">{t('settings.aiRequestsMonth')}</p>
+                    <p className="mt-1 text-sm font-medium">
+                      {aiUsage.data.usage.requests_month} / {aiUsage.data.limits.requests_per_month}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted">{t('settings.aiUsageHint')}</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">{t('settings.aiUsageUnavailable')}</p>
+            )}
           </CardContent>
         </Card>
 

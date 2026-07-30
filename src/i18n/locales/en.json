@@ -751,7 +751,16 @@
     "account": "Account",
     "accountDesc": "Sign out of Hilm on this device.",
     "signOut": "Sign out",
-    "signedOut": "Signed out"
+    "signedOut": "Signed out",
+    "aiUsage": "AI usage & protection",
+    "aiUsageDesc": "Server-side quotas protect cost. Limits come from your plan and can change without an app update.",
+    "aiPlan": "Plan",
+    "aiRequestsToday": "Requests today",
+    "aiTokensToday": "Tokens today",
+    "aiSpendToday": "Estimated spend today",
+    "aiRequestsMonth": "Requests this month",
+    "aiUsageHint": "All AI calls go through Hilm’s backend. OpenRouter keys never reach the browser.",
+    "aiUsageUnavailable": "Usage summary is unavailable right now."
   },
   "profile": {
     "title": "Profile",

@@ -28,6 +28,7 @@ export type Database = {
           id: string
           display_name: string | null
           avatar_url: string | null
+          ai_tier_id: string
           created_at: string
           updated_at: string
         },
@@ -35,6 +36,7 @@ export type Database = {
           id: string
           display_name?: string | null
           avatar_url?: string | null
+          ai_tier_id?: string
           created_at?: string
           updated_at?: string
         },
@@ -42,6 +44,7 @@ export type Database = {
           id?: string
           display_name?: string | null
           avatar_url?: string | null
+          ai_tier_id?: string
           updated_at?: string
         }
       >
@@ -951,6 +954,45 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      begin_ai_request: {
+        Args: {
+          p_request_kind: string
+          p_model?: string | null
+          p_workspace_id?: string | null
+          p_conversation_id?: string | null
+          p_idempotency_key?: string | null
+          p_fingerprint?: string | null
+          p_user_id?: string | null
+        }
+        Returns: Json
+      }
+      complete_ai_request: {
+        Args: {
+          p_event_id: string
+          p_status: string
+          p_input_tokens?: number
+          p_output_tokens?: number
+          p_model?: string | null
+          p_error_code?: string | null
+          p_error_message?: string | null
+          p_user_id?: string | null
+        }
+        Returns: Json
+      }
+      estimate_ai_cost: {
+        Args: {
+          p_model: string
+          p_input_tokens: number
+          p_output_tokens: number
+        }
+        Returns: number
+      }
+      get_ai_usage_summary: {
+        Args: {
+          p_user_id?: string | null
+        }
+        Returns: Json
+      }
       create_workspace: {
         Args: { p_name: string; p_description?: string | null; p_color?: string | null }
         Returns: Database['public']['Tables']['workspaces']['Row']

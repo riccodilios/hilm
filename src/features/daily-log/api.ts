@@ -3,6 +3,7 @@ import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 import { recordActivity, requireUserId } from '@/lib/supabase/activity'
 import type { Inserts, Tables } from '@/types/database'
 import { todayISO } from '@/lib/utils'
+import { formatAiLimitError } from '@/features/ai/lib/usage-errors'
 
 export const dailyLogKeys = {
   all: ['daily-logs'] as const,
@@ -201,6 +202,7 @@ export async function upsertDailyLog(input: {
 export async function generateDailyLog(input: {
   logDate?: string
   locale?: string
+  idempotencyKey?: string
 }): Promise<GeneratedDailyLogResult> {
   const {
     data: { session },
@@ -208,29 +210,51 @@ export async function generateDailyLog(input: {
   if (!session) throw new Error('Not authenticated')
 
   const logDate = input.logDate ?? todayISO()
-  const { dayStart, dayEnd } = dayBoundsISO(logDate)
-  const response = await fetch(getDailyLogUrl(), {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      apikey: getSupabaseAnonKey(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      logDate,
-      dayStart,
-      dayEnd,
-      locale: input.locale,
-    }),
-  })
+  const fingerprint = `daily_log:${logDate}`
+  if ((generateDailyLog as typeof generateDailyLog & { _inflight?: Set<string> })._inflight?.has(fingerprint)) {
+    throw new Error('Another AI request is already running. Please wait for it to finish.')
+  }
+  const inflight =
+    ((generateDailyLog as typeof generateDailyLog & { _inflight?: Set<string> })._inflight ??= new Set<string>())
+  inflight.add(fingerprint)
 
-  const payload = (await response.json()) as {
-    log?: Tables<'daily_logs'>
-    stats?: DailyLogStats
-    error?: string
+  const { dayStart, dayEnd } = dayBoundsISO(logDate)
+  const idempotencyKey =
+    input.idempotencyKey?.trim() ||
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `ik_${Date.now()}_${Math.random().toString(36).slice(2)}`)
+
+  try {
+    const response = await fetch(getDailyLogUrl(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: getSupabaseAnonKey(),
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        logDate,
+        dayStart,
+        dayEnd,
+        locale: input.locale,
+        idempotencyKey,
+        fingerprint,
+      }),
+    })
+
+    const payload = (await response.json()) as {
+      log?: Tables<'daily_logs'>
+      stats?: DailyLogStats
+      error?: string
+      code?: string
+    }
+    if (!response.ok || !payload.log || !payload.stats) {
+      throw new Error(formatAiLimitError(payload))
+    }
+    return { log: payload.log, stats: payload.stats }
+  } finally {
+    inflight.delete(fingerprint)
   }
-  if (!response.ok || !payload.log || !payload.stats) {
-    throw new Error(payload.error || 'Could not generate daily log')
-  }
-  return { log: payload.log, stats: payload.stats }
 }

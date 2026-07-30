@@ -4,6 +4,9 @@ import { parseAiActions } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
 import type { Inserts, Tables } from '@/types/database'
+import { formatAiLimitError } from '@/features/ai/lib/usage-errors'
+
+export { formatAiLimitError } from '@/features/ai/lib/usage-errors'
 
 function getAiChatUrl() {
   if (typeof window !== 'undefined') {
@@ -24,6 +27,7 @@ export const aiKeys = {
   conversations: (workspaceId?: string | null) =>
     [...aiKeys.all, 'conversations', workspaceId ?? 'personal'] as const,
   messages: (conversationId: string) => [...aiKeys.all, 'messages', conversationId] as const,
+  usage: () => [...aiKeys.all, 'usage'] as const,
 }
 
 export type AiConversation = Tables<'ai_conversations'>
@@ -32,7 +36,47 @@ export type ChatStreamEvent =
   | { type: 'token'; token: string }
   | { type: 'actions'; actions: AiAction[] }
   | { type: 'done'; content?: string; actions?: AiAction[] }
-  | { type: 'error'; error: string }
+  | { type: 'error'; error: string; code?: string }
+
+export type AiUsageSummary = {
+  tier: string
+  tier_name: string
+  usage: {
+    requests_day: number
+    requests_month: number
+    tokens_day: number
+    tokens_month: number
+    cost_day: number
+    cost_month: number
+  }
+  limits: {
+    requests_per_minute: number
+    requests_per_day: number
+    requests_per_month: number
+    tokens_per_day: number
+    tokens_per_month: number
+    cost_usd_per_day: number
+    cost_usd_per_month: number
+    max_concurrent: number
+  }
+}
+
+const inFlightFingerprints = new Set<string>()
+
+function newIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `ik_${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+function chatFingerprint(conversationId: string, message: string) {
+  return `chat:${conversationId}:${message.trim().slice(0, 500)}`
+}
+
+export async function getAiUsageSummary() {
+  const { data, error } = await supabase.rpc('get_ai_usage_summary')
+  if (error) throw error
+  return data as AiUsageSummary
+}
 
 export async function listConversations(workspaceId?: string | null) {
   let query = supabase.from('ai_conversations').select('*').order('updated_at', { ascending: false })
@@ -118,7 +162,16 @@ function parseSseEvent(raw: string): ChatStreamEvent | null {
         actions: parseActions(event.actions),
       }
     }
-    if (event.type === 'error') return { type: 'error', error: String(event.error ?? 'AI request failed') }
+    if (event.type === 'error') {
+      return {
+        type: 'error',
+        error: formatAiLimitError({
+          error: String(event.error ?? 'AI request failed'),
+          code: typeof event.code === 'string' ? event.code : undefined,
+        }),
+        code: typeof event.code === 'string' ? event.code : undefined,
+      }
+    }
   } catch {
     return { type: 'token', token: data }
   }
@@ -133,6 +186,7 @@ export async function* streamChat(input: {
   workspaceId?: string
   model?: string
   locale?: string
+  idempotencyKey?: string
 }): AsyncGenerator<ChatStreamEvent> {
   const {
     data: { session },
@@ -142,6 +196,20 @@ export async function* streamChat(input: {
     return
   }
 
+  const message = input.message.trim()
+  const fingerprint = chatFingerprint(input.conversationId, message)
+  if (inFlightFingerprints.has(fingerprint)) {
+    yield {
+      type: 'error',
+      error: formatAiLimitError({ code: 'duplicate_execution' }),
+      code: 'duplicate_execution',
+    }
+    return
+  }
+
+  const idempotencyKey = input.idempotencyKey?.trim() || newIdempotencyKey()
+  inFlightFingerprints.add(fingerprint)
+
   try {
     const response = await fetch(getAiChatUrl(), {
       method: 'POST',
@@ -150,14 +218,20 @@ export async function* streamChat(input: {
         apikey: getSupabaseAnonKey(),
         'Content-Type': 'application/json',
         Accept: 'text/event-stream, application/json',
+        'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        message,
+        idempotencyKey,
+        fingerprint,
+      }),
     })
     if (!response.ok) {
       const text = await response.text()
       try {
-        const payload = JSON.parse(text) as { error?: string }
-        throw new Error(payload.error || text || 'AI request failed')
+        const payload = JSON.parse(text) as { error?: string; code?: string }
+        throw Object.assign(new Error(formatAiLimitError(payload)), { code: payload.code })
       } catch (error) {
         if (error instanceof SyntaxError) throw new Error(text || 'AI request failed')
         throw error
@@ -166,9 +240,14 @@ export async function* streamChat(input: {
 
     const contentType = response.headers.get('content-type') ?? ''
     if (!contentType.includes('text/event-stream') || !response.body) {
-      const payload = (await response.json()) as { content?: string; actions?: unknown; error?: string }
+      const payload = (await response.json()) as {
+        content?: string
+        actions?: unknown
+        error?: string
+        code?: string
+      }
       if (payload.error) {
-        yield { type: 'error', error: payload.error }
+        yield { type: 'error', error: formatAiLimitError(payload), code: payload.code }
         return
       }
       if (payload.content) yield { type: 'token', token: payload.content }
@@ -195,6 +274,13 @@ export async function* streamChat(input: {
     const finalEvent = parseSseEvent(buffer)
     if (finalEvent) yield finalEvent
   } catch (error) {
-    yield { type: 'error', error: error instanceof Error ? error.message : 'AI request failed' }
+    const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : undefined
+    yield {
+      type: 'error',
+      error: error instanceof Error ? error.message : 'AI request failed',
+      code,
+    }
+  } finally {
+    inFlightFingerprints.delete(fingerprint)
   }
 }

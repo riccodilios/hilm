@@ -1,38 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
-import pg from 'pg'
+import {
+  aiCorsHeaders,
+  aiJson,
+  aiLimitStatus,
+  beginAiRequest,
+  completeAiRequest,
+  estimateTokensFromText,
+  friendlyAiLimitPayload,
+  loadOpenRouterKey,
+  tokensFromOpenRouterUsage,
+} from './_shared/ai-guard'
 
 function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    },
-  })
-}
-
-async function loadOpenRouterKey() {
-  const fromEnv = process.env.OPENROUTER_API_KEY?.trim()
-  if (fromEnv) return fromEnv
-
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return null
-
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-  try {
-    await client.connect()
-    const { rows } = await client.query<{ value: string }>(
-      `select value from private.server_secrets where key = 'OPENROUTER_API_KEY' limit 1`,
-    )
-    return rows[0]?.value?.trim() || null
-  } finally {
-    await client.end().catch(() => undefined)
-  }
+  return aiJson(data, status)
 }
 
 function extractJsonObject(text: string): Record<string, unknown> | null {
@@ -83,15 +63,13 @@ function bucketEntity(entityType: string | null | undefined): EntityBucket {
 
 export default async (request: Request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
-    })
+    return new Response('ok', { headers: aiCorsHeaders() })
   }
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+
+  let usageEventId: string | null = null
+  let userClient: ReturnType<typeof createClient> | null = null
+  let activeModel = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
 
   try {
     const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
@@ -114,7 +92,7 @@ export default async (request: Request) => {
       return json({ error: 'Hilm OpenRouter key is not configured on the server' }, 500)
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
+    userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     })
     const {
@@ -128,6 +106,8 @@ export default async (request: Request) => {
       dayStart?: string
       dayEnd?: string
       locale?: string
+      idempotencyKey?: string
+      fingerprint?: string
     }
 
     const logDate = body.logDate?.trim()
@@ -136,6 +116,25 @@ export default async (request: Request) => {
     if (!logDate || !dayStart || !dayEnd) {
       return json({ error: 'logDate, dayStart, and dayEnd are required' }, 400)
     }
+
+    const idempotencyKey =
+      body.idempotencyKey?.trim() ||
+      request.headers.get('Idempotency-Key')?.trim() ||
+      request.headers.get('x-idempotency-key')?.trim() ||
+      null
+    const fingerprint = body.fingerprint?.trim() || `daily_log:${logDate}`
+
+    activeModel = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+    const guard = await beginAiRequest(userClient, {
+      requestKind: 'daily_log',
+      model: activeModel,
+      idempotencyKey,
+      fingerprint,
+    })
+    if (!guard.ok) {
+      return json(friendlyAiLimitPayload(guard), aiLimitStatus(guard.code))
+    }
+    usageEventId = guard.event_id ?? null
 
     const [
       { data: completedTasks },
@@ -296,7 +295,7 @@ Return ONLY valid JSON with this shape:
   "hours": number or null
 }`
 
-    const model = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+    const userPrompt = `Build the daily log for ${logDate}. Context:\n${JSON.stringify(contextPack)}`
     const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -306,7 +305,7 @@ Return ONLY valid JSON with this shape:
         'X-Title': 'Hilm Daily Log',
       },
       body: JSON.stringify({
-        model,
+        model: activeModel,
         stream: false,
         temperature: 0.4,
         response_format: { type: 'json_object' },
@@ -314,25 +313,56 @@ Return ONLY valid JSON with this shape:
           { role: 'system', content: systemPrompt },
           {
             role: 'user',
-            content: `Build the daily log for ${logDate}. Context:\n${JSON.stringify(contextPack)}`,
+            content: userPrompt,
           },
         ],
       }),
     })
 
     if (!openRouterResponse.ok) {
-      return json(
-        { error: (await openRouterResponse.text()) || 'OpenRouter request failed' },
-        502,
-      )
+      const detail = (await openRouterResponse.text()) || 'OpenRouter request failed'
+      if (usageEventId) {
+        await completeAiRequest(userClient, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'provider_error',
+          errorMessage: detail.slice(0, 500),
+          model: activeModel,
+        })
+      }
+      return json({ error: detail }, 502)
     }
 
     const payload = (await openRouterResponse.json()) as {
       choices?: Array<{ message?: { content?: string } }>
+      usage?: unknown
     }
     const content = payload.choices?.[0]?.message?.content ?? ''
+    let usage = tokensFromOpenRouterUsage(payload.usage)
+    if (!usage.totalTokens) {
+      const inputEstimate = estimateTokensFromText(systemPrompt + userPrompt)
+      const outputEstimate = estimateTokensFromText(content)
+      usage = {
+        inputTokens: inputEstimate,
+        outputTokens: outputEstimate,
+        totalTokens: inputEstimate + outputEstimate,
+      }
+    }
     const parsed = extractJsonObject(content)
-    if (!parsed) return json({ error: 'AI returned an unreadable daily log' }, 502)
+    if (!parsed) {
+      if (usageEventId) {
+        await completeAiRequest(userClient, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'parse_error',
+          errorMessage: 'AI returned an unreadable daily log',
+          model: activeModel,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        })
+      }
+      return json({ error: 'AI returned an unreadable daily log' }, 502)
+    }
 
     const logFields = {
       worked_on: asText(parsed.workedOn) || asText(parsed.worked_on) || null,
@@ -344,6 +374,17 @@ Return ONLY valid JSON with this shape:
     }
 
     if (!logFields.ai_summary && !logFields.worked_on) {
+      if (usageEventId) {
+        await completeAiRequest(userClient, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'empty_result',
+          errorMessage: 'AI returned an empty daily log',
+          model: activeModel,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        })
+      }
       return json({ error: 'AI returned an empty daily log' }, 502)
     }
 
@@ -363,7 +404,20 @@ Return ONLY valid JSON with this shape:
       .upsert(upsertPayload, { onConflict: 'user_id,log_date' })
       .select('*')
       .single()
-    if (saveError) return json({ error: saveError.message }, 400)
+    if (saveError) {
+      if (usageEventId) {
+        await completeAiRequest(userClient, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'save_error',
+          errorMessage: saveError.message,
+          model: activeModel,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+        })
+      }
+      return json({ error: saveError.message }, 400)
+    }
 
     await userClient.from('activity_events').insert({
       user_id: user.id,
@@ -373,12 +427,31 @@ Return ONLY valid JSON with this shape:
       summary: `Hilm generated daily log for ${logDate}`,
     })
 
+    if (usageEventId) {
+      await completeAiRequest(userClient, {
+        eventId: usageEventId,
+        status: 'completed',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        model: activeModel,
+      })
+    }
+
     return json({
       log: saved,
       stats,
       previous: existingLog ?? null,
     })
   } catch (error) {
+    if (usageEventId && userClient) {
+      await completeAiRequest(userClient, {
+        eventId: usageEventId,
+        status: 'failed',
+        errorCode: 'handler_error',
+        errorMessage: error instanceof Error ? error.message : 'Daily log generation failed',
+        model: activeModel,
+      })
+    }
     return json({ error: error instanceof Error ? error.message : 'Daily log generation failed' }, 400)
   }
 }

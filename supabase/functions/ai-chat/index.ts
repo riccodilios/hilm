@@ -1,8 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  aiLimitStatus,
+  beginAiRequest,
+  completeAiRequest,
+  estimateTokensFromText,
+  friendlyAiLimitPayload,
+  tokensFromOpenRouterUsage,
+} from '../_shared/ai-guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, idempotency-key, x-idempotency-key',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 const encoder = new TextEncoder()
@@ -48,6 +56,12 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders })
 
+  let usageEventId: string | null = null
+  // deno-lint-ignore no-explicit-any
+  let admin: any = null
+  let activeModel = Deno.env.get('OPENROUTER_DEFAULT_MODEL') ?? 'google/gemini-2.5-flash'
+  let userId: string | null = null
+
   try {
     const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
     if (!token) throw new Error('Missing authorization token')
@@ -57,6 +71,7 @@ Deno.serve(async (request) => {
     const userClient = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } })
     const { data: { user }, error: authError } = await userClient.auth.getUser(token)
     if (authError || !user) throw new Error('Unauthorized')
+    userId = user.id
 
     const body = await request.json() as {
       conversationId?: string
@@ -66,10 +81,12 @@ Deno.serve(async (request) => {
       workspaceId?: string
       model?: string
       locale?: string
+      idempotencyKey?: string
+      fingerprint?: string
     }
     if (!body.conversationId || !body.message?.trim()) throw new Error('conversationId and message are required')
 
-    const admin = createClient(url, serviceKey)
+    admin = createClient(url, serviceKey)
     const { data: conversation, error: conversationError } = await admin
       .from('ai_conversations')
       .select('id, project_id, model, workspace_id')
@@ -85,9 +102,18 @@ Deno.serve(async (request) => {
 
     const defaultModel =
       Deno.env.get('OPENROUTER_DEFAULT_MODEL') ?? 'google/gemini-2.5-flash'
-    const activeModel = body.model ?? conversation.model ?? defaultModel
+    activeModel = body.model ?? conversation.model ?? defaultModel
     const activeWorkspaceId = body.workspaceId ?? conversation.workspace_id ?? null
     const activeProjectId = body.projectId ?? conversation.project_id
+
+    const idempotencyKey =
+      body.idempotencyKey?.trim() ||
+      request.headers.get('Idempotency-Key')?.trim() ||
+      request.headers.get('x-idempotency-key')?.trim() ||
+      null
+    const fingerprint =
+      body.fingerprint?.trim() ||
+      `chat:${body.conversationId}:${body.message.trim().slice(0, 500)}`
 
     if (activeWorkspaceId) {
       const { data: membership } = await admin
@@ -103,6 +129,23 @@ Deno.serve(async (request) => {
     } else if (conversation.workspace_id) {
       throw new Error('Workspace conversation requires workspaceId')
     }
+
+    const guard = await beginAiRequest(admin, {
+      requestKind: 'chat',
+      model: activeModel,
+      workspaceId: activeWorkspaceId,
+      conversationId: body.conversationId,
+      idempotencyKey,
+      fingerprint,
+      userId: user.id,
+    })
+    if (!guard.ok) {
+      return Response.json(friendlyAiLimitPayload(guard), {
+        status: aiLimitStatus(guard.code),
+        headers: corsHeaders,
+      })
+    }
+    usageEventId = guard.event_id ?? null
 
     const { data: history } = await admin
       .from('ai_messages')
@@ -191,6 +234,7 @@ ${contextPack}`
       body: JSON.stringify({
         model: activeModel,
         stream: true,
+        stream_options: { include_usage: true },
         messages: [
           { role: 'system', content: systemPrompt },
           ...(history ?? []).reverse().map((message: { role: string; content: string }) => ({ role: message.role, content: message.content })),
@@ -199,7 +243,18 @@ ${contextPack}`
       }),
     })
     if (!openRouterResponse.ok || !openRouterResponse.body) {
-      throw new Error((await openRouterResponse.text()) || 'OpenRouter request failed')
+      const detail = (await openRouterResponse.text()) || 'OpenRouter request failed'
+      if (usageEventId) {
+        await completeAiRequest(admin, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'provider_error',
+          errorMessage: detail.slice(0, 500),
+          model: activeModel,
+          userId: user.id,
+        })
+      }
+      throw new Error(detail)
     }
 
     const stream = new ReadableStream({
@@ -207,6 +262,7 @@ ${contextPack}`
         const reader = openRouterResponse.body!.getReader()
         let buffer = ''
         let content = ''
+        let usage = tokensFromOpenRouterUsage(null)
         try {
           while (true) {
             const { done, value } = await reader.read()
@@ -219,6 +275,7 @@ ${contextPack}`
               if (!data || data === '[DONE]') continue
               try {
                 const chunk = JSON.parse(data)
+                if (chunk.usage) usage = tokensFromOpenRouterUsage(chunk.usage)
                 const token = chunk.choices?.[0]?.delta?.content
                 if (typeof token === 'string') {
                   content += token
@@ -230,15 +287,44 @@ ${contextPack}`
             }
             if (done) break
           }
+          if (!usage.totalTokens) {
+            const inputEstimate = estimateTokensFromText(systemPrompt + body.message.trim())
+            const outputEstimate = estimateTokensFromText(content)
+            usage = {
+              inputTokens: inputEstimate,
+              outputTokens: outputEstimate,
+              totalTokens: inputEstimate + outputEstimate,
+            }
+          }
           const actions = actionsFromContent(content)
           await admin.from('ai_messages').insert([
             { user_id: user.id, conversation_id: body.conversationId, role: 'user', content: body.message.trim(), actions: [] },
             { user_id: user.id, conversation_id: body.conversationId, role: 'assistant', content, actions, model: activeModel },
           ])
           await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', body.conversationId)
+          if (usageEventId) {
+            await completeAiRequest(admin, {
+              eventId: usageEventId,
+              status: 'completed',
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              model: activeModel,
+              userId: user.id,
+            })
+          }
           if (actions.length) controller.enqueue(encoder.encode(sse({ type: 'actions', actions })))
           controller.enqueue(encoder.encode(sse({ type: 'done', content, actions })))
         } catch (error) {
+          if (usageEventId) {
+            await completeAiRequest(admin, {
+              eventId: usageEventId,
+              status: 'failed',
+              errorCode: 'stream_error',
+              errorMessage: error instanceof Error ? error.message : 'Streaming failed',
+              model: activeModel,
+              userId: user.id,
+            })
+          }
           controller.enqueue(encoder.encode(sse({ type: 'error', error: error instanceof Error ? error.message : 'Streaming failed' })))
         } finally {
           controller.close()
@@ -249,6 +335,16 @@ ${contextPack}`
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
     })
   } catch (error) {
+    if (usageEventId && admin && userId) {
+      await completeAiRequest(admin, {
+        eventId: usageEventId,
+        status: 'failed',
+        errorCode: 'handler_error',
+        errorMessage: error instanceof Error ? error.message : 'AI request failed',
+        model: activeModel,
+        userId,
+      })
+    }
     return Response.json(
       { error: error instanceof Error ? error.message : 'AI request failed' },
       { status: 400, headers: corsHeaders },

@@ -1,5 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
-import pg from 'pg'
+import {
+  aiCorsHeaders,
+  aiJson,
+  aiLimitStatus,
+  beginAiRequest,
+  completeAiRequest,
+  estimateTokensFromText,
+  friendlyAiLimitPayload,
+  loadOpenRouterKey,
+  tokensFromOpenRouterUsage,
+} from './_shared/ai-guard'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -40,55 +50,18 @@ function sse(payload: Record<string, unknown>) {
   return `data: ${JSON.stringify(payload)}\n\n`
 }
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    },
-  })
-}
-
-async function loadOpenRouterKey() {
-  const fromEnv = process.env.OPENROUTER_API_KEY?.trim()
-  if (fromEnv) return fromEnv
-
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return null
-
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-  try {
-    await client.connect()
-    const { rows } = await client.query<{ value: string }>(
-      `select value from private.server_secrets where key = 'OPENROUTER_API_KEY' limit 1`,
-    )
-    return rows[0]?.value?.trim() || null
-  } finally {
-    await client.end().catch(() => undefined)
-  }
-}
-
 export default async (request: Request) => {
   if (request.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
-    })
+    return new Response('ok', { headers: aiCorsHeaders() })
   }
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  if (request.method !== 'POST') return aiJson({ error: 'Method not allowed' }, 405)
+
+  let usageEventId: string | null = null
+  let userClient: ReturnType<typeof createClient> | null = null
 
   try {
     const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-    if (!token) return json({ error: 'Missing authorization token' }, 401)
+    if (!token) return aiJson({ error: 'Missing authorization token' }, 401)
 
     const supabaseUrl =
       process.env.VITE_SUPABASE_URL ||
@@ -99,22 +72,22 @@ export default async (request: Request) => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       process.env.SUPABASE_ANON_KEY
     if (!supabaseUrl || !anonKey) {
-      return json({ error: 'Supabase URL/anon key missing on Netlify' }, 500)
+      return aiJson({ error: 'Supabase URL/anon key missing on Netlify' }, 500)
     }
 
     const apiKey = await loadOpenRouterKey()
     if (!apiKey) {
-      return json({ error: 'Hilm OpenRouter key is not configured on the server' }, 500)
+      return aiJson({ error: 'Hilm OpenRouter key is not configured on the server' }, 500)
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
+    userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     })
     const {
       data: { user },
       error: authError,
     } = await userClient.auth.getUser(token)
-    if (authError || !user) return json({ error: 'Unauthorized' }, 401)
+    if (authError || !user) return aiJson({ error: 'Unauthorized' }, 401)
 
     const body = (await request.json()) as {
       conversationId?: string
@@ -124,10 +97,21 @@ export default async (request: Request) => {
       workspaceId?: string
       model?: string
       locale?: string
+      idempotencyKey?: string
+      fingerprint?: string
     }
     if (!body.conversationId || !body.message?.trim()) {
-      return json({ error: 'conversationId and message are required' }, 400)
+      return aiJson({ error: 'conversationId and message are required' }, 400)
     }
+
+    const idempotencyKey =
+      body.idempotencyKey?.trim() ||
+      request.headers.get('Idempotency-Key')?.trim() ||
+      request.headers.get('x-idempotency-key')?.trim() ||
+      null
+    const fingerprint =
+      body.fingerprint?.trim() ||
+      `chat:${body.conversationId}:${body.message.trim().slice(0, 500)}`
 
     const { data: conversation, error: conversationError } = await userClient
       .from('ai_conversations')
@@ -135,7 +119,7 @@ export default async (request: Request) => {
       .eq('id', body.conversationId)
       .eq('user_id', user.id)
       .single()
-    if (conversationError || !conversation) return json({ error: 'Conversation not found' }, 404)
+    if (conversationError || !conversation) return aiJson({ error: 'Conversation not found' }, 404)
 
     const defaultModel =
       process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
@@ -150,13 +134,26 @@ export default async (request: Request) => {
         .eq('workspace_id', activeWorkspaceId)
         .eq('user_id', user.id)
         .maybeSingle()
-      if (!membership) return json({ error: 'Not a member of this workspace' }, 403)
+      if (!membership) return aiJson({ error: 'Not a member of this workspace' }, 403)
       if (conversation.workspace_id && conversation.workspace_id !== activeWorkspaceId) {
-        return json({ error: 'Conversation does not belong to this workspace' }, 403)
+        return aiJson({ error: 'Conversation does not belong to this workspace' }, 403)
       }
     } else if (conversation.workspace_id) {
-      return json({ error: 'Workspace conversation requires workspaceId' }, 400)
+      return aiJson({ error: 'Workspace conversation requires workspaceId' }, 400)
     }
+
+    const guard = await beginAiRequest(userClient, {
+      requestKind: 'chat',
+      model: activeModel,
+      workspaceId: activeWorkspaceId,
+      conversationId: body.conversationId,
+      idempotencyKey,
+      fingerprint,
+    })
+    if (!guard.ok) {
+      return aiJson(friendlyAiLimitPayload(guard), aiLimitStatus(guard.code))
+    }
+    usageEventId = guard.event_id ?? null
 
     const { data: history } = await userClient
       .from('ai_messages')
@@ -285,6 +282,7 @@ ${contextPack}`
       body: JSON.stringify({
         model: activeModel,
         stream: true,
+        stream_options: { include_usage: true },
         messages: [
           { role: 'system', content: systemPrompt },
           ...(history ?? [])
@@ -296,17 +294,29 @@ ${contextPack}`
     })
 
     if (!openRouterResponse.ok || !openRouterResponse.body) {
-      return json(
-        { error: (await openRouterResponse.text()) || 'OpenRouter request failed' },
-        502,
-      )
+      const detail = (await openRouterResponse.text()) || 'OpenRouter request failed'
+      if (usageEventId && userClient) {
+        await completeAiRequest(userClient, {
+          eventId: usageEventId,
+          status: 'failed',
+          errorCode: 'provider_error',
+          errorMessage: detail.slice(0, 500),
+          model: activeModel,
+        })
+      }
+      return aiJson({ error: detail }, 502)
     }
+
+    const streamUserClient = userClient
+    const streamEventId = usageEventId
+    const userMessage = body.message.trim()
 
     const stream = new ReadableStream({
       async start(controller) {
         const reader = openRouterResponse.body!.getReader()
         let buffer = ''
         let content = ''
+        let usage = tokensFromOpenRouterUsage(null)
         try {
           while (true) {
             const { done, value } = await reader.read()
@@ -319,6 +329,7 @@ ${contextPack}`
               if (!data || data === '[DONE]') continue
               try {
                 const chunk = JSON.parse(data)
+                if (chunk.usage) usage = tokensFromOpenRouterUsage(chunk.usage)
                 const next = chunk.choices?.[0]?.delta?.content
                 if (typeof next === 'string') {
                   content += next
@@ -331,13 +342,23 @@ ${contextPack}`
             if (done) break
           }
 
+          if (!usage.totalTokens) {
+            const inputEstimate = estimateTokensFromText(systemPrompt + userMessage)
+            const outputEstimate = estimateTokensFromText(content)
+            usage = {
+              inputTokens: inputEstimate,
+              outputTokens: outputEstimate,
+              totalTokens: inputEstimate + outputEstimate,
+            }
+          }
+
           const actions = actionsFromContent(content)
-          await userClient.from('ai_messages').insert([
+          await streamUserClient.from('ai_messages').insert([
             {
               user_id: user.id,
               conversation_id: body.conversationId,
               role: 'user',
-              content: body.message.trim(),
+              content: userMessage,
               actions: [],
             },
             {
@@ -349,14 +370,33 @@ ${contextPack}`
               model: activeModel,
             },
           ])
-          await userClient
+          await streamUserClient
             .from('ai_conversations')
             .update({ updated_at: new Date().toISOString() })
             .eq('id', body.conversationId)
 
+          if (streamEventId) {
+            await completeAiRequest(streamUserClient, {
+              eventId: streamEventId,
+              status: 'completed',
+              inputTokens: usage.inputTokens,
+              outputTokens: usage.outputTokens,
+              model: activeModel,
+            })
+          }
+
           if (actions.length) controller.enqueue(encoder.encode(sse({ type: 'actions', actions })))
           controller.enqueue(encoder.encode(sse({ type: 'done', content, actions })))
         } catch (error) {
+          if (streamEventId) {
+            await completeAiRequest(streamUserClient, {
+              eventId: streamEventId,
+              status: 'failed',
+              errorCode: 'stream_error',
+              errorMessage: error instanceof Error ? error.message : 'Streaming failed',
+              model: activeModel,
+            })
+          }
           controller.enqueue(
             encoder.encode(
               sse({
@@ -380,6 +420,14 @@ ${contextPack}`
       },
     })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'AI request failed' }, 400)
+    if (usageEventId && userClient) {
+      await completeAiRequest(userClient, {
+        eventId: usageEventId,
+        status: 'failed',
+        errorCode: 'handler_error',
+        errorMessage: error instanceof Error ? error.message : 'AI request failed',
+      })
+    }
+    return aiJson({ error: error instanceof Error ? error.message : 'AI request failed' }, 400)
   }
 }
