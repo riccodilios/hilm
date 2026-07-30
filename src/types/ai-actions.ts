@@ -42,6 +42,7 @@ export const aiActionSchema = z.discriminatedUnion('type', [
     priority: priorityEnum.optional(),
     status: taskStatusEnum.optional(),
     dueAt: z.string().optional(),
+    assigneeId: optionalUuid,
   }),
   z.object({
     type: z.literal('task.move'),
@@ -55,6 +56,11 @@ export const aiActionSchema = z.discriminatedUnion('type', [
     description: z.string().optional(),
     priority: priorityEnum.optional(),
     dueAt: z.string().nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('task.assign'),
+    taskId: requiredUuid,
+    assigneeId: requiredUuid,
   }),
   z.object({
     type: z.literal('project.create'),
@@ -121,6 +127,30 @@ export const aiActionSchema = z.discriminatedUnion('type', [
     impact: z.coerce.number().min(1).max(5).optional(),
     effort: z.coerce.number().min(1).max(5).optional(),
   }),
+  z.object({
+    type: z.literal('documentation.generate'),
+    title: z.string().min(1),
+    body: z.string().optional(),
+    projectId: optionalUuid,
+  }),
+  z.object({
+    type: z.literal('meeting.summarize'),
+    title: z.string().min(1),
+    summary: z.string().min(1),
+    projectId: optionalUuid,
+  }),
+  z.object({
+    type: z.literal('release.notes'),
+    title: z.string().min(1),
+    body: z.string().min(1),
+    projectId: optionalUuid,
+  }),
+  z.object({
+    type: z.literal('milestone.create'),
+    title: z.string().min(1),
+    projectId: optionalUuid,
+    dueAt: z.string().optional(),
+  }),
 ])
 
 export type AiAction = z.infer<typeof aiActionSchema>
@@ -137,6 +167,7 @@ const snakeToCamel: Record<string, string> = {
   ai_summary: 'aiSummary',
   entity_type: 'entityType',
   entity_id: 'entityId',
+  assignee_id: 'assigneeId',
 }
 
 /** Normalize AI payloads (snake_case / wrappers) into the action schema shape. */

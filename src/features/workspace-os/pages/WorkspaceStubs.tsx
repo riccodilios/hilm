@@ -10,8 +10,3 @@ export function WorkspaceRoadmapPage() {
   const { t } = useTranslation()
   return <ScaffoldPage title={t('nav.roadmap')} description={t('workspace.roadmapDesc')} />
 }
-
-export function WorkspaceAiStubPage() {
-  const { t } = useTranslation()
-  return <ScaffoldPage title={t('nav.ai')} description={t('workspace.aiStubDesc')} />
-}

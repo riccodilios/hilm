@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { formatDistanceToNow } from 'date-fns'
+import { ar, enUS } from 'date-fns/locale'
 import { Copy, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -9,18 +11,57 @@ import {
   removeMember,
   updateMemberRole,
   workspaceKeys,
+  type WorkspaceMember,
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import {
+  memberInitials,
+  resolveMemberDisplayName,
+} from '@/features/workspace-os/lib/member-display'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
 const ROLES: WorkspaceRole[] = ['owner', 'admin', 'member', 'viewer']
 
+function memberLabel(member: WorkspaceMember) {
+  return resolveMemberDisplayName({
+    displayNameOverride: member.display_name_override,
+    displayName: member.profiles?.display_name,
+    email: member.email ?? member.profiles?.email,
+  })
+}
+
+function presenceText(
+  member: WorkspaceMember,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  locale: typeof enUS,
+) {
+  if (member.last_active_at) {
+    const at = new Date(member.last_active_at).getTime()
+    if (Number.isFinite(at) && Date.now() - at < 15 * 60 * 1000) {
+      return t('workspace.activeNow')
+    }
+    return t('workspace.lastActiveRelative', {
+      relative: formatDistanceToNow(new Date(member.last_active_at), {
+        addSuffix: true,
+        locale,
+      }),
+    })
+  }
+  return t('workspace.joinedRelative', {
+    relative: formatDistanceToNow(new Date(member.joined_at), {
+      addSuffix: true,
+      locale,
+    }),
+  })
+}
+
 export function WorkspaceTeamPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { workspaceId, workspace, canManageTeam, role } = useWorkspace()
   const qc = useQueryClient()
+  const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
   const members = useQuery({
     queryKey: workspaceKeys.members(workspaceId),
     queryFn: () => listWorkspaceMembers(workspaceId),
@@ -92,50 +133,81 @@ export function WorkspaceTeamPage() {
       </section>
 
       {members.isLoading ? (
-        <div className="mt-6 space-y-2"><Skeleton className="h-14" /></div>
+        <div className="mt-6 space-y-2">
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
+        </div>
       ) : (
         <div className="mt-6 space-y-2">
-          {(members.data ?? []).map((member) => (
-            <div
-              key={member.user_id}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-subtle bg-surface/40 px-4 py-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {member.profiles?.display_name || member.user_id.slice(0, 8)}
-                </p>
-                <p className="text-xs capitalize text-muted">{member.role}</p>
+          {(members.data ?? []).map((member) => {
+            const name = memberLabel(member)
+            const initials = memberInitials(name)
+            const avatarUrl = member.profiles?.avatar_url
+            const email = member.email ?? member.profiles?.email
+            const roleLabel = t(`workspace.roles.${member.role}`, { defaultValue: member.role })
+            return (
+              <div
+                key={member.user_id}
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-subtle bg-surface/40 px-4 py-3"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="size-10 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <span
+                    className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-xs font-medium text-accent"
+                    aria-hidden
+                  >
+                    {initials}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{name}</p>
+                  <p className="text-xs text-muted">
+                    {roleLabel}
+                    {' · '}
+                    {presenceText(member, t, dateLocale)}
+                  </p>
+                  {canManageTeam && email ? (
+                    <p className="truncate text-xs text-muted">{email}</p>
+                  ) : null}
+                  <p className="text-[11px] text-muted">
+                    {t('workspace.joinedOn', {
+                      date: new Date(member.joined_at).toLocaleDateString(i18n.language),
+                    })}
+                  </p>
+                </div>
+                {canManageTeam && member.role !== 'owner' ? (
+                  <>
+                    <select
+                      className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs"
+                      value={member.role}
+                      disabled={role !== 'owner' && member.role === 'admin'}
+                      onChange={(e) =>
+                        changeRole.mutate({
+                          userId: member.user_id,
+                          next: e.target.value as WorkspaceRole,
+                        })
+                      }
+                      aria-label={t('workspace.changeRole')}
+                    >
+                      {ROLES.filter((r) => r !== 'owner' || role === 'owner').map((r) => (
+                        <option key={r} value={r}>
+                          {t(`workspace.roles.${r}`, { defaultValue: r })}
+                        </option>
+                      ))}
+                    </select>
+                    <Button size="sm" variant="ghost" onClick={() => remove.mutate(member.user_id)}>
+                      {t('common.remove')}
+                    </Button>
+                  </>
+                ) : null}
               </div>
-              {canManageTeam && member.role !== 'owner' ? (
-                <>
-                  <select
-                    className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs"
-                    value={member.role}
-                    disabled={role !== 'owner' && member.role === 'admin'}
-                    onChange={(e) =>
-                      changeRole.mutate({
-                        userId: member.user_id,
-                        next: e.target.value as WorkspaceRole,
-                      })
-                    }
-                  >
-                    {ROLES.filter((r) => r !== 'owner' || role === 'owner').map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => remove.mutate(member.user_id)}
-                  >
-                    {t('common.remove')}
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

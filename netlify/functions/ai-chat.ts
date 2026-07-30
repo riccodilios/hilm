@@ -4,18 +4,21 @@ import pg from 'pg'
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
-const actionInstruction =
+const personalActionInstruction =
   'When an action would help, finish with a fenced ```actions json block containing a JSON array. Allowed types: task.complete, task.create, task.move, task.update, project.create, project.update, note.create, roadmap.create, daily_log.upsert, activity.note, idea.create. Use UUIDs only when present in context.'
 
+const workspaceActionInstruction =
+  'When an action would help, finish with a fenced ```actions json block containing a JSON array. Allowed types: task.complete, task.create, task.move, task.update, task.assign, project.create, project.update, activity.note, documentation.generate, meeting.summarize, release.notes, milestone.create. Prefer executable actions over plain advice. Use member IDs for assignees. Never reference Personal OS data. Use UUIDs only when present in context.'
+
 const agentPrompts: Record<string, string> = {
-  chief_of_staff: `You are Hilm's Chief of Staff. Prioritize outcomes and identify the most valuable next steps. Be concise and decisive. ${actionInstruction}`,
-  project_manager: `You are Hilm's Project Manager. Assess scope, milestones, risks, and delivery progress. ${actionInstruction}`,
-  task_manager: `You are Hilm's Task Manager. Turn work into small, concrete, properly sequenced tasks. ${actionInstruction}`,
-  documentation_writer: `You are Hilm's Documentation Writer. Write clear, audience-appropriate documentation. ${actionInstruction}`,
-  planning_assistant: `You are Hilm's Planning Assistant. Create realistic plans with dependencies and milestones. ${actionInstruction}`,
-  architecture_advisor: `You are Hilm's Architecture Advisor. Explain technical trade-offs, constraints, and design options. ${actionInstruction}`,
-  meeting_summarizer: `You are Hilm's Meeting Summarizer. Summarize decisions, open questions, and follow-up items. ${actionInstruction}`,
-  qa_assistant: `You are Hilm's QA Assistant. Create focused test plans, edge cases, and release-risk assessments. ${actionInstruction}`,
+  chief_of_staff: `You are Hilm's Chief of Staff. Prioritize outcomes and identify the most valuable next steps. Be concise and decisive.`,
+  project_manager: `You are Hilm's Project Manager. Assess scope, milestones, risks, and delivery progress.`,
+  task_manager: `You are Hilm's Task Manager. Turn work into small, concrete, properly sequenced tasks.`,
+  documentation_writer: `You are Hilm's Documentation Writer. Write clear, audience-appropriate documentation.`,
+  planning_assistant: `You are Hilm's Planning Assistant. Create realistic plans with dependencies and milestones.`,
+  architecture_advisor: `You are Hilm's Architecture Advisor. Explain technical trade-offs, constraints, and design options.`,
+  meeting_summarizer: `You are Hilm's Meeting Summarizer. Summarize decisions, open questions, and follow-up items.`,
+  qa_assistant: `You are Hilm's QA Assistant. Create focused test plans, edge cases, and release-risk assessments.`,
 }
 
 function actionsFromContent(content: string) {
@@ -118,6 +121,7 @@ export default async (request: Request) => {
       message?: string
       agentId?: string
       projectId?: string
+      workspaceId?: string
       model?: string
       locale?: string
     }
@@ -127,7 +131,7 @@ export default async (request: Request) => {
 
     const { data: conversation, error: conversationError } = await userClient
       .from('ai_conversations')
-      .select('id, project_id, model')
+      .select('id, project_id, model, workspace_id')
       .eq('id', body.conversationId)
       .eq('user_id', user.id)
       .single()
@@ -136,50 +140,139 @@ export default async (request: Request) => {
     const defaultModel =
       process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
     const activeModel = body.model ?? conversation.model ?? defaultModel
+    const activeWorkspaceId = body.workspaceId ?? conversation.workspace_id ?? null
     const activeProjectId = body.projectId ?? conversation.project_id
 
-    const [{ data: history }, { data: projects }, { data: tasks }] = await Promise.all([
-      userClient
-        .from('ai_messages')
-        .select('role, content')
-        .eq('conversation_id', body.conversationId)
-        .order('created_at', { ascending: false })
-        .limit(16),
-      userClient
-        .from('projects')
-        .select('id, name, description, completion_pct, health')
+    if (activeWorkspaceId) {
+      const { data: membership } = await userClient
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', activeWorkspaceId)
         .eq('user_id', user.id)
-        .neq('status', 'archived')
-        .limit(12),
-      userClient
-        .from('tasks')
-        .select('id, title, status, priority, due_at, project_id')
-        .eq('user_id', user.id)
-        .neq('status', 'archived')
-        .order('due_at', { ascending: true, nullsFirst: false })
-        .limit(20),
-    ])
+        .maybeSingle()
+      if (!membership) return json({ error: 'Not a member of this workspace' }, 403)
+      if (conversation.workspace_id && conversation.workspace_id !== activeWorkspaceId) {
+        return json({ error: 'Conversation does not belong to this workspace' }, 403)
+      }
+    } else if (conversation.workspace_id) {
+      return json({ error: 'Workspace conversation requires workspaceId' }, 400)
+    }
 
-    const scopedTasks = activeProjectId
-      ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
-      : (tasks ?? [])
-    const agentInstruction =
-      agentPrompts[body.agentId ?? 'chief_of_staff'] ?? agentPrompts.chief_of_staff
+    const { data: history } = await userClient
+      .from('ai_messages')
+      .select('role, content')
+      .eq('conversation_id', body.conversationId)
+      .order('created_at', { ascending: false })
+      .limit(16)
+
+    let contextPack = ''
+    let actionCatalog = ''
+    let modeLabel = 'Personal OS'
+
+    if (activeWorkspaceId) {
+      modeLabel = 'Workspace OS'
+      const [
+        { data: projects },
+        { data: tasks },
+        { data: members },
+        { data: activity },
+        { data: workspace },
+      ] = await Promise.all([
+        userClient
+          .from('workspace_projects')
+          .select('id, name, description, completion_pct, health, status')
+          .eq('workspace_id', activeWorkspaceId)
+          .neq('status', 'archived')
+          .limit(20),
+        userClient
+          .from('workspace_tasks')
+          .select('id, title, status, priority, due_date, due_at, project_id, assignee_id')
+          .eq('workspace_id', activeWorkspaceId)
+          .neq('status', 'archived')
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(40),
+        userClient
+          .from('workspace_members')
+          .select('user_id, role')
+          .eq('workspace_id', activeWorkspaceId),
+        userClient
+          .from('workspace_activity_events')
+          .select('event_type, summary, created_at, entity_type')
+          .eq('workspace_id', activeWorkspaceId)
+          .order('created_at', { ascending: false })
+          .limit(15),
+        userClient
+          .from('workspaces')
+          .select('id, name, description')
+          .eq('id', activeWorkspaceId)
+          .maybeSingle(),
+      ])
+
+      const memberIds = (members ?? []).map((m) => m.user_id)
+      const { data: profiles } = memberIds.length
+        ? await userClient.from('profiles').select('id, display_name').in('id', memberIds)
+        : { data: [] as { id: string; display_name: string | null }[] }
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
+      const memberContext = (members ?? []).map((m) => ({
+        id: m.user_id,
+        role: m.role,
+        name: (profileMap.get(m.user_id) || '').trim() || 'Unnamed User',
+      }))
+
+      const scopedTasks = activeProjectId
+        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+        : (tasks ?? [])
+
+      actionCatalog =
+        'Valid action types and fields: task.complete {taskId}; task.create {title,description?,projectId?,priority?,status?,dueAt?,assigneeId?}; task.move {taskId,status}; task.update {taskId,title?,description?,priority?,dueAt?}; task.assign {taskId,assigneeId}; project.create {name,description?,color?,icon?}; project.update {projectId,name?,description?,completionPct?,health?}; activity.note {summary,entityType?,entityId?,projectId?}; documentation.generate {title,body?,projectId?}; meeting.summarize {title,summary,projectId?}; release.notes {title,body,projectId?}; milestone.create {title,projectId?,dueAt?}.'
+      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}". Never access or invent Personal OS data.
+Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId })}
+Members: ${JSON.stringify(memberContext)}
+Projects: ${JSON.stringify(projects ?? [])}
+Tasks: ${JSON.stringify(scopedTasks)}
+Recent activity: ${JSON.stringify(activity ?? [])}`
+    } else {
+      const [{ data: projects }, { data: tasks }] = await Promise.all([
+        userClient
+          .from('projects')
+          .select('id, name, description, completion_pct, health')
+          .eq('user_id', user.id)
+          .neq('status', 'archived')
+          .limit(12),
+        userClient
+          .from('tasks')
+          .select('id, title, status, priority, due_at, project_id')
+          .eq('user_id', user.id)
+          .neq('status', 'archived')
+          .order('due_at', { ascending: true, nullsFirst: false })
+          .limit(20),
+      ])
+      const scopedTasks = activeProjectId
+        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+        : (tasks ?? [])
+      actionCatalog =
+        'Valid action types and fields: task.complete {taskId}; task.create {title,description?,projectId?,priority?,status?,dueAt?}; task.move {taskId,status}; task.update {taskId,title?,description?,priority?,dueAt?}; project.create {name,description?,color?,icon?}; project.update {projectId,name?,description?,completionPct?,health?}; note.create {title,body?,projectId?}; roadmap.create {projectId,title,horizon?,description?}; daily_log.upsert {logDate?,workedOn?,blockers?,hours?,wins?,tomorrow?,aiSummary?}; activity.note {summary,entityType?,entityId?,projectId?}; idea.create {title,description?,projectId?,impact?,effort?}.'
+      contextPack = `You are operating strictly inside Personal OS. Never access workspace/team data.
+Projects: ${JSON.stringify(projects ?? [])}
+Tasks: ${JSON.stringify(scopedTasks)}`
+    }
+
+    const baseAgent = agentPrompts[body.agentId ?? 'chief_of_staff'] ?? agentPrompts.chief_of_staff
+    const agentInstruction = `${baseAgent} ${activeWorkspaceId ? workspaceActionInstruction : personalActionInstruction}`
     const locale = body.locale?.startsWith('ar') ? 'ar' : 'en'
     const languageInstruction =
       locale === 'ar'
         ? 'Respond to the user in Arabic (Modern Standard Arabic). Keep action JSON keys/types in English as specified. User-facing titles and summaries inside action fields may be Arabic when appropriate.'
         : 'Respond to the user in English.'
-    const systemPrompt = `You are Hilm AI. ${agentInstruction}
+    const systemPrompt = `You are Hilm AI (${modeLabel}). ${agentInstruction}
 ${languageInstruction}
 Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end, for example:
 \`\`\`actions
 [{"type":"task.create","title":"Example","priority":"medium"}]
 \`\`\`
-Valid action types and fields: task.complete {taskId}; task.create {title,description?,projectId?,priority?,status?,dueAt?}; task.move {taskId,status}; task.update {taskId,title?,description?,priority?,dueAt?}; project.create {name,description?,color?,icon?}; project.update {projectId,name?,description?,completionPct?,health?}; note.create {title,body?,projectId?}; roadmap.create {projectId,title,horizon?,description?}; daily_log.upsert {logDate?,workedOn?,blockers?,hours?,wins?,tomorrow?,aiSummary?}; activity.note {summary,entityType?,entityId?,projectId?}; idea.create {title,description?,projectId?,impact?,effort?}. Only use IDs in the provided context. Do not include an actions block when no action is useful.
+${actionCatalog} Only use IDs in the provided context. Do not include an actions block when no action is useful.
 Context pack:
-Projects: ${JSON.stringify(projects ?? [])}
-Tasks: ${JSON.stringify(scopedTasks)}`
+${contextPack}`
 
     const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

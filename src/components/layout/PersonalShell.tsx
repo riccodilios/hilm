@@ -4,7 +4,6 @@ import {
   Brain,
   Building2,
   CheckSquare,
-  Crosshair,
   FolderKanban,
   Home,
   Search,
@@ -23,7 +22,6 @@ export function PersonalShell() {
 
   const nav = [
     { to: '/personal', label: t('nav.home'), icon: Home, end: true },
-    { to: '/personal/mission-control', label: t('nav.mission'), icon: Crosshair },
     { to: '/personal/projects', label: t('nav.projects'), icon: FolderKanban },
     { to: '/personal/tasks', label: t('nav.tasks'), icon: CheckSquare },
     { to: '/personal/workspace', label: t('nav.workspace'), icon: Building2 },

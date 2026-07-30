@@ -526,6 +526,7 @@ export type Database = {
           title: string
           agent_id: string
           project_id: string | null
+          workspace_id: string | null
           model: string | null
           created_at: string
           updated_at: string
@@ -536,12 +537,14 @@ export type Database = {
           title?: string
           agent_id?: string
           project_id?: string | null
+          workspace_id?: string | null
           model?: string | null
         },
         {
           title?: string
           agent_id?: string
           project_id?: string | null
+          workspace_id?: string | null
           model?: string | null
           updated_at?: string
         }
@@ -899,6 +902,38 @@ export type Database = {
           payload?: Json
         }
       >
+      workspace_member_settings: Table<
+        {
+          workspace_id: string
+          user_id: string
+          display_name_override: string | null
+          avatar_url: string | null
+          notification_prefs: Json
+          appearance_prefs: Json
+          ai_prefs: Json
+          created_at: string
+          updated_at: string
+        },
+        {
+          workspace_id: string
+          user_id: string
+          display_name_override?: string | null
+          avatar_url?: string | null
+          notification_prefs?: Json
+          appearance_prefs?: Json
+          ai_prefs?: Json
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          display_name_override?: string | null
+          avatar_url?: string | null
+          notification_prefs?: Json
+          appearance_prefs?: Json
+          ai_prefs?: Json
+          updated_at?: string
+        }
+      >
     }
     Views: {
       [_ in never]: never
@@ -915,6 +950,19 @@ export type Database = {
       regenerate_workspace_invite: {
         Args: { p_workspace_id: string }
         Returns: string
+      }
+      list_workspace_member_directory: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          user_id: string
+          role: Database['public']['Enums']['workspace_role']
+          joined_at: string
+          display_name: string | null
+          avatar_url: string | null
+          email: string | null
+          display_name_override: string | null
+          last_active_at: string | null
+        }[]
       }
     }
     Enums: {

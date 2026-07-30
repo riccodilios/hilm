@@ -23,6 +23,7 @@ import { ideasKeys } from '@/features/ideas/api'
 import { notesKeys } from '@/features/notes/api'
 import { projectsKeys } from '@/features/projects/api'
 import { tasksKeys } from '@/features/tasks/api'
+import { workspaceKeys } from '@/features/workspace-os/api'
 import { VoiceAddButton } from '@/components/VoiceAddButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -58,21 +59,34 @@ function actionLabel(action: AiAction) {
     case 'note.create':
     case 'roadmap.create':
     case 'idea.create':
+    case 'documentation.generate':
+    case 'release.notes':
+    case 'milestone.create':
+      return action.title
+    case 'meeting.summarize':
       return action.title
     case 'project.create':
       return action.name
     case 'activity.note':
       return action.summary
+    case 'task.assign':
+      return action.type.replace('.', ' ')
     default:
       return action.type.replace('.', ' ')
   }
 }
 
-export function AiPage() {
+export type AiPageProps = {
+  mode?: 'personal' | 'workspace'
+  workspaceId?: string
+}
+
+export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('projectId') ?? undefined
+  const isWorkspace = mode === 'workspace' && Boolean(workspaceId)
   const [selectedId, setSelectedId] = useState<string>()
   const [agentId, setAgentId] = useState<AgentId>(defaultAgentId)
   const [input, setInput] = useState('')
@@ -86,7 +100,10 @@ export function AiPage() {
   const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {})
   const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
 
-  const conversations = useQuery({ queryKey: aiKeys.conversations(), queryFn: listConversations })
+  const conversations = useQuery({
+    queryKey: aiKeys.conversations(isWorkspace ? workspaceId : null),
+    queryFn: () => listConversations(isWorkspace ? workspaceId : null),
+  })
   const selectedConversation = useMemo(
     () => conversations.data?.find((conversation) => conversation.id === selectedId),
     [conversations.data, selectedId],
@@ -96,6 +113,12 @@ export function AiPage() {
     queryFn: () => listMessages(selectedId!),
     enabled: Boolean(selectedId),
   })
+
+  useEffect(() => {
+    setSelectedId(undefined)
+    setProposedActions([])
+    setDraft(null)
+  }, [mode, workspaceId])
 
   useEffect(() => {
     if (!selectedId && conversations.data?.[0]) setSelectedId(conversations.data[0].id)
@@ -113,14 +136,21 @@ export function AiPage() {
     voiceModeRef.current = voiceMode
   }, [voiceMode])
 
+  const conversationScopeKey = aiKeys.conversations(isWorkspace ? workspaceId : null)
+
   const newConversation = useMutation({
-    mutationFn: () => createConversation({ agentId, projectId }),
+    mutationFn: () =>
+      createConversation({
+        agentId,
+        projectId,
+        workspaceId: isWorkspace ? workspaceId : undefined,
+      }),
     onSuccess: async (conversation) => {
       setSelectedId(conversation.id)
       setProposedActions([])
       setDraft(null)
       setHistoryOpen(false)
-      await queryClient.invalidateQueries({ queryKey: aiKeys.conversations() })
+      await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -133,7 +163,7 @@ export function AiPage() {
         setProposedActions([])
         setDraft(null)
       }
-      await queryClient.invalidateQueries({ queryKey: aiKeys.conversations() })
+      await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
       toast.success(t('ai.historyDeleted'))
     },
     onError: (error: Error) => toast.error(error.message),
@@ -153,10 +183,15 @@ export function AiPage() {
     let conversationId = selectedId
     if (!conversationId) {
       try {
-        const conversation = await createConversation({ title: message.slice(0, 60), agentId, projectId })
+        const conversation = await createConversation({
+          title: message.slice(0, 60),
+          agentId,
+          projectId,
+          workspaceId: isWorkspace ? workspaceId : undefined,
+        })
         conversationId = conversation.id
         setSelectedId(conversation.id)
-        await queryClient.invalidateQueries({ queryKey: aiKeys.conversations() })
+        await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t('ai.empty'))
         return
@@ -186,6 +221,7 @@ export function AiPage() {
       message,
       agentId,
       projectId,
+      workspaceId: isWorkspace ? workspaceId : undefined,
       locale: i18n.language.startsWith('ar') ? 'ar' : 'en',
     })) {
       if (event.type === 'token') {
@@ -207,7 +243,7 @@ export function AiPage() {
     if (fromContent.length) setProposedActions(fromContent)
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: aiKeys.messages(conversationId) }),
-      queryClient.invalidateQueries({ queryKey: aiKeys.conversations() }),
+      queryClient.invalidateQueries({ queryKey: conversationScopeKey }),
     ])
   }
 
@@ -249,7 +285,9 @@ export function AiPage() {
   async function executeActions() {
     if (!proposedActions.length) return
     try {
-      const results = await executeAiActions(proposedActions)
+      const results = await executeAiActions(proposedActions, {
+        workspaceId: isWorkspace ? workspaceId : undefined,
+      })
       const succeeded = results.filter((result) => result.success)
       const failed = results.filter((result) => !result.success)
       if (succeeded.length) {
@@ -271,14 +309,24 @@ export function AiPage() {
         )
       }
       if (succeeded.length) setProposedActions(failed.map((result) => result.action))
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: tasksKeys.all }),
-        queryClient.invalidateQueries({ queryKey: projectsKeys.all }),
-        queryClient.invalidateQueries({ queryKey: homeKeys.all }),
-        queryClient.invalidateQueries({ queryKey: activityKeys.all }),
-        queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
-        queryClient.invalidateQueries({ queryKey: notesKeys.all }),
-      ])
+      if (isWorkspace && workspaceId) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) }),
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) }),
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) }),
+        ])
+      } else {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: tasksKeys.all }),
+          queryClient.invalidateQueries({ queryKey: projectsKeys.all }),
+          queryClient.invalidateQueries({ queryKey: homeKeys.all }),
+          queryClient.invalidateQueries({ queryKey: activityKeys.all }),
+          queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
+          queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+        ])
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('ai.applyFailed'))
     }
@@ -290,8 +338,8 @@ export function AiPage() {
   return (
     <div>
       <PageHeader
-        title={t('ai.title')}
-        description={t('ai.empty')}
+        title={isWorkspace ? t('ai.workspaceTitle') : t('ai.title')}
+        description={isWorkspace ? t('ai.workspaceEmpty') : t('ai.empty')}
         actions={
           <>
             <Button
@@ -436,8 +484,10 @@ export function AiPage() {
             {!displayedMessages.length ? (
               <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
                 <Bot className="mb-4 size-10 text-muted" />
-                <h2 className="font-medium">{t('ai.title')}</h2>
-                <p className="mt-2 text-sm text-muted">{t('ai.empty')}</p>
+                <h2 className="font-medium">{isWorkspace ? t('ai.workspaceTitle') : t('ai.title')}</h2>
+                <p className="mt-2 text-sm text-muted">
+                  {isWorkspace ? t('ai.workspaceEmpty') : t('ai.empty')}
+                </p>
               </div>
             ) : (
               displayedMessages.map((message) => (

@@ -27,6 +27,7 @@ async function searchConversations(q: string) {
   const { data, error } = await supabase
     .from('ai_conversations')
     .select('*')
+    .is('workspace_id', null)
     .ilike('title', `%${q}%`)
     .limit(20)
   if (error) throw error

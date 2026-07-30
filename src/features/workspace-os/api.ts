@@ -16,11 +16,19 @@ export const workspaceKeys = {
     [...workspaceKeys.all, 'task', workspaceId, taskId] as const,
   activity: (id: string) => [...workspaceKeys.all, 'activity', id] as const,
   home: (id: string) => [...workspaceKeys.all, 'home', id] as const,
+  memberSettings: (id: string) => [...workspaceKeys.all, 'member-settings', id] as const,
 }
 
 export type Workspace = Tables<'workspaces'>
 export type WorkspaceMember = Tables<'workspace_members'> & {
-  profiles?: { display_name: string | null; avatar_url: string | null } | null
+  email?: string | null
+  display_name_override?: string | null
+  last_active_at?: string | null
+  profiles?: {
+    display_name: string | null
+    avatar_url: string | null
+    email?: string | null
+  } | null
 }
 export type WorkspaceProject = Tables<'workspace_projects'>
 export type WorkspaceTask = Tables<'workspace_tasks'> & {
@@ -145,26 +153,33 @@ export async function regenerateInviteCode(workspaceId: string) {
 }
 
 export async function listWorkspaceMembers(workspaceId: string) {
-  const { data, error } = await supabase
-    .from('workspace_members')
-    .select('workspace_id, user_id, role, joined_at')
-    .eq('workspace_id', workspaceId)
-    .order('joined_at')
+  const { data, error } = await supabase.rpc('list_workspace_member_directory', {
+    p_workspace_id: workspaceId,
+  })
   if (error) throw error
-  const rows = data ?? []
-  const ids = rows.map((row) => row.user_id)
-  const { data: profiles } = ids.length
-    ? await supabase.from('profiles').select('id, display_name, avatar_url').in('id', ids)
-    : { data: [] as { id: string; display_name: string | null; avatar_url: string | null }[] }
-  const map = new Map((profiles ?? []).map((p) => [p.id, p]))
-  return rows.map((row) => ({
-    ...row,
-    profiles: map.get(row.user_id)
-      ? {
-          display_name: map.get(row.user_id)!.display_name,
-          avatar_url: map.get(row.user_id)!.avatar_url,
-        }
-      : null,
+
+  return ((data ?? []) as Array<{
+    user_id: string
+    role: WorkspaceRole
+    joined_at: string
+    display_name: string | null
+    avatar_url: string | null
+    email: string | null
+    display_name_override: string | null
+    last_active_at: string | null
+  }>).map((row) => ({
+    workspace_id: workspaceId,
+    user_id: row.user_id,
+    role: row.role,
+    joined_at: row.joined_at,
+    email: row.email,
+    display_name_override: row.display_name_override,
+    last_active_at: row.last_active_at,
+    profiles: {
+      display_name: row.display_name,
+      avatar_url: row.avatar_url,
+      email: row.email,
+    },
   })) as WorkspaceMember[]
 }
 
@@ -447,6 +462,98 @@ export async function deleteWorkspaceTask(workspaceId: string, taskId: string) {
     entityType: 'task',
     entityId: taskId,
   })
+}
+
+export async function recordWorkspaceActivityNote(
+  workspaceId: string,
+  input: {
+    summary: string
+    entityType?: string
+    entityId?: string
+    projectId?: string
+    payload?: Record<string, unknown>
+  },
+) {
+  await recordWsActivity({
+    workspaceId,
+    eventType: 'ai.note',
+    summary: input.summary,
+    entityType: input.entityType ?? 'ai_note',
+    entityId: input.entityId ?? input.projectId,
+    payload: {
+      ...(input.payload ?? {}),
+      ...(input.projectId ? { projectId: input.projectId } : {}),
+    },
+  })
+  return { recorded: true }
+}
+
+export async function leaveWorkspace(workspaceId: string) {
+  const userId = await requireUserId()
+  const { data: membership, error: memError } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (memError) throw memError
+  if (!membership) throw new Error('Not a member of this workspace')
+  if (membership.role === 'owner') {
+    throw new Error('Transfer ownership before leaving this workspace')
+  }
+  await removeMember(workspaceId, userId)
+}
+
+export type WorkspaceMemberSettings = Tables<'workspace_member_settings'>
+
+export async function getWorkspaceMemberSettings(workspaceId: string) {
+  const userId = await requireUserId()
+  const { data, error } = await supabase
+    .from('workspace_member_settings')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return (data as WorkspaceMemberSettings | null) ?? null
+}
+
+export async function upsertWorkspaceMemberSettings(
+  workspaceId: string,
+  patch: {
+    displayNameOverride?: string | null
+    avatarUrl?: string | null
+    notificationPrefs?: Record<string, unknown>
+    appearancePrefs?: Record<string, unknown>
+    aiPrefs?: Record<string, unknown>
+  },
+) {
+  const userId = await requireUserId()
+  const existing = await getWorkspaceMemberSettings(workspaceId)
+  const payload = {
+    workspace_id: workspaceId,
+    user_id: userId,
+    display_name_override:
+      patch.displayNameOverride !== undefined
+        ? patch.displayNameOverride
+        : (existing?.display_name_override ?? null),
+    avatar_url: patch.avatarUrl !== undefined ? patch.avatarUrl : (existing?.avatar_url ?? null),
+    notification_prefs: (patch.notificationPrefs ??
+      existing?.notification_prefs ??
+      {}) as import('@/types/database').Json,
+    appearance_prefs: (patch.appearancePrefs ??
+      existing?.appearance_prefs ??
+      {}) as import('@/types/database').Json,
+    ai_prefs: (patch.aiPrefs ?? existing?.ai_prefs ?? {}) as import('@/types/database').Json,
+    updated_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabase
+    .from('workspace_member_settings')
+    .upsert(payload, { onConflict: 'workspace_id,user_id' })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as WorkspaceMemberSettings
 }
 
 export async function listWorkspaceActivity(workspaceId: string, limit = 40) {

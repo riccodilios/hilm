@@ -21,7 +21,8 @@ function getAiChatUrl() {
 
 export const aiKeys = {
   all: ['ai'] as const,
-  conversations: () => [...aiKeys.all, 'conversations'] as const,
+  conversations: (workspaceId?: string | null) =>
+    [...aiKeys.all, 'conversations', workspaceId ?? 'personal'] as const,
   messages: (conversationId: string) => [...aiKeys.all, 'messages', conversationId] as const,
 }
 
@@ -33,11 +34,14 @@ export type ChatStreamEvent =
   | { type: 'done'; content?: string; actions?: AiAction[] }
   | { type: 'error'; error: string }
 
-export async function listConversations() {
-  const { data, error } = await supabase
-    .from('ai_conversations')
-    .select('*')
-    .order('updated_at', { ascending: false })
+export async function listConversations(workspaceId?: string | null) {
+  let query = supabase.from('ai_conversations').select('*').order('updated_at', { ascending: false })
+  if (workspaceId) {
+    query = query.eq('workspace_id', workspaceId)
+  } else {
+    query = query.is('workspace_id', null)
+  }
+  const { data, error } = await query
   if (error) throw error
   return data as AiConversation[]
 }
@@ -46,6 +50,7 @@ export async function createConversation(input: {
   title?: string
   agentId: AgentId
   projectId?: string
+  workspaceId?: string
   model?: string
 }) {
   const {
@@ -58,6 +63,7 @@ export async function createConversation(input: {
     title: input.title ?? 'New conversation',
     agent_id: input.agentId,
     project_id: input.projectId ?? null,
+    workspace_id: input.workspaceId ?? null,
     model: input.model ?? null,
   }
   const { data, error } = await supabase.from('ai_conversations').insert(payload as never).select('*').single()
@@ -124,6 +130,7 @@ export async function* streamChat(input: {
   message: string
   agentId: AgentId
   projectId?: string
+  workspaceId?: string
   model?: string
   locale?: string
 }): AsyncGenerator<ChatStreamEvent> {

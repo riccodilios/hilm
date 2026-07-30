@@ -107,11 +107,6 @@ const WorkspaceTeamPage = lazy(() =>
     default: m.WorkspaceTeamPage,
   })),
 )
-const WorkspaceSettingsPage = lazy(() =>
-  import('@/features/workspace-os/pages/WorkspaceSettingsPage').then((m) => ({
-    default: m.WorkspaceSettingsPage,
-  })),
-)
 const WorkspaceActivityPage = lazy(() =>
   import('@/features/workspace-os/pages/WorkspaceActivityPage').then((m) => ({
     default: m.WorkspaceActivityPage,
@@ -127,9 +122,14 @@ const WorkspaceRoadmapPage = lazy(() =>
     default: m.WorkspaceRoadmapPage,
   })),
 )
-const WorkspaceAiStubPage = lazy(() =>
-  import('@/features/workspace-os/pages/WorkspaceStubs').then((m) => ({
-    default: m.WorkspaceAiStubPage,
+const WorkspaceAiPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceAiPage').then((m) => ({
+    default: m.WorkspaceAiPage,
+  })),
+)
+const WorkspaceProfilePage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceProfilePage').then((m) => ({
+    default: m.WorkspaceProfilePage,
   })),
 )
 const ScaffoldPage = lazy(() =>
@@ -307,11 +307,12 @@ export function AppRouter() {
               <Route path="tasks" element={<Suspense fallback={<AppFallback />}><WorkspaceTasksPage /></Suspense>} />
               <Route path="tasks/:taskId" element={<Suspense fallback={<AppFallback />}><WorkspaceTaskDetailPage /></Suspense>} />
               <Route path="team" element={<Suspense fallback={<AppFallback />}><WorkspaceTeamPage /></Suspense>} />
-              <Route path="settings" element={<Suspense fallback={<AppFallback />}><WorkspaceSettingsPage /></Suspense>} />
+              <Route path="settings" element={<Navigate to="profile" replace />} />
+              <Route path="profile" element={<Suspense fallback={<AppFallback />}><WorkspaceProfilePage /></Suspense>} />
               <Route path="activity" element={<Suspense fallback={<AppFallback />}><WorkspaceActivityPage /></Suspense>} />
               <Route path="sprint" element={<Suspense fallback={<AppFallback />}><WorkspaceSprintPage /></Suspense>} />
               <Route path="roadmap" element={<Suspense fallback={<AppFallback />}><WorkspaceRoadmapPage /></Suspense>} />
-              <Route path="ai" element={<Suspense fallback={<AppFallback />}><WorkspaceAiStubPage /></Suspense>} />
+              <Route path="ai" element={<Suspense fallback={<AppFallback />}><WorkspaceAiPage /></Suspense>} />
             </Route>
           </Route>
 

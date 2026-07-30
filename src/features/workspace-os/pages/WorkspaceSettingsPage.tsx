@@ -12,6 +12,7 @@ import {
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -128,7 +129,11 @@ export function WorkspaceSettingsPage() {
                 .filter((m) => m.user_id !== user?.id)
                 .map((m) => (
                   <option key={m.user_id} value={m.user_id}>
-                    {m.profiles?.display_name || m.user_id.slice(0, 8)}
+                    {resolveMemberDisplayName({
+                      displayNameOverride: m.display_name_override,
+                      displayName: m.profiles?.display_name,
+                      email: m.email ?? m.profiles?.email,
+                    })}
                   </option>
                 ))}
             </select>

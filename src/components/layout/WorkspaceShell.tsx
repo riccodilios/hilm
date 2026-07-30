@@ -6,12 +6,9 @@ import {
   CheckSquare,
   ChevronDown,
   FolderKanban,
-  GanttChart,
   Home,
   LayoutGrid,
-  Map,
   Plus,
-  Settings,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -129,12 +126,11 @@ function WorkspaceShellInner() {
   const nav = [
     { to: base, label: t('nav.home'), icon: Home, end: true },
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
-    { to: `${base}/sprint`, label: t('nav.sprint'), icon: GanttChart },
-    { to: `${base}/roadmap`, label: t('nav.roadmap'), icon: Map },
+    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: '/personal', label: t('nav.personal'), icon: UserRound },
-    { to: `${base}/settings`, label: t('nav.settings'), icon: Settings },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
+    { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
   ]
 
   const mobileNav = [
@@ -142,7 +138,9 @@ function WorkspaceShellInner() {
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
-    { to: '/personal', label: t('nav.personal'), icon: UserRound },
+    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
+    { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
   ]
 
   return (
@@ -193,7 +191,7 @@ function WorkspaceShellInner() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-surface/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto flex max-w-lg items-stretch justify-between">
+        <div className="mx-auto flex max-w-lg items-stretch justify-between gap-0.5 overflow-x-auto">
           {mobileNav.map((item) => (
             <NavLink
               key={item.to}
@@ -201,7 +199,7 @@ function WorkspaceShellInner() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px]',
+                  'flex min-w-[3.25rem] flex-1 flex-col items-center gap-1 py-2.5 text-[10px]',
                   isActive ? 'text-foreground' : 'text-muted',
                 )
               }
