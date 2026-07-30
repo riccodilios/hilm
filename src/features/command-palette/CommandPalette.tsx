@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Command } from 'cmdk'
 import {
   Brain,
@@ -11,11 +11,18 @@ import {
   Plus,
   Search,
   Sparkles,
+  UserRound,
+  Users,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { listTasks, tasksKeys } from '@/features/tasks/api'
 import { listNotes, notesKeys } from '@/features/notes/api'
+import {
+  listWorkspaceProjects,
+  listWorkspaceTasks,
+  workspaceKeys,
+} from '@/features/workspace-os/api'
 import { cn } from '@/lib/utils'
 
 export function CommandPalette() {
@@ -23,22 +30,39 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
+  const { workspaceId } = useParams()
+  const isWorkspace = Boolean(workspaceId)
 
-  const { data: projects = [] } = useQuery({
+  const personalProjects = useQuery({
     queryKey: projectsKeys.list(),
     queryFn: listProjects,
-    enabled: open,
+    enabled: open && !isWorkspace,
   })
-  const { data: tasks = [] } = useQuery({
+  const personalTasks = useQuery({
     queryKey: tasksKeys.list('palette'),
     queryFn: () => listTasks(),
-    enabled: open,
+    enabled: open && !isWorkspace,
   })
-  const { data: notes = [] } = useQuery({
+  const notes = useQuery({
     queryKey: notesKeys.list(),
     queryFn: () => listNotes(),
-    enabled: open,
+    enabled: open && !isWorkspace,
   })
+
+  const workspaceProjects = useQuery({
+    queryKey: workspaceKeys.projects(workspaceId ?? ''),
+    queryFn: () => listWorkspaceProjects(workspaceId!),
+    enabled: open && isWorkspace,
+  })
+  const workspaceTasks = useQuery({
+    queryKey: workspaceKeys.tasks(workspaceId ?? ''),
+    queryFn: () => listWorkspaceTasks(workspaceId!),
+    enabled: open && isWorkspace,
+  })
+
+  const projects = isWorkspace ? (workspaceProjects.data ?? []) : (personalProjects.data ?? [])
+  const tasks = isWorkspace ? (workspaceTasks.data ?? []) : (personalTasks.data ?? [])
+  const noteItems = notes.data ?? []
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -62,21 +86,23 @@ export function CommandPalette() {
       return {
         projects: projects.slice(0, 5),
         tasks: tasks.slice(0, 5),
-        notes: notes.slice(0, 5),
+        notes: noteItems.slice(0, 5),
       }
     }
     return {
       projects: projects.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8),
-      tasks: tasks.filter((t) => t.title.toLowerCase().includes(q)).slice(0, 8),
-      notes: notes.filter((n) => n.title.toLowerCase().includes(q)).slice(0, 8),
+      tasks: tasks.filter((item) => item.title.toLowerCase().includes(q)).slice(0, 8),
+      notes: noteItems.filter((n) => n.title.toLowerCase().includes(q)).slice(0, 8),
     }
-  }, [query, projects, tasks, notes])
+  }, [query, projects, tasks, noteItems])
 
   function go(path: string) {
     setOpen(false)
     setQuery('')
     navigate(path)
   }
+
+  const ws = workspaceId ? `/workspace/${workspaceId}` : ''
 
   if (!open) return null
 
@@ -105,14 +131,45 @@ export function CommandPalette() {
             </Command.Empty>
 
             <Command.Group heading={t('command.commands')} className="px-1 py-2 text-xs text-muted">
-              <Item onSelect={() => go('/personal/tasks?new=1')} icon={Plus} label={t('command.newTask')} />
-              <Item onSelect={() => go('/personal/projects')} icon={FolderKanban} label={t('command.newProject')} />
-              <Item onSelect={() => go('/personal')} icon={Home} label={t('command.today')} />
-              <Item onSelect={() => go('/personal/ai')} icon={Brain} label={t('command.askAi')} />
-              <Item onSelect={() => go('/personal/notes')} icon={NotebookPen} label={t('command.quickNote')} />
-              <Item onSelect={() => go('/personal/search')} icon={Search} label={t('command.openSearch')} />
-              <Item onSelect={() => go('/personal/ai')} icon={Sparkles} label={t('command.chief')} />
-              <Item onSelect={() => go('/personal/tasks/board')} icon={CheckSquare} label={t('command.kanban')} />
+              {isWorkspace ? (
+                <>
+                  <Item onSelect={() => go(`${ws}/tasks?new=1`)} icon={Plus} label={t('command.newTask')} />
+                  <Item
+                    onSelect={() => go(`${ws}/projects`)}
+                    icon={FolderKanban}
+                    label={t('command.newProject')}
+                  />
+                  <Item onSelect={() => go(ws)} icon={Home} label={t('nav.home')} />
+                  <Item onSelect={() => go(`${ws}/tasks`)} icon={CheckSquare} label={t('command.tasks')} />
+                  <Item onSelect={() => go(`${ws}/team`)} icon={Users} label={t('nav.team')} />
+                  <Item onSelect={() => go(`${ws}/ai`)} icon={Brain} label={t('command.askAi')} />
+                  <Item onSelect={() => go(`${ws}/ai`)} icon={Sparkles} label={t('command.chief')} />
+                  <Item onSelect={() => go(`${ws}/profile`)} icon={UserRound} label={t('nav.profile')} />
+                </>
+              ) : (
+                <>
+                  <Item onSelect={() => go('/personal/tasks?new=1')} icon={Plus} label={t('command.newTask')} />
+                  <Item
+                    onSelect={() => go('/personal/projects')}
+                    icon={FolderKanban}
+                    label={t('command.newProject')}
+                  />
+                  <Item onSelect={() => go('/personal')} icon={Home} label={t('command.today')} />
+                  <Item onSelect={() => go('/personal/ai')} icon={Brain} label={t('command.askAi')} />
+                  <Item
+                    onSelect={() => go('/personal/notes')}
+                    icon={NotebookPen}
+                    label={t('command.quickNote')}
+                  />
+                  <Item onSelect={() => go('/personal/search')} icon={Search} label={t('command.openSearch')} />
+                  <Item onSelect={() => go('/personal/ai')} icon={Sparkles} label={t('command.chief')} />
+                  <Item
+                    onSelect={() => go('/personal/tasks/board')}
+                    icon={CheckSquare}
+                    label={t('command.kanban')}
+                  />
+                </>
+              )}
             </Command.Group>
 
             {filtered.projects.length ? (
@@ -120,7 +177,9 @@ export function CommandPalette() {
                 {filtered.projects.map((p) => (
                   <Item
                     key={p.id}
-                    onSelect={() => go(`/personal/projects/${p.id}`)}
+                    onSelect={() =>
+                      go(isWorkspace ? `${ws}/projects/${p.id}` : `/personal/projects/${p.id}`)
+                    }
                     icon={FolderKanban}
                     label={p.name}
                   />
@@ -130,18 +189,20 @@ export function CommandPalette() {
 
             {filtered.tasks.length ? (
               <Command.Group heading={t('command.tasks')} className="px-1 py-2 text-xs text-muted">
-                {filtered.tasks.map((t) => (
+                {filtered.tasks.map((task) => (
                   <Item
-                    key={t.id}
-                    onSelect={() => go(`/personal/tasks/${t.id}`)}
+                    key={task.id}
+                    onSelect={() =>
+                      go(isWorkspace ? `${ws}/tasks/${task.id}` : `/personal/tasks/${task.id}`)
+                    }
                     icon={CheckSquare}
-                    label={t.title}
+                    label={task.title}
                   />
                 ))}
               </Command.Group>
             ) : null}
 
-            {filtered.notes.length ? (
+            {!isWorkspace && filtered.notes.length ? (
               <Command.Group heading={t('command.notes')} className="px-1 py-2 text-xs text-muted">
                 {filtered.notes.map((n) => (
                   <Item

@@ -58,6 +58,8 @@ export type Database = {
           push_notifications_enabled: boolean
           onboarding_completed: boolean
           default_startup_mode: Database['public']['Enums']['startup_mode']
+          hide_workspace_os: boolean
+          hide_personal_os: boolean
           created_at: string
           updated_at: string
         },
@@ -73,6 +75,8 @@ export type Database = {
           push_notifications_enabled?: boolean
           onboarding_completed?: boolean
           default_startup_mode?: Database['public']['Enums']['startup_mode']
+          hide_workspace_os?: boolean
+          hide_personal_os?: boolean
           created_at?: string
           updated_at?: string
         },
@@ -87,6 +91,8 @@ export type Database = {
           push_notifications_enabled?: boolean
           onboarding_completed?: boolean
           default_startup_mode?: Database['public']['Enums']['startup_mode']
+          hide_workspace_os?: boolean
+          hide_personal_os?: boolean
           updated_at?: string
         }
       >

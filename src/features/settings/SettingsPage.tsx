@@ -43,6 +43,7 @@ export function SettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
+  const [hideWorkspaceOs, setHideWorkspaceOs] = useState(false)
   const [projectEmail, setProjectEmail] = useState<Record<string, boolean>>({})
 
   const [pushBusy, setPushBusy] = useState(false)
@@ -86,6 +87,7 @@ export function SettingsPage() {
       setPushNotifications(settings.data.push_notifications_enabled ?? false)
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
       setStartupMode(settings.data.default_startup_mode ?? 'personal')
+      setHideWorkspaceOs(settings.data.hide_workspace_os ?? false)
     }
   }, [settings.data, setTheme])
 
@@ -181,6 +183,7 @@ export function SettingsPage() {
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,
           default_startup_mode: startupMode,
+          hide_workspace_os: hideWorkspaceOs,
           notification_prefs: {
             email_reminders: emailReminders,
             push_notifications: pushNotifications,
@@ -298,6 +301,22 @@ export function SettingsPage() {
                 </span>
               </button>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.osVisibility')}</CardTitle>
+            <CardDescription>{t('settings.osVisibilityDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">{t('settings.hideWorkspaceOs')}</p>
+                <p className="text-xs text-muted">{t('settings.hideWorkspaceOsDesc')}</p>
+              </div>
+              <Switch checked={hideWorkspaceOs} onCheckedChange={setHideWorkspaceOs} />
+            </div>
           </CardContent>
         </Card>
 

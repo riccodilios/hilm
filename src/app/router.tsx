@@ -127,6 +127,11 @@ const WorkspaceAiPage = lazy(() =>
     default: m.WorkspaceAiPage,
   })),
 )
+const WorkspaceMissionControlPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceMissionControlPage').then((m) => ({
+    default: m.WorkspaceMissionControlPage,
+  })),
+)
 const WorkspaceProfilePage = lazy(() =>
   import('@/features/workspace-os/pages/WorkspaceProfilePage').then((m) => ({
     default: m.WorkspaceProfilePage,
@@ -310,6 +315,7 @@ export function AppRouter() {
               <Route path="settings" element={<Navigate to="profile" replace />} />
               <Route path="profile" element={<Suspense fallback={<AppFallback />}><WorkspaceProfilePage /></Suspense>} />
               <Route path="activity" element={<Suspense fallback={<AppFallback />}><WorkspaceActivityPage /></Suspense>} />
+              <Route path="mission-control" element={<Suspense fallback={<AppFallback />}><WorkspaceMissionControlPage /></Suspense>} />
               <Route path="sprint" element={<Suspense fallback={<AppFallback />}><WorkspaceSprintPage /></Suspense>} />
               <Route path="roadmap" element={<Suspense fallback={<AppFallback />}><WorkspaceRoadmapPage /></Suspense>} />
               <Route path="ai" element={<Suspense fallback={<AppFallback />}><WorkspaceAiPage /></Suspense>} />

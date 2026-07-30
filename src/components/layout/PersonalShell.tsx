@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import {
   Brain,
   Building2,
@@ -15,16 +16,21 @@ import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary'
 import { useOnline } from '@/hooks/useOnline'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { getSettings, settingsKeys } from '@/features/settings/api'
 
 export function PersonalShell() {
   const online = useOnline()
   const { t } = useTranslation()
+  const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
+  const hideWorkspace = settings.data?.hide_workspace_os ?? false
 
   const nav = [
     { to: '/personal', label: t('nav.home'), icon: Home, end: true },
     { to: '/personal/projects', label: t('nav.projects'), icon: FolderKanban },
     { to: '/personal/tasks', label: t('nav.tasks'), icon: CheckSquare },
-    { to: '/personal/workspace', label: t('nav.workspace'), icon: Building2 },
+    ...(!hideWorkspace
+      ? [{ to: '/personal/workspace', label: t('nav.workspace'), icon: Building2 }]
+      : []),
     { to: '/personal/ai', label: t('nav.ai'), icon: Brain },
     { to: '/personal/profile', label: t('nav.profile'), icon: UserRound },
   ]

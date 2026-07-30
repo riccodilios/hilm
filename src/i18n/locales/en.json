@@ -184,7 +184,10 @@
     "createOne": "Create one",
     "statOverdue": "Overdue",
     "noMembers": "No members yet.",
-    "reminderHint": "Reminds around {{when}}"
+    "reminderHint": "Reminds around {{when}}",
+    "missionDesc": "Plan the team’s calendar, timeline, and workload for this workspace.",
+    "accountDesc": "Your Hilm account — shared across Personal and Workspace OS.",
+    "accountNameHint": "This updates your account display name everywhere."
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -705,6 +708,12 @@
     "startupDesc": "Choose which operating system opens after you sign in.",
     "startupPersonal": "Always open Personal OS.",
     "startupWorkspace": "Open the Workspace Selector first.",
+    "osVisibility": "Operating systems",
+    "osVisibilityDesc": "Show or hide the other OS in navigation.",
+    "hideWorkspaceOs": "Hide Workspace OS",
+    "hideWorkspaceOsDesc": "Remove Workspace from Personal OS navigation.",
+    "hidePersonalOs": "Hide Personal OS",
+    "hidePersonalOsDesc": "Remove Personal from Workspace OS navigation.",
     "language": "Language",
     "languageDesc": "Choose English or Arabic. Layout direction updates automatically.",
     "profile": "Profile",

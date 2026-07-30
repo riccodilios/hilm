@@ -419,13 +419,14 @@ export async function createWorkspaceTask(
     priority?: WorkspaceTask['priority']
     status?: WorkspaceTask['status']
     dueDate?: string | null
+    dueAt?: string | null
     assigneeId?: string | null
     reminderType?: ReminderType | null
   },
 ) {
   const userId = await requireUserId()
   const dueDate = input.dueDate?.trim() || null
-  const dueAt = combineDueAt(dueDate)
+  const dueAt = input.dueAt ?? combineDueAt(dueDate)
   const reminderType = input.reminderType ?? '1h'
   const reminderAt = computeRemindAt(dueAt, reminderType)
   const { data, error } = await supabase

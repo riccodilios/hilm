@@ -9,6 +9,7 @@ import {
   Home,
   LayoutGrid,
   Plus,
+  Search,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -17,8 +18,10 @@ import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary'
 import { useOnline } from '@/hooks/useOnline'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { WorkspaceProvider, useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { listMyWorkspaces, workspaceKeys } from '@/features/workspace-os/api'
+import { getSettings, settingsKeys } from '@/features/settings/api'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 
@@ -122,6 +125,8 @@ function WorkspaceShellInner() {
   const { t } = useTranslation()
   const { workspaceId } = useParams()
   const base = `/workspace/${workspaceId}`
+  const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
+  const hidePersonal = settings.data?.hide_personal_os ?? false
 
   const nav = [
     { to: base, label: t('nav.home'), icon: Home, end: true },
@@ -129,7 +134,9 @@ function WorkspaceShellInner() {
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
+    ...(!hidePersonal
+      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
+      : []),
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 
@@ -139,12 +146,15 @@ function WorkspaceShellInner() {
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
+    ...(!hidePersonal
+      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
+      : []),
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 
   return (
     <div className="relative min-h-dvh bg-background">
+      <CommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(96,165,250,0.06),_transparent_40%),radial-gradient(ellipse_at_bottom_left,_rgba(255,255,255,0.03),_transparent_45%)]" />
 
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-60 flex-col border-e border-border-subtle bg-surface/60 px-3 py-5 backdrop-blur-xl lg:flex">
@@ -174,8 +184,19 @@ function WorkspaceShellInner() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto">
+        <div className="mt-auto space-y-2">
           <LanguageSwitcher className="w-full justify-between" />
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('hilm:open-command'))}
+            className="flex w-full items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-3 py-2 text-sm text-muted hover:text-foreground"
+          >
+            <Search className="size-4" />
+            <span className="flex-1 text-start">{t('common.search')}</span>
+            <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-fg">
+              ⌘K
+            </kbd>
+          </button>
         </div>
       </aside>
 
