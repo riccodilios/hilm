@@ -129,8 +129,8 @@ function WorkspaceShellInner() {
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
     { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 
   const mobileNav = [
@@ -139,8 +139,8 @@ function WorkspaceShellInner() {
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
     { to: '/personal', label: t('nav.personal'), icon: LayoutGrid },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 
   return (
