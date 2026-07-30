@@ -16,7 +16,7 @@ export const workspaceKeys = {
   task: (workspaceId: string, taskId: string) =>
     [...workspaceKeys.all, 'task', workspaceId, taskId] as const,
   activity: (id: string) => [...workspaceKeys.all, 'activity', id] as const,
-  home: (id: string) => [...workspaceKeys.all, 'home', id] as const,
+  home: (id: string) => [...workspaceKeys.all, 'home', id, 'v2'] as const,
   memberSettings: (id: string) => [...workspaceKeys.all, 'member-settings', id] as const,
 }
 
@@ -157,30 +157,58 @@ export async function listWorkspaceMembers(workspaceId: string) {
   const { data, error } = await supabase.rpc('list_workspace_member_directory', {
     p_workspace_id: workspaceId,
   })
-  if (error) throw error
 
-  return ((data ?? []) as Array<{
-    user_id: string
-    role: WorkspaceRole
-    joined_at: string
-    display_name: string | null
-    avatar_url: string | null
-    email: string | null
-    display_name_override: string | null
-    last_active_at: string | null
-  }>).map((row) => ({
-    workspace_id: workspaceId,
-    user_id: row.user_id,
-    role: row.role,
-    joined_at: row.joined_at,
-    email: row.email,
-    display_name_override: row.display_name_override,
-    last_active_at: row.last_active_at,
-    profiles: {
-      display_name: row.display_name,
-      avatar_url: row.avatar_url,
+  if (!error && data) {
+    return (data as Array<{
+      user_id: string
+      role: WorkspaceRole
+      joined_at: string
+      display_name: string | null
+      avatar_url: string | null
+      email: string | null
+      display_name_override: string | null
+      last_active_at: string | null
+    }>).map((row) => ({
+      workspace_id: workspaceId,
+      user_id: row.user_id,
+      role: row.role,
+      joined_at: row.joined_at,
       email: row.email,
-    },
+      display_name_override: row.display_name_override,
+      last_active_at: row.last_active_at,
+      profiles: {
+        display_name: row.display_name,
+        avatar_url: row.avatar_url,
+        email: row.email,
+      },
+    })) as WorkspaceMember[]
+  }
+
+  // Fallback if directory RPC is unavailable
+  const { data: rows, error: membersError } = await supabase
+    .from('workspace_members')
+    .select('workspace_id, user_id, role, joined_at')
+    .eq('workspace_id', workspaceId)
+    .order('joined_at')
+  if (membersError) throw membersError
+  const memberRows = rows ?? []
+  const ids = memberRows.map((row) => row.user_id)
+  const { data: profiles } = ids.length
+    ? await supabase.from('profiles').select('id, display_name, avatar_url').in('id', ids)
+    : { data: [] as { id: string; display_name: string | null; avatar_url: string | null }[] }
+  const map = new Map((profiles ?? []).map((p) => [p.id, p]))
+  return memberRows.map((row) => ({
+    ...row,
+    email: null,
+    display_name_override: null,
+    last_active_at: null,
+    profiles: map.get(row.user_id)
+      ? {
+          display_name: map.get(row.user_id)!.display_name,
+          avatar_url: map.get(row.user_id)!.avatar_url,
+          email: null,
+        }
+      : null,
   })) as WorkspaceMember[]
 }
 
@@ -577,12 +605,16 @@ export async function listWorkspaceActivity(workspaceId: string, limit = 40) {
 }
 
 export async function getWorkspaceHome(workspaceId: string) {
-  const [members, projects, tasks, activity] = await Promise.all([
+  const [membersRaw, projectsRaw, tasksRaw, activityRaw] = await Promise.all([
     listWorkspaceMembers(workspaceId),
     listWorkspaceProjects(workspaceId),
     listWorkspaceTasks(workspaceId),
     listWorkspaceActivity(workspaceId, 10),
   ])
+  const members = Array.isArray(membersRaw) ? membersRaw : []
+  const projects = Array.isArray(projectsRaw) ? projectsRaw : []
+  const tasks = Array.isArray(tasksRaw) ? tasksRaw : []
+  const activity = Array.isArray(activityRaw) ? activityRaw : []
   const openTasks = tasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
   const today = new Date()
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`

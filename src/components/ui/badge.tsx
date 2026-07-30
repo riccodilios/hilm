@@ -50,9 +50,10 @@ export function HealthBadge({ health }: { health?: HealthStatus | ProjectHealth 
   )
 }
 
-export function PriorityBadge({ priority }: { priority: Priority }) {
+export function PriorityBadge({ priority }: { priority?: Priority | null }) {
   const { t } = useTranslation()
-  return <Badge className={priorityStyles[priority]}>{t(`priority.${priority}`)}</Badge>
+  const key = priority && priority in priorityStyles ? priority : 'none'
+  return <Badge className={priorityStyles[key]}>{t(`priority.${key}`)}</Badge>
 }
 
 export function StatusBadge({ status }: { status: TaskStatus }) {

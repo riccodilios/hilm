@@ -119,6 +119,12 @@ export function WorkspaceHomePage() {
 
   const data = home.data
   const focus = data.focus
+  const overdueTasks = data.overdueTasks ?? []
+  const todayTasks = data.todayTasks ?? []
+  const upcoming = data.upcoming ?? []
+  const projects = data.projects ?? []
+  const recentActivity = data.recentActivity ?? []
+  const members = data.members ?? []
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-full">
@@ -159,7 +165,7 @@ export function WorkspaceHomePage() {
               {focus.title}
             </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <PriorityBadge priority={focus.priority} />
+              <PriorityBadge priority={focus.priority ?? 'none'} />
               {focus.workspace_projects ? (
                 <Badge className="bg-surface-3 text-muted">
                   <span
@@ -170,7 +176,7 @@ export function WorkspaceHomePage() {
                 </Badge>
               ) : null}
               <Badge className="bg-surface-3 text-muted capitalize">
-                {focus.status.replace('_', ' ')}
+                {(focus.status ?? 'todo').replace('_', ' ')}
               </Badge>
               {focus.due_at || focus.due_date ? (
                 <span className="text-sm text-muted">
@@ -232,10 +238,10 @@ export function WorkspaceHomePage() {
         className="mb-6 grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-4"
       >
         {[
-          { label: t('workspace.openTasks'), value: data.openTaskCount },
-          { label: t('workspace.statOverdue'), value: data.overdueCount },
-          { label: t('workspace.doneTasks'), value: data.doneTaskCount },
-          { label: t('nav.projects'), value: data.projectCount },
+          { label: t('workspace.openTasks'), value: data.openTaskCount ?? 0 },
+          { label: t('workspace.statOverdue'), value: data.overdueCount ?? overdueTasks.length },
+          { label: t('workspace.doneTasks'), value: data.doneTaskCount ?? 0 },
+          { label: t('nav.projects'), value: data.projectCount ?? projects.length },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -254,12 +260,12 @@ export function WorkspaceHomePage() {
               <CardTitle>{t('workspace.dueToday')}</CardTitle>
             </CardHeader>
             <CardContent className="min-w-0 space-y-1">
-              {data.overdueTasks.length ? (
+              {overdueTasks.length ? (
                 <div className="mb-3 space-y-1 border-b border-border-subtle pb-3">
                   <p className="px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-danger">
                     {t('workspace.overdue')}
                   </p>
-                  {data.overdueTasks.map((task) => (
+                  {overdueTasks.map((task) => (
                     <DueTaskRow
                       key={task.id}
                       task={task}
@@ -269,10 +275,10 @@ export function WorkspaceHomePage() {
                   ))}
                 </div>
               ) : null}
-              {data.todayTasks.map((task) => (
+              {todayTasks.map((task) => (
                 <DueTaskRow key={task.id} task={task} workspaceId={workspaceId} locale={locale} />
               ))}
-              {data.todayTasks.length === 0 && data.overdueTasks.length === 0 ? (
+              {todayTasks.length === 0 && overdueTasks.length === 0 ? (
                 <p className="px-2 text-sm text-muted">{t('workspace.nothingDueToday')}</p>
               ) : null}
             </CardContent>
@@ -285,10 +291,10 @@ export function WorkspaceHomePage() {
               <CardTitle>{t('workspace.upcoming')}</CardTitle>
             </CardHeader>
             <CardContent className="min-w-0 space-y-1">
-              {data.upcoming.map((task) => (
+              {upcoming.map((task) => (
                 <DueTaskRow key={task.id} task={task} workspaceId={workspaceId} locale={locale} />
               ))}
-              {data.upcoming.length === 0 ? (
+              {upcoming.length === 0 ? (
                 <p className="px-2 text-sm text-muted">{t('workspace.noUpcoming')}</p>
               ) : null}
             </CardContent>
@@ -304,7 +310,7 @@ export function WorkspaceHomePage() {
               </Button>
             </CardHeader>
             <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2">
-              {data.projects.map((project) => (
+              {projects.map((project) => (
                 <Link
                   key={project.id}
                   to={`/workspace/${workspaceId}/projects/${project.id}`}
@@ -332,7 +338,7 @@ export function WorkspaceHomePage() {
                         strokeDasharray={2 * Math.PI * 18}
                         strokeDashoffset={
                           2 * Math.PI * 18 -
-                          (Math.max(0, Math.min(100, project.completion_pct)) / 100) *
+                          (Math.max(0, Math.min(100, project.completion_pct ?? 0)) / 100) *
                             2 *
                             Math.PI *
                             18
@@ -340,7 +346,7 @@ export function WorkspaceHomePage() {
                       />
                     </svg>
                     <span className="absolute text-[10px] font-medium tabular-nums">
-                      {Math.round(project.completion_pct)}%
+                      {Math.round(project.completion_pct ?? 0)}%
                     </span>
                   </div>
                   <div className="min-w-0 flex-1 space-y-1.5">
@@ -350,9 +356,9 @@ export function WorkspaceHomePage() {
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
                       <span>
-                        {project.remainingTasks} {t('workspace.tasksRemaining')}
+                        {project.remainingTasks ?? 0} {t('workspace.tasksRemaining')}
                       </span>
-                      {project.overdueCount > 0 ? (
+                      {(project.overdueCount ?? 0) > 0 ? (
                         <span className="text-danger">
                           {project.overdueCount} {t('workspace.overdueShort')}
                         </span>
@@ -361,7 +367,7 @@ export function WorkspaceHomePage() {
                   </div>
                 </Link>
               ))}
-              {!data.projects.length ? (
+              {!projects.length ? (
                 <p className="text-sm text-muted">
                   {t('workspace.noProjects')}{' '}
                   {canEdit ? (
@@ -384,7 +390,7 @@ export function WorkspaceHomePage() {
               </Button>
             </CardHeader>
             <CardContent className="min-w-0 space-y-3">
-              {data.recentActivity.map((event) => (
+              {recentActivity.map((event) => (
                 <div key={event.id} className="flex min-w-0 gap-3">
                   <div className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-fg" />
                   <div className="min-w-0 flex-1">
@@ -393,7 +399,7 @@ export function WorkspaceHomePage() {
                   </div>
                 </div>
               ))}
-              {!data.recentActivity.length ? (
+              {!recentActivity.length ? (
                 <p className="text-sm text-muted">{t('workspace.noActivity')}</p>
               ) : null}
             </CardContent>
@@ -409,7 +415,7 @@ export function WorkspaceHomePage() {
               </Button>
             </CardHeader>
             <CardContent className="min-w-0 space-y-2">
-              {data.members.map((member) => {
+              {members.map((member) => {
                 const name = resolveMemberDisplayName({
                   displayNameOverride: member.display_name_override,
                   displayName: member.profiles?.display_name,
@@ -440,7 +446,7 @@ export function WorkspaceHomePage() {
                   </div>
                 )
               })}
-              {!data.members.length ? (
+              {!members.length ? (
                 <p className="text-sm text-muted">{t('workspace.noMembers')}</p>
               ) : null}
             </CardContent>
