@@ -850,6 +850,8 @@ export type Database = {
           project_id: string
           created_by: string
           assignee_id: string | null
+          department_id: string | null
+          team_id: string | null
           title: string
           description: string | null
           priority: Database['public']['Enums']['priority']
@@ -870,6 +872,8 @@ export type Database = {
           project_id: string
           created_by: string
           assignee_id?: string | null
+          department_id?: string | null
+          team_id?: string | null
           title: string
           description?: string | null
           priority?: Database['public']['Enums']['priority']
@@ -887,6 +891,8 @@ export type Database = {
         {
           project_id?: string
           assignee_id?: string | null
+          department_id?: string | null
+          team_id?: string | null
           title?: string
           description?: string | null
           priority?: Database['public']['Enums']['priority']

@@ -16,6 +16,10 @@ import {
   removeWorkspaceTaskAttachment,
   uploadWorkspaceTaskAttachment,
 } from '@/features/workspace-os/attachments-api'
+import {
+  TaskAssignmentFields,
+  type TaskAssignmentValue,
+} from '@/features/workspace-os/components/TaskAssignmentFields'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
@@ -29,6 +33,11 @@ export function WorkspaceTaskDetailPage() {
   const { workspaceId, canEdit } = useWorkspace()
   const qc = useQueryClient()
   const [description, setDescription] = useState('')
+  const [assignment, setAssignment] = useState<TaskAssignmentValue>({
+    departmentId: null,
+    teamId: null,
+    assigneeId: null,
+  })
   const task = useQuery({
     queryKey: workspaceKeys.task(workspaceId, taskId),
     queryFn: () => getWorkspaceTask(workspaceId, taskId),
@@ -44,8 +53,15 @@ export function WorkspaceTaskDetailPage() {
   })
 
   useEffect(() => {
-    if (task.data) setDescription(task.data.description ?? '')
-  }, [task.data?.id, task.data?.description])
+    if (task.data) {
+      setDescription(task.data.description ?? '')
+      setAssignment({
+        departmentId: task.data.department_id ?? null,
+        teamId: task.data.team_id ?? null,
+        assigneeId: task.data.assignee_id ?? null,
+      })
+    }
+  }, [task.data?.id, task.data?.description, task.data?.department_id, task.data?.team_id, task.data?.assignee_id])
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
@@ -101,6 +117,32 @@ export function WorkspaceTaskDetailPage() {
           }}
         />
       </div>
+      {canEdit ? (
+        <TaskAssignmentFields
+          workspaceId={workspaceId}
+          value={assignment}
+          onChange={setAssignment}
+          priority={task.data.priority}
+          titleHint={task.data.title}
+          dueAt={task.data.due_at}
+          estimatedHours={task.data.estimated_hours}
+        />
+      ) : null}
+      {canEdit ? (
+        <Button
+          variant="secondary"
+          disabled={save.isPending}
+          onClick={() =>
+            save.mutate({
+              department_id: assignment.departmentId,
+              team_id: assignment.teamId,
+              assignee_id: assignment.assigneeId,
+            })
+          }
+        >
+          {t('workspace.saveAssignment')}
+        </Button>
+      ) : null}
       <AttachmentPanel
         items={attachments.data ?? []}
         onUpload={async (files) => {

@@ -23,11 +23,25 @@ import {
   Code,
   Quote,
   Table as TableIcon,
+  Unlink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 type MentionOption = { id: string; label: string }
+
+function normalizeUrl(raw: string) {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    const url = new URL(withProtocol)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
 
 export function RichTextEditor({
   value,
@@ -50,16 +64,39 @@ export function RichTextEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        bulletList: { keepMarks: true, keepAttributes: false },
+        orderedList: { keepMarks: true, keepAttributes: false },
       }),
       Underline,
-      Link.configure({ openOnClick: false, autolink: true }),
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+        linkOnPaste: true,
+        HTMLAttributes: {
+          class: 'rte-link',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
       Placeholder.configure({ placeholder }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Table.configure({ resizable: false }),
+      TaskList.configure({
+        HTMLAttributes: { class: 'rte-task-list' },
+      }),
+      TaskItem.configure({
+        nested: true,
+        HTMLAttributes: { class: 'rte-task-item' },
+      }),
+      Table.configure({
+        resizable: false,
+        HTMLAttributes: { class: 'rte-table' },
+      }),
       TableRow,
-      TableHeader,
-      TableCell,
+      TableHeader.configure({
+        HTMLAttributes: { class: 'rte-th' },
+      }),
+      TableCell.configure({
+        HTMLAttributes: { class: 'rte-td' },
+      }),
     ],
     content: value || '',
     editable,
@@ -67,8 +104,7 @@ export function RichTextEditor({
     onBlur: ({ editor: ed }) => onBlur?.(ed.getHTML()),
     editorProps: {
       attributes: {
-        class:
-          'prose prose-invert max-w-none min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ol]:list-decimal',
+        class: 'rte-content prose prose-invert max-w-none min-h-[140px] focus:outline-none',
       },
     },
   })
@@ -109,6 +145,30 @@ export function RichTextEditor({
     </Button>
   )
 
+  function setOrEditLink() {
+    const previous = editor.getAttributes('link').href as string | undefined
+    const raw = window.prompt('URL', previous ?? 'https://')
+    if (raw === null) return
+    if (!raw.trim()) {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run()
+      return
+    }
+    const href = normalizeUrl(raw)
+    if (!href) {
+      window.alert('Enter a valid http(s) URL.')
+      return
+    }
+    editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+  }
+
+  function insertTable() {
+    editor
+      .chain()
+      .focus()
+      .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+      .run()
+  }
+
   return (
     <div className={cn('overflow-hidden rounded-xl border border-border bg-surface', className)}>
       {editable ? (
@@ -122,22 +182,16 @@ export function RichTextEditor({
           {tool(() => editor.chain().focus().toggleTaskList().run(), editor.isActive('taskList'), 'Checklist', <ListChecks className="size-3.5" />)}
           {tool(() => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'), 'Quote', <Quote className="size-3.5" />)}
           {tool(() => editor.chain().focus().toggleCode().run(), editor.isActive('code'), 'Code', <Code className="size-3.5" />)}
-          {tool(
-            () => {
-              const url = window.prompt('URL')
-              if (!url) return
-              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-            },
-            editor.isActive('link'),
-            'Link',
-            <Link2 className="size-3.5" />,
-          )}
-          {tool(
-            () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
-            false,
-            'Table',
-            <TableIcon className="size-3.5" />,
-          )}
+          {tool(setOrEditLink, editor.isActive('link'), 'Link', <Link2 className="size-3.5" />)}
+          {editor.isActive('link')
+            ? tool(
+                () => editor.chain().focus().extendMarkRange('link').unsetLink().run(),
+                false,
+                'Unlink',
+                <Unlink className="size-3.5" />,
+              )
+            : null}
+          {tool(insertTable, editor.isActive('table'), 'Table', <TableIcon className="size-3.5" />)}
         </div>
       ) : null}
       <EditorContent editor={editor} />

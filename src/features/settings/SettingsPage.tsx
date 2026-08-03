@@ -30,17 +30,30 @@ import {
 } from '@/features/notifications/push'
 import { syncUnsentReminderChannels } from '@/features/notifications/api'
 
-export function SettingsPage() {
+export function SettingsPage({
+  exportPath = '/personal/export',
+  showPersonalProjects = true,
+}: {
+  /** Keep account settings usable inside Workspace OS without switching OS. */
+  exportPath?: string
+  showPersonalProjects?: boolean
+} = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
   const aiUsage = useQuery({ queryKey: aiKeys.usage(), queryFn: getAiUsageSummary })
-  const projects = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
+  const projects = useQuery({
+    queryKey: projectsKeys.list(),
+    queryFn: listProjects,
+    enabled: showPersonalProjects,
+  })
   const [displayName, setDisplayName] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [emailReminders, setEmailReminders] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
@@ -226,6 +239,21 @@ export function SettingsPage() {
       queryClient.clear()
       toast.success(t('settings.signedOut'))
       navigate('/login', { replace: true })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const changePassword = useMutation({
+    mutationFn: async () => {
+      if (password.length < 8) throw new Error(t('settings.passwordTooShort'))
+      if (password !== passwordConfirm) throw new Error(t('settings.passwordMismatch'))
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      setPassword('')
+      setPasswordConfirm('')
+      toast.success(t('settings.passwordUpdated'))
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -416,7 +444,7 @@ export function SettingsPage() {
                 ))}
               </select>
             </div>
-            {projects.data?.length ? (
+            {showPersonalProjects && projects.data?.length ? (
               <div className="rounded-2xl border border-border-subtle p-4">
                 <p className="mb-3 text-sm font-medium">{t('settings.perProject')}</p>
                 <div className="space-y-3">
@@ -492,13 +520,70 @@ export function SettingsPage() {
             <CardTitle>{t('settings.profile')}</CardTitle>
             <CardDescription>{t('settings.profileDesc')}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="display-name">{t('settings.displayName')}</Label>
-            <Input
-              id="display-name"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="display-name">{t('settings.displayName')}</Label>
+              <Input
+                id="display-name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </div>
+            {user?.email ? (
+              <div className="rounded-xl border border-border-subtle bg-surface-2/40 px-3 py-2 text-sm">
+                <p className="text-muted">{t('auth.email')}</p>
+                <p className="font-medium">{user.email}</p>
+              </div>
+            ) : null}
+            {profile.data?.avatar_url ? (
+              <div className="flex items-center gap-3">
+                <img
+                  src={profile.data.avatar_url}
+                  alt=""
+                  className="size-12 rounded-xl object-cover"
+                />
+                <p className="text-xs text-muted">{t('settings.avatarHint')}</p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted">{t('settings.avatarHint')}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.password')}</CardTitle>
+            <CardDescription>{t('settings.passwordDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">{t('settings.newPassword')}</Label>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">{t('settings.confirmPassword')}</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={changePassword.isPending || !password}
+              onClick={() => changePassword.mutate()}
+            >
+              {t('settings.updatePassword')}
+            </Button>
           </CardContent>
         </Card>
 
@@ -509,7 +594,7 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <Button asChild type="button" variant="secondary">
-              <Link to="/personal/export">
+              <Link to={exportPath}>
                 <Download className="size-4" /> {t('settings.export')}
               </Link>
             </Button>

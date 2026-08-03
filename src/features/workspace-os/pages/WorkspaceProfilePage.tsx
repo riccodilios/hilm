@@ -9,6 +9,7 @@ import {
   Crosshair,
   LogOut,
   Palette,
+  Settings,
   Shield,
   UserRound,
   Users,
@@ -107,10 +108,22 @@ export function WorkspaceProfilePage() {
 
   const hubLinks = [
     {
+      to: `/workspace/${workspaceId}/account-settings`,
+      label: t('workspace.personalSettings'),
+      description: t('workspace.personalSettingsDesc'),
+      icon: Settings,
+    },
+    {
       to: `/workspace/${workspaceId}/mission-control`,
       label: t('mission.title'),
       description: t('workspace.missionDesc'),
       icon: Crosshair,
+    },
+    {
+      to: `/workspace/${workspaceId}/team-lead`,
+      label: t('workspace.teamLeadTitle'),
+      description: t('workspace.teamLeadDesc'),
+      icon: Users,
     },
     {
       to: `/workspace/${workspaceId}/org`,
@@ -261,8 +274,10 @@ export function WorkspaceProfilePage() {
             </p>
             <p className="mt-1 text-xs text-muted">{t('workspace.profileAccount', { name: accountName })}</p>
           </div>
-          <Button asChild variant="secondary" disabled={hidePersonalOs}>
-            <Link to="/personal/profile">{t('workspace.openPersonalProfile')}</Link>
+          <Button asChild variant="secondary">
+            <Link to={`/workspace/${workspaceId}/account-settings`}>
+              {t('workspace.personalSettings')}
+            </Link>
           </Button>
         </CardContent>
       </Card>

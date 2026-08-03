@@ -28,6 +28,24 @@ export type LoadBalanceSuggestion = {
   rationale: string
 }
 
+export type AssigneeRecommendation = {
+  userId: string
+  score: number
+  confidence: number
+  reasons: string[]
+}
+
+export type MemberCapacity = {
+  userId: string
+  openCount: number
+  urgentCount: number
+  highCount: number
+  capacity: 'low' | 'medium' | 'high' | 'overloaded'
+  upcomingDeadlines: number
+  skills: string[]
+  available: boolean
+}
+
 export const loadBalancerKeys = {
   all: (workspaceId: string) => [...workspaceKeys.all, 'load-balancer', workspaceId] as const,
   runs: (workspaceId: string) => [...loadBalancerKeys.all(workspaceId), 'runs'] as const,
@@ -86,6 +104,130 @@ export function scoreMemberWorkloads(
       highCount: assigned.filter((task) => task.priority === 'high').length,
     }
   })
+}
+
+function capacityFromLoad(openCount: number, urgentCount: number): MemberCapacity['capacity'] {
+  const load = openCount + urgentCount * 2
+  if (load >= 10) return 'overloaded'
+  if (load >= 6) return 'high'
+  if (load >= 3) return 'medium'
+  return 'low'
+}
+
+export function buildMemberCapacities(
+  members: WorkspaceMember[],
+  tasks: WorkspaceTask[],
+  settingsByUser: Map<string, { skills?: string[] | null; availability?: Record<string, unknown> | null }> = new Map(),
+): MemberCapacity[] {
+  const workloads = scoreMemberWorkloads(members, tasks)
+  const now = Date.now()
+  const week = now + 7 * 24 * 60 * 60 * 1000
+  return workloads.map((w) => {
+    const settings = settingsByUser.get(w.userId)
+    const availability = settings?.availability ?? {}
+    const available =
+      availability.available !== false &&
+      availability.status !== 'ooo' &&
+      availability.status !== 'unavailable'
+    const upcomingDeadlines = tasks.filter((task) => {
+      if (task.assignee_id !== w.userId) return false
+      if (task.status === 'done' || task.status === 'archived') return false
+      const due = task.due_at ? new Date(task.due_at).getTime() : null
+      return due != null && due >= now && due <= week
+    }).length
+    return {
+      userId: w.userId,
+      openCount: w.openCount,
+      urgentCount: w.urgentCount,
+      highCount: w.highCount,
+      capacity: capacityFromLoad(w.openCount, w.urgentCount),
+      upcomingDeadlines,
+      skills: settings?.skills ?? [],
+      available,
+    }
+  })
+}
+
+export function recommendAssignee(input: {
+  members: WorkspaceMember[]
+  tasks: WorkspaceTask[]
+  priority?: WorkspaceTask['priority']
+  estimatedHours?: number | null
+  dueAt?: string | null
+  candidateIds?: string[] | null
+  settingsByUser?: Map<string, { skills?: string[] | null; availability?: Record<string, unknown> | null }>
+  titleHint?: string
+}): AssigneeRecommendation | null {
+  const candidates = input.candidateIds?.length
+    ? input.members.filter((m) => input.candidateIds!.includes(m.user_id))
+    : input.members
+  if (!candidates.length) return null
+
+  const capacities = buildMemberCapacities(
+    candidates,
+    input.tasks,
+    input.settingsByUser ?? new Map(),
+  )
+  const title = (input.titleHint ?? '').toLowerCase()
+  const priorityWeight = PRIORITY_WEIGHT[input.priority ?? 'none'] ?? 1
+
+  const ranked = capacities
+    .map((cap) => {
+      const reasons: string[] = []
+      let score = 100 - (cap.openCount * 8 + cap.urgentCount * 12 + cap.highCount * 4)
+
+      if (cap.available) {
+        score += 12
+        reasons.push('Available this week')
+      } else {
+        score -= 30
+        reasons.push('Marked unavailable')
+      }
+
+      if (cap.capacity === 'low') {
+        score += 18
+        reasons.push('Lowest workload')
+      } else if (cap.capacity === 'medium') {
+        score += 6
+        reasons.push(`${cap.openCount} open tasks`)
+      } else if (cap.capacity === 'high') {
+        score -= 8
+        reasons.push('High current load')
+      } else {
+        score -= 20
+        reasons.push('Overloaded')
+      }
+
+      if (cap.upcomingDeadlines === 0) {
+        score += 6
+        reasons.push('No deadlines this week')
+      } else {
+        score -= cap.upcomingDeadlines * 3
+        reasons.push(`${cap.upcomingDeadlines} upcoming deadline(s)`)
+      }
+
+      const matchedSkills = cap.skills.filter((skill) => {
+        const s = skill.toLowerCase()
+        return s.length > 1 && title.includes(s)
+      })
+      if (matchedSkills.length) {
+        score += matchedSkills.length * 10
+        reasons.push(`Relevant ${matchedSkills[0]} experience`)
+      }
+
+      if ((input.estimatedHours ?? 0) > 8 && cap.capacity === 'low') {
+        score += 8
+        reasons.push('Capacity for larger effort')
+      }
+
+      score += priorityWeight * 2
+
+      const confidence = Math.max(5, Math.min(98, Math.round(score)))
+      return { userId: cap.userId, score, confidence, reasons: reasons.slice(0, 4) }
+    })
+    .sort((a, b) => b.score - a.score)
+
+  return ranked[0] ?? null
 }
 
 export function suggestAssignees(

@@ -421,6 +421,8 @@ export async function createWorkspaceTask(
     dueDate?: string | null
     dueAt?: string | null
     assigneeId?: string | null
+    departmentId?: string | null
+    teamId?: string | null
     reminderType?: ReminderType | null
   },
 ) {
@@ -429,6 +431,13 @@ export async function createWorkspaceTask(
   const dueAt = input.dueAt ?? combineDueAt(dueDate)
   const reminderType = input.reminderType ?? '1h'
   const reminderAt = computeRemindAt(dueAt, reminderType)
+
+  const assignment = await resolveOrgAssignment(workspaceId, {
+    departmentId: input.departmentId ?? null,
+    teamId: input.teamId ?? null,
+    assigneeId: input.assigneeId ?? null,
+  })
+
   const { data, error } = await supabase
     .from('workspace_tasks')
     .insert({
@@ -441,13 +450,42 @@ export async function createWorkspaceTask(
       status: input.status ?? 'todo',
       due_date: dueDate,
       due_at: dueAt,
-      assignee_id: input.assigneeId ?? null,
+      assignee_id: assignment.assigneeId,
+      department_id: assignment.departmentId,
+      team_id: assignment.teamId,
       reminder_type: dueDate ? reminderType : null,
       reminder_at: reminderAt,
     })
     .select('*')
     .single()
   if (error) throw error
+
+  if (assignment.assigneeId && assignment.assigneeId !== userId) {
+    await supabase.from('notifications').insert({
+      user_id: assignment.assigneeId,
+      channel: 'in_app',
+      type: 'workspace.task.assigned',
+      title: 'Task assigned',
+      body: `You were assigned "${input.title}"`,
+      entity_type: 'workspace_task',
+      entity_id: data.id,
+      href: `/workspace/${workspaceId}/tasks/${data.id}`,
+    })
+  }
+  for (const leadId of assignment.notifyLeadIds) {
+    if (leadId === assignment.assigneeId) continue
+    await supabase.from('notifications').insert({
+      user_id: leadId,
+      channel: 'in_app',
+      type: 'workspace.task.lead',
+      title: 'Team task to distribute',
+      body: `"${input.title}" was assigned to your team — please distribute.`,
+      entity_type: 'workspace_task',
+      entity_id: data.id,
+      href: `/workspace/${workspaceId}/team-lead`,
+    })
+  }
+
   await recordWsActivity({
     workspaceId,
     eventType: 'task.created',
@@ -456,6 +494,58 @@ export async function createWorkspaceTask(
     entityId: data.id,
   })
   return getWorkspaceTask(workspaceId, data.id)
+}
+
+async function resolveOrgAssignment(
+  workspaceId: string,
+  input: {
+    departmentId: string | null
+    teamId: string | null
+    assigneeId: string | null
+  },
+): Promise<{
+  departmentId: string | null
+  teamId: string | null
+  assigneeId: string | null
+  notifyLeadIds: string[]
+}> {
+  let departmentId = input.departmentId
+  let teamId = input.teamId
+  let assigneeId = input.assigneeId
+  const notifyLeadIds: string[] = []
+
+  if (teamId) {
+    const { data: team } = await supabase
+      .from('workspace_teams')
+      .select('id, department_id, lead_user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('id', teamId)
+      .maybeSingle()
+    if (team) {
+      departmentId = departmentId ?? team.department_id
+      if (team.lead_user_id) {
+        notifyLeadIds.push(team.lead_user_id)
+        if (!assigneeId) assigneeId = team.lead_user_id
+      }
+    }
+  } else if (departmentId) {
+    const { data: teams } = await supabase
+      .from('workspace_teams')
+      .select('id, lead_user_id')
+      .eq('workspace_id', workspaceId)
+      .eq('department_id', departmentId)
+    for (const team of teams ?? []) {
+      if (team.lead_user_id) notifyLeadIds.push(team.lead_user_id)
+    }
+    if (!assigneeId && notifyLeadIds[0]) assigneeId = notifyLeadIds[0]
+  }
+
+  return {
+    departmentId,
+    teamId,
+    assigneeId,
+    notifyLeadIds: [...new Set(notifyLeadIds)],
+  }
 }
 
 export async function updateWorkspaceTask(
@@ -554,6 +644,15 @@ export async function getWorkspaceMemberSettings(workspaceId: string) {
     .maybeSingle()
   if (error) throw error
   return (data as WorkspaceMemberSettings | null) ?? null
+}
+
+export async function listAllMemberSettings(workspaceId: string) {
+  const { data, error } = await supabase
+    .from('workspace_member_settings')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+  if (error) throw error
+  return (data ?? []) as WorkspaceMemberSettings[]
 }
 
 export async function upsertWorkspaceMemberSettings(

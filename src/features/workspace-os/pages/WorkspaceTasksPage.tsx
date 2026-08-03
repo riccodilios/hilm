@@ -12,6 +12,10 @@ import {
   updateWorkspaceTask,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import {
+  TaskAssignmentFields,
+  type TaskAssignmentValue,
+} from '@/features/workspace-os/components/TaskAssignmentFields'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, type Priority } from '@/types/domain'
@@ -30,6 +34,12 @@ import {
 import { formatDueRemaining } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
+const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
+  departmentId: null,
+  teamId: null,
+  assigneeId: null,
+}
+
 export function WorkspaceTasksPage() {
   const { t, i18n } = useTranslation()
   const { workspaceId, canEdit } = useWorkspace()
@@ -42,6 +52,7 @@ export function WorkspaceTasksPage() {
   const [priority, setPriority] = useState<Priority>('none')
   const [dueAt, setDueAt] = useState('')
   const [reminderType, setReminderType] = useState<ReminderType>('1h')
+  const [assignment, setAssignment] = useState<TaskAssignmentValue>(EMPTY_ASSIGNMENT)
 
   const tasks = useQuery({
     queryKey: workspaceKeys.tasks(workspaceId),
@@ -72,6 +83,7 @@ export function WorkspaceTasksPage() {
     setPriority('none')
     setDueAt('')
     setReminderType('1h')
+    setAssignment(EMPTY_ASSIGNMENT)
   }
 
   const create = useMutation({
@@ -82,6 +94,9 @@ export function WorkspaceTasksPage() {
         priority,
         dueDate: dueAt || null,
         reminderType,
+        departmentId: assignment.departmentId,
+        teamId: assignment.teamId,
+        assigneeId: assignment.assigneeId,
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
@@ -227,7 +242,7 @@ export function WorkspaceTasksPage() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('tasks.new')}</DialogTitle>
             <DialogDescription>{t('tasks.emptyBoardBody')}</DialogDescription>
@@ -316,6 +331,14 @@ export function WorkspaceTasksPage() {
                 ) : null}
               </div>
             </div>
+            <TaskAssignmentFields
+              workspaceId={workspaceId}
+              value={assignment}
+              onChange={setAssignment}
+              priority={priority}
+              titleHint={title}
+              dueAt={dueAt ? combineDueAt(dueAt) : null}
+            />
             <Button type="submit" className="w-full" disabled={create.isPending || !projectId}>
               {t('common.create')}
             </Button>

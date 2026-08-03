@@ -104,33 +104,37 @@ export function WorkspaceTeamPage() {
     <div>
       <PageHeader title={t('nav.team')} description={t('workspace.teamDesc')} />
 
-      <section className="mt-6 rounded-2xl border border-border-subtle bg-surface/40 p-4">
-        <p className="text-sm font-medium">{t('workspace.invite')}</p>
-        <p className="mt-1 font-mono text-lg tracking-wide">{workspace.invite_code}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => copy(workspace.invite_code, t('workspace.codeCopied'))}
-          >
-            <Copy className="size-4" /> {t('workspace.copyCode')}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() =>
-              copy(inviteLinkForCode(workspace.invite_code), t('workspace.linkCopied'))
-            }
-          >
-            <Copy className="size-4" /> {t('workspace.copyLink')}
-          </Button>
-          {canManageTeam ? (
+      {canManageTeam ? (
+        <section className="mt-6 rounded-2xl border border-border-subtle bg-surface/40 p-4">
+          <p className="text-sm font-medium">{t('workspace.invite')}</p>
+          <p className="mt-1 font-mono text-lg tracking-wide">{workspace.invite_code}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => copy(workspace.invite_code, t('workspace.codeCopied'))}
+            >
+              <Copy className="size-4" /> {t('workspace.copyCode')}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                copy(inviteLinkForCode(workspace.invite_code), t('workspace.linkCopied'))
+              }
+            >
+              <Copy className="size-4" /> {t('workspace.copyLink')}
+            </Button>
             <Button size="sm" variant="ghost" disabled={regen.isPending} onClick={() => regen.mutate()}>
               <RefreshCw className="size-4" /> {t('workspace.regenerate')}
             </Button>
-          ) : null}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : (
+        <section className="mt-6 rounded-2xl border border-border-subtle bg-surface/40 p-4">
+          <p className="text-sm text-muted">{t('workspace.inviteRestricted')}</p>
+        </section>
+      )}
 
       {members.isLoading ? (
         <div className="mt-6 space-y-2">

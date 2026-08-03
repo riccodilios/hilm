@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -68,6 +68,20 @@ export function WorkspaceSettingsPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   })
+
+  if (!canManage && !canDelete) {
+    return (
+      <div>
+        <PageHeader title={t('nav.settings')} description={t('workspace.settingsDesc')} />
+        <p className="mt-6 text-sm text-muted">{t('workspace.inviteRestricted')}</p>
+        <Button className="mt-4" variant="secondary" asChild>
+          <Link to={`/workspace/${workspaceId}/account-settings`}>
+            {t('workspace.personalSettings')}
+          </Link>
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div>
