@@ -170,13 +170,13 @@ export function MissionOverview({
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pe-1">
-      <div>
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-y-auto overflow-x-hidden pe-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="min-w-0 shrink-0">
         <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('mission.overview')}</p>
         <h2 className="mt-1 text-lg font-medium">{t('mission.missionBrief')}</h2>
       </div>
 
-      <div className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface/50 p-4">
+      <div className="flex min-w-0 shrink-0 items-center gap-4 rounded-2xl border border-border-subtle bg-surface/50 p-4">
         <ProgressRing value={progress} label={t('mission.today')} />
         <div className="min-w-0 space-y-1 text-sm">
           <p>
@@ -254,8 +254,9 @@ export function MissionOverview({
         )}
       </section>
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 shrink-0 overflow-x-auto rounded-2xl border border-border-subtle bg-surface/40 p-4">
         <p className="mb-3 text-sm font-medium">{t('mission.weeklyLoad')}</p>
+        <div className="min-w-[240px]">
         <BarSpark
           values={weekValues}
           labels={weekLabels}
@@ -263,6 +264,7 @@ export function MissionOverview({
           selectedKey={dayKey}
           onSelect={onSelectDay}
         />
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">

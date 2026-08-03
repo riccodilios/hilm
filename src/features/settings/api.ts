@@ -10,7 +10,7 @@ export const settingsKeys = {
 }
 
 const settingsSelect =
-  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, onboarding_completed, default_startup_mode, hide_workspace_os, hide_personal_os, created_at, updated_at'
+  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, onboarding_completed, default_startup_mode, hide_workspace_os, hide_personal_os, time_format, created_at, updated_at'
 
 export async function getSettings() {
   const userId = await requireUserId()
@@ -34,6 +34,7 @@ export async function updateSettings(patch: {
   default_startup_mode?: import('@/types/database').Database['public']['Enums']['startup_mode']
   hide_workspace_os?: boolean
   hide_personal_os?: boolean
+  time_format?: '12h' | '24h'
 }) {
   const userId = await requireUserId()
   const { data, error } = await supabase

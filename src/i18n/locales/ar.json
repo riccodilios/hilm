@@ -47,7 +47,11 @@
     "personal": "الشخصي",
     "team": "الفريق",
     "sprint": "السبرنت",
-    "roadmap": "الخارطة"
+    "roadmap": "الخارطة",
+    "org": "التنظيم",
+    "crm": "CRM",
+    "loadBalancer": "توازن الحمل",
+    "reports": "التقارير"
   },
   "os": {
     "personal": "النظام الشخصي",
@@ -187,7 +191,15 @@
     "reminderHint": "تذكير حوالي {{when}}",
     "missionDesc": "خطّط تقويم الفريق والجدول الزمني وعبء العمل لهذه المساحة.",
     "accountDesc": "حساب حلم — مشترك بين النظام الشخصي ومساحة العمل.",
-    "accountNameHint": "يحدّث اسم العرض في حسابك في كل مكان."
+    "accountNameHint": "يحدّث اسم العرض في حسابك في كل مكان.",
+    "orgTitle": "التنظيم",
+    "orgDesc": "الأقسام والفرق والتسلسل.",
+    "crmTitle": "تكاملات CRM",
+    "crmDesc": "جهّز موصلات Salesforce وHubSpot وغيرها.",
+    "loadBalancerTitle": "موازن الحمل",
+    "loadBalancerDesc": "وزّع العمل على الفريق.",
+    "reportsTitle": "تقارير مساحة العمل",
+    "reportsDesc": "تقارير على مستوى المؤسسة."
   },
   "auth": {
     "signInTitle": "تسجيل الدخول",
@@ -760,7 +772,13 @@
     "aiSpendToday": "الإنفاق التقديري اليوم",
     "aiRequestsMonth": "الطلبات هذا الشهر",
     "aiUsageHint": "كل طلبات الذكاء تمر عبر خادم حلم. مفاتيح OpenRouter لا تصل إلى المتصفح.",
-    "aiUsageUnavailable": "ملخص الاستخدام غير متاح حالياً."
+    "aiUsageUnavailable": "ملخص الاستخدام غير متاح حالياً.",
+    "timeFormat": "تنسيق الوقت",
+    "timeFormatDesc": "يُطبَّق في كل مواضع عرض الوقت.",
+    "time24h": "24 ساعة",
+    "time24hDesc": "مثال: 14:30",
+    "time12h": "12 ساعة",
+    "time12hDesc": "مثال: 2:30 م"
   },
   "profile": {
     "title": "الملف الشخصي",
@@ -858,5 +876,20 @@
     "2d": "قبل يومين",
     "1w": "قبل أسبوع",
     "custom": "تذكير مخصص"
+  },
+  "attachments": {
+    "title": "المرفقات",
+    "upload": "رفع",
+    "empty": "لا ملفات بعد",
+    "download": "تنزيل",
+    "remove": "إزالة"
+  },
+  "reports": {
+    "title": "تقارير الذكاء",
+    "description": "أنشئ تقارير بعلامتك من بيانات نظامك الشخصي.",
+    "generate": "توليد",
+    "exportPdf": "تصدير PDF",
+    "exportDocx": "تصدير DOCX",
+    "saved": "تم حفظ التقرير"
   }
 }

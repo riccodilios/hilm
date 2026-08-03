@@ -1,0 +1,77 @@
+import { supabase } from '@/lib/supabase/client'
+import { requireUserId } from '@/lib/supabase/activity'
+import type { Tables } from '@/types/database'
+
+export type WorkspaceAttachment = Tables<'workspace_attachments'> & { url?: string | null }
+
+export async function listWorkspaceTaskAttachments(workspaceId: string, taskId: string) {
+  const { data, error } = await supabase
+    .from('workspace_attachments')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('entity_type', 'task')
+    .eq('entity_id', taskId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  const rows = (data ?? []) as Tables<'workspace_attachments'>[]
+  return Promise.all(
+    rows.map(async (row) => {
+      const { data: signed } = await supabase.storage
+        .from('attachments')
+        .createSignedUrl(row.storage_path, 3600)
+      return { ...row, url: signed?.signedUrl ?? null } as WorkspaceAttachment
+    }),
+  )
+}
+
+export async function uploadWorkspaceTaskAttachment(
+  workspaceId: string,
+  taskId: string,
+  file: File,
+) {
+  const userId = await requireUserId()
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_')
+  const storage_path = `workspace/${workspaceId}/tasks/${taskId}/${Date.now()}_${safeName}`
+  const { error: upError } = await supabase.storage.from('attachments').upload(storage_path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  })
+  if (upError) throw upError
+  const { data, error } = await supabase
+    .from('workspace_attachments')
+    .insert({
+      workspace_id: workspaceId,
+      entity_type: 'task',
+      entity_id: taskId,
+      storage_path,
+      mime: file.type || null,
+      filename: file.name,
+      byte_size: file.size,
+      version: 1,
+      uploaded_by: userId,
+    } as never)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as Tables<'workspace_attachments'>
+}
+
+export async function removeWorkspaceTaskAttachment(id: string) {
+  const { data, error } = await supabase.from('workspace_attachments').select('*').eq('id', id).single()
+  if (error) throw error
+  const row = data as Tables<'workspace_attachments'>
+  await supabase.storage.from('attachments').remove([row.storage_path])
+  const { error: delError } = await supabase.from('workspace_attachments').delete().eq('id', id)
+  if (delError) throw delError
+}
+
+export async function downloadWorkspaceTaskAttachment(row: WorkspaceAttachment) {
+  const { data, error } = await supabase.storage.from('attachments').download(row.storage_path)
+  if (error) throw error
+  const url = URL.createObjectURL(data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = row.filename
+  a.click()
+  URL.revokeObjectURL(url)
+}

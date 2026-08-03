@@ -63,6 +63,7 @@ export type Database = {
           default_startup_mode: Database['public']['Enums']['startup_mode']
           hide_workspace_os: boolean
           hide_personal_os: boolean
+          time_format: '12h' | '24h'
           created_at: string
           updated_at: string
         },
@@ -80,6 +81,7 @@ export type Database = {
           default_startup_mode?: Database['public']['Enums']['startup_mode']
           hide_workspace_os?: boolean
           hide_personal_os?: boolean
+          time_format?: '12h' | '24h'
           created_at?: string
           updated_at?: string
         },
@@ -96,6 +98,7 @@ export type Database = {
           default_startup_mode?: Database['public']['Enums']['startup_mode']
           hide_workspace_os?: boolean
           hide_personal_os?: boolean
+          time_format?: '12h' | '24h'
           updated_at?: string
         }
       >
@@ -719,6 +722,8 @@ export type Database = {
           storage_path: string
           mime: string | null
           filename: string
+          byte_size: number | null
+          version: number
           created_at: string
         },
         {
@@ -729,10 +734,14 @@ export type Database = {
           storage_path: string
           mime?: string | null
           filename: string
+          byte_size?: number | null
+          version?: number
         },
         {
           filename?: string
           mime?: string | null
+          byte_size?: number | null
+          version?: number
         }
       >
       workspaces: Table<
@@ -801,6 +810,7 @@ export type Database = {
           priority: Database['public']['Enums']['priority']
           completion_pct: number
           health: Database['public']['Enums']['health_status']
+          team_id: string | null
           created_at: string
           updated_at: string
         },
@@ -816,6 +826,7 @@ export type Database = {
           priority?: Database['public']['Enums']['priority']
           completion_pct?: number
           health?: Database['public']['Enums']['health_status']
+          team_id?: string | null
           created_at?: string
           updated_at?: string
         },
@@ -828,6 +839,7 @@ export type Database = {
           priority?: Database['public']['Enums']['priority']
           completion_pct?: number
           health?: Database['public']['Enums']['health_status']
+          team_id?: string | null
           updated_at?: string
         }
       >
@@ -926,6 +938,9 @@ export type Database = {
           notification_prefs: Json
           appearance_prefs: Json
           ai_prefs: Json
+          skills: string[]
+          department_id: string | null
+          availability: Json
           created_at: string
           updated_at: string
         },
@@ -937,6 +952,9 @@ export type Database = {
           notification_prefs?: Json
           appearance_prefs?: Json
           ai_prefs?: Json
+          skills?: string[]
+          department_id?: string | null
+          availability?: Json
           created_at?: string
           updated_at?: string
         },
@@ -946,8 +964,254 @@ export type Database = {
           notification_prefs?: Json
           appearance_prefs?: Json
           ai_prefs?: Json
+          skills?: string[]
+          department_id?: string | null
+          availability?: Json
           updated_at?: string
         }
+      >
+      workspace_labels: Table<
+        {
+          id: string
+          workspace_id: string
+          name: string
+          color: string
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          name: string
+          color?: string
+        },
+        { name?: string; color?: string }
+      >
+      workspace_project_labels: Table<
+        {
+          id: string
+          workspace_id: string
+          project_id: string
+          label_id: string
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          project_id: string
+          label_id: string
+        },
+        { label_id?: string }
+      >
+      workspace_attachments: Table<
+        {
+          id: string
+          workspace_id: string
+          entity_type: string
+          entity_id: string
+          storage_path: string
+          mime: string | null
+          filename: string
+          byte_size: number | null
+          version: number
+          uploaded_by: string
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          entity_type: string
+          entity_id: string
+          storage_path: string
+          mime?: string | null
+          filename: string
+          byte_size?: number | null
+          version?: number
+          uploaded_by: string
+        },
+        { filename?: string; mime?: string | null; byte_size?: number | null; version?: number }
+      >
+      workspace_departments: Table<
+        {
+          id: string
+          workspace_id: string
+          parent_id: string | null
+          name: string
+          description: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          parent_id?: string | null
+          name: string
+          description?: string | null
+        },
+        { parent_id?: string | null; name?: string; description?: string | null; updated_at?: string }
+      >
+      workspace_teams: Table<
+        {
+          id: string
+          workspace_id: string
+          department_id: string | null
+          name: string
+          description: string | null
+          lead_user_id: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          department_id?: string | null
+          name: string
+          description?: string | null
+          lead_user_id?: string | null
+        },
+        {
+          department_id?: string | null
+          name?: string
+          description?: string | null
+          lead_user_id?: string | null
+          updated_at?: string
+        }
+      >
+      workspace_team_members: Table<
+        {
+          id: string
+          workspace_id: string
+          team_id: string
+          user_id: string
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          team_id: string
+          user_id: string
+        },
+        Record<string, never>
+      >
+      workspace_crm_integrations: Table<
+        {
+          id: string
+          workspace_id: string
+          provider: Database['public']['Enums']['crm_provider']
+          status: Database['public']['Enums']['crm_integration_status']
+          display_name: string | null
+          sync_settings: Json
+          credentials_encrypted: string | null
+          last_sync_at: string | null
+          last_error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          provider: Database['public']['Enums']['crm_provider']
+          status?: Database['public']['Enums']['crm_integration_status']
+          display_name?: string | null
+          sync_settings?: Json
+          credentials_encrypted?: string | null
+          created_by?: string | null
+        },
+        {
+          status?: Database['public']['Enums']['crm_integration_status']
+          display_name?: string | null
+          sync_settings?: Json
+          credentials_encrypted?: string | null
+          last_sync_at?: string | null
+          last_error?: string | null
+          updated_at?: string
+        }
+      >
+      workspace_load_balance_runs: Table<
+        {
+          id: string
+          workspace_id: string
+          mode: string
+          created_by: string
+          summary: string | null
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          mode: string
+          created_by: string
+          summary?: string | null
+        },
+        { summary?: string | null }
+      >
+      workspace_load_balance_suggestions: Table<
+        {
+          id: string
+          workspace_id: string
+          run_id: string
+          task_id: string
+          suggested_assignee_id: string | null
+          score: number
+          rationale: string | null
+          mode: string
+          applied_at: string | null
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          run_id: string
+          task_id: string
+          suggested_assignee_id?: string | null
+          score?: number
+          rationale?: string | null
+          mode: string
+          applied_at?: string | null
+        },
+        { applied_at?: string | null; suggested_assignee_id?: string | null; score?: number; rationale?: string | null }
+      >
+      ai_reports: Table<
+        {
+          id: string
+          user_id: string
+          report_type: string
+          title: string
+          content_html: string
+          branding: Json
+          created_at: string
+        },
+        {
+          id?: string
+          user_id: string
+          report_type: string
+          title: string
+          content_html?: string
+          branding?: Json
+        },
+        { title?: string; content_html?: string; branding?: Json }
+      >
+      workspace_ai_reports: Table<
+        {
+          id: string
+          workspace_id: string
+          created_by: string
+          report_type: string
+          title: string
+          content_html: string
+          branding: Json
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          created_by: string
+          report_type: string
+          title: string
+          content_html?: string
+          branding?: Json
+        },
+        { title?: string; content_html?: string; branding?: Json }
       >
     }
     Views: {
@@ -1046,6 +1310,8 @@ export type Database = {
       notification_channel: 'email' | 'push' | 'in_app'
       workspace_role: 'owner' | 'admin' | 'member' | 'viewer'
       startup_mode: 'personal' | 'workspace'
+      crm_provider: 'salesforce' | 'hubspot' | 'zoho' | 'dynamics' | 'custom_rest'
+      crm_integration_status: 'disconnected' | 'configured' | 'connected' | 'error' | 'syncing'
     }
     CompositeTypes: {
       [_ in never]: never

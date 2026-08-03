@@ -3,11 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   Brain,
+  Building2,
   CheckSquare,
   ChevronDown,
   FolderKanban,
+  Gauge,
   Home,
   LayoutGrid,
+  Network,
   Plus,
   Search,
   UserRound,
@@ -133,6 +136,9 @@ function WorkspaceShellInner() {
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
+    { to: `${base}/org`, label: t('nav.org'), icon: Network },
+    { to: `${base}/crm`, label: t('nav.crm'), icon: Building2 },
+    { to: `${base}/load-balancer`, label: t('nav.loadBalancer'), icon: Gauge },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
     ...(!hidePersonal
       ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
@@ -144,11 +150,8 @@ function WorkspaceShellInner() {
     { to: base, label: t('nav.home'), icon: Home, end: true },
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
-    { to: `${base}/team`, label: t('nav.team'), icon: Users },
+    { to: `${base}/org`, label: t('nav.org'), icon: Network },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    ...(!hidePersonal
-      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
-      : []),
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 

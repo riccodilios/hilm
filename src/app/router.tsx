@@ -127,6 +127,31 @@ const WorkspaceAiPage = lazy(() =>
     default: m.WorkspaceAiPage,
   })),
 )
+const WorkspaceOrgPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceOrgPage').then((m) => ({
+    default: m.WorkspaceOrgPage,
+  })),
+)
+const WorkspaceCrmPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceCrmPage').then((m) => ({
+    default: m.WorkspaceCrmPage,
+  })),
+)
+const WorkspaceLoadBalancerPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceLoadBalancerPage').then((m) => ({
+    default: m.WorkspaceLoadBalancerPage,
+  })),
+)
+const WorkspaceReportsPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceReportsPage').then((m) => ({
+    default: m.WorkspaceReportsPage,
+  })),
+)
+const PersonalReportsPage = lazy(() =>
+  import('@/features/reports/PersonalReportsPage').then((m) => ({
+    default: m.PersonalReportsPage,
+  })),
+)
 const WorkspaceMissionControlPage = lazy(() =>
   import('@/features/workspace-os/pages/WorkspaceMissionControlPage').then((m) => ({
     default: m.WorkspaceMissionControlPage,
@@ -230,6 +255,7 @@ export function AppRouter() {
               <Route path="notifications" element={<Navigate to="/personal/tasks" replace />} />
               <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
+              <Route path="reports" element={<Suspense fallback={<AppFallback />}><PersonalReportsPage /></Suspense>} />
               <Route
                 path="mission-control"
                 element={
@@ -312,6 +338,10 @@ export function AppRouter() {
               <Route path="tasks" element={<Suspense fallback={<AppFallback />}><WorkspaceTasksPage /></Suspense>} />
               <Route path="tasks/:taskId" element={<Suspense fallback={<AppFallback />}><WorkspaceTaskDetailPage /></Suspense>} />
               <Route path="team" element={<Suspense fallback={<AppFallback />}><WorkspaceTeamPage /></Suspense>} />
+              <Route path="org" element={<Suspense fallback={<AppFallback />}><WorkspaceOrgPage /></Suspense>} />
+              <Route path="crm" element={<Suspense fallback={<AppFallback />}><WorkspaceCrmPage /></Suspense>} />
+              <Route path="load-balancer" element={<Suspense fallback={<AppFallback />}><WorkspaceLoadBalancerPage /></Suspense>} />
+              <Route path="reports" element={<Suspense fallback={<AppFallback />}><WorkspaceReportsPage /></Suspense>} />
               <Route path="settings" element={<Navigate to="profile" replace />} />
               <Route path="profile" element={<Suspense fallback={<AppFallback />}><WorkspaceProfilePage /></Suspense>} />
               <Route path="activity" element={<Suspense fallback={<AppFallback />}><WorkspaceActivityPage /></Suspense>} />

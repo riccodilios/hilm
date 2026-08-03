@@ -14,9 +14,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { ProjectBadge } from '@/components/ProjectBadge'
 import { VoiceAddButton } from '@/components/VoiceAddButton'
+import { RichTextEditor } from '@/components/editor/RichTextEditor'
+import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
+import {
+  downloadTaskAttachment,
+  listTaskAttachments,
+  removeTaskAttachment,
+  uploadTaskAttachment,
+} from '@/features/tasks/attachments-api'
 import { EmptyState, Skeleton } from '@/components/ui/page'
 import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
@@ -49,6 +56,11 @@ export function TaskDetailPage() {
   const { data: subtasks } = useQuery({
     queryKey: [...tasksKeys.detail(id ?? ''), 'subtasks'],
     queryFn: () => listSubtasks(id!),
+    enabled: Boolean(id),
+  })
+  const attachments = useQuery({
+    queryKey: [...tasksKeys.detail(id ?? ''), 'attachments'],
+    queryFn: () => listTaskAttachments(id!),
     enabled: Boolean(id),
   })
 
@@ -169,12 +181,10 @@ export function TaskDetailPage() {
                   onToggle={dictation.toggle}
                 />
               </div>
-              <Textarea
-                id="description"
+              <RichTextEditor
                 value={description}
-                rows={7}
-                onChange={(event) => setDescription(event.target.value)}
-                onBlur={() => persistDescription(description)}
+                onChange={setDescription}
+                onBlur={(html) => persistDescription(html)}
                 placeholder={t('tasks.descriptionPlaceholder')}
               />
               {dictation.listening || dictation.interim ? (
@@ -185,6 +195,27 @@ export function TaskDetailPage() {
                 </p>
               ) : null}
             </div>
+            <AttachmentPanel
+              items={attachments.data ?? []}
+              uploading={false}
+              onUpload={async (files) => {
+                for (const file of Array.from(files)) {
+                  await uploadTaskAttachment(id!, file)
+                }
+                await qc.invalidateQueries({
+                  queryKey: [...tasksKeys.detail(id!), 'attachments'],
+                })
+              }}
+              onRemove={async (attachmentId) => {
+                await removeTaskAttachment(attachmentId)
+                await qc.invalidateQueries({
+                  queryKey: [...tasksKeys.detail(id!), 'attachments'],
+                })
+              }}
+              onDownload={(item) =>
+                downloadTaskAttachment(item as Awaited<ReturnType<typeof listTaskAttachments>>[number])
+              }
+            />
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="status">{t('tasks.status')}</Label>

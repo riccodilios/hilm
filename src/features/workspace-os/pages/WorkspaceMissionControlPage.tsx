@@ -105,12 +105,18 @@ export function WorkspaceMissionControlPage() {
   }
 
   const reschedule = useMutation({
-    mutationFn: async (input: { taskId: string; dayKey: string; hour?: number }) => {
+    mutationFn: async (input: {
+      taskId: string
+      dayKey: string
+      hour?: number
+      durationHours?: number
+    }) => {
       const hour = input.hour ?? 9
-      const patch = schedulePatchForDrop(input.dayKey, hour)
+      const patch = schedulePatchForDrop(input.dayKey, hour, input.durationHours)
       return updateWorkspaceTask(workspaceId, input.taskId, {
         due_date: patch.due_date,
         due_at: patch.due_at,
+        estimated_hours: patch.estimated_hours,
       })
     },
     onSuccess: async () => {
@@ -347,14 +353,22 @@ export function WorkspaceMissionControlPage() {
             tasks={tasks}
             projectFilter={projectFilter}
             onOpenTask={(task) => navigate(`${base}/tasks/${task.id}`)}
-            onReschedule={(taskId, dayKey, hour) => reschedule.mutate({ taskId, dayKey, hour })}
+            onReschedule={async (taskId, dayKey, hour, durationHours) => {
+              await reschedule.mutateAsync({ taskId, dayKey, hour, durationHours })
+            }}
             onComplete={(taskId) => complete.mutate(taskId)}
+            onEmptySlotClick={(dayKey, hour) => {
+              setSelectedDay(dayKey)
+              void quickCreate.mutateAsync().catch(() => {
+                toast.message(`${dayKey} @ ${hour}`)
+              })
+            }}
           />
         </section>
 
         <section
           className={cn(
-            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            'flex min-h-0 min-h-[420px] max-h-[calc(100dvh-12rem)] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
             mobilePane === 'overview' ? 'flex' : 'hidden lg:flex',
           )}
         >

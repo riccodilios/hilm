@@ -1,12 +1,24 @@
-import { addDays, eachDayOfInterval, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import { taskDueDateKey, toLocalDateKey, todayLocalISO } from '@/lib/dates'
 import { dueAtFromLocalSchedule } from '@/features/tasks/reminders'
 import type { TaskWithProject } from '@/features/tasks/reminders'
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns'
 
-export const WORK_DAY_START = 8
-export const WORK_DAY_END = 20
-export const HOUR_HEIGHT = 64
+export const HOUR_HEIGHT = 56
 export const DEFAULT_TASK_HOURS = 1
+export const DAY_START = 0
+export const DAY_END = 24
+/** @deprecated use DAY_START */
+export const WORK_DAY_START = DAY_START
+/** @deprecated use DAY_END */
+export const WORK_DAY_END = DAY_END
 
 export type CalendarView = 'month' | 'week' | 'day'
 export type HorizonZoom = 'day' | 'week' | 'month' | 'quarter' | 'year'
@@ -18,13 +30,10 @@ export function taskDurationHours(task: TaskWithProject) {
 }
 
 export function taskStartHour(task: TaskWithProject) {
-  if (!task.due_at) return WORK_DAY_START
+  if (!task.due_at) return 9
   const date = new Date(task.due_at)
-  if (Number.isNaN(date.getTime())) return WORK_DAY_START
-  const hour = date.getHours() + date.getMinutes() / 60
-  // Untimed dues land at 09:00 — treat as unscheduled for packing.
-  if (hour === 9 && date.getMinutes() === 0 && !task.estimated_hours) return WORK_DAY_START
-  return Math.max(WORK_DAY_START, Math.min(WORK_DAY_END - 0.5, hour))
+  if (Number.isNaN(date.getTime())) return 9
+  return date.getHours() + date.getMinutes() / 60
 }
 
 export type PackedBlock = {
@@ -33,52 +42,78 @@ export type PackedBlock = {
   endHour: number
   top: number
   height: number
+  column: number
+  columnCount: number
 }
 
-/** Pack open tasks for a day into the workday timeline. */
+/** Side-by-side packing for overlapping tasks (Google Calendar style). */
 export function packDayTimeline(tasks: TaskWithProject[], dayKey: string): PackedBlock[] {
   const dayTasks = tasks
     .filter((task) => taskDueDateKey(task) === dayKey)
-    .sort((a, b) => {
-      const aDone = a.status === 'done' ? 1 : 0
-      const bDone = b.status === 'done' ? 1 : 0
-      if (aDone !== bDone) return aDone - bDone
-      const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 }
-      const pr = priorityRank[a.priority] - priorityRank[b.priority]
-      if (pr !== 0) return pr
-      return taskStartHour(a) - taskStartHour(b)
+    .map((task) => {
+      const duration = taskDurationHours(task)
+      const start = Math.max(DAY_START, Math.min(DAY_END - 0.25, taskStartHour(task)))
+      const end = Math.min(DAY_END, start + duration)
+      return { task, startHour: start, endHour: end }
     })
+    .sort((a, b) => a.startHour - b.startHour || b.endHour - a.endHour)
 
-  let cursor = WORK_DAY_START
-  const blocks: PackedBlock[] = []
-  for (const task of dayTasks) {
-    const duration = taskDurationHours(task)
-    const preferred = taskStartHour(task)
-    const start = task.status === 'done' ? preferred : Math.max(cursor, preferred)
-    const end = Math.min(WORK_DAY_END, start + duration)
-    blocks.push({
-      task,
-      startHour: start,
-      endHour: end,
-      top: (start - WORK_DAY_START) * HOUR_HEIGHT,
-      height: Math.max(28, (end - start) * HOUR_HEIGHT - 4),
-    })
-    if (task.status !== 'done') cursor = end + 0.15
+  type Active = { end: number; column: number }
+  const active: Active[] = []
+  const assigned: Array<{ startHour: number; endHour: number; task: TaskWithProject; column: number }> =
+    []
+
+  for (const item of dayTasks) {
+    for (let i = active.length - 1; i >= 0; i--) {
+      if (active[i].end <= item.startHour) active.splice(i, 1)
+    }
+    const used = new Set(active.map((a) => a.column))
+    let column = 0
+    while (used.has(column)) column += 1
+    active.push({ end: item.endHour, column })
+    assigned.push({ ...item, column })
   }
+
+  // Cluster overlapping groups to set columnCount per cluster
+  const blocks: PackedBlock[] = assigned.map((item) => ({
+    ...item,
+    top: item.startHour * HOUR_HEIGHT,
+    height: Math.max(28, (item.endHour - item.startHour) * HOUR_HEIGHT - 4),
+    columnCount: 1,
+  }))
+
+  for (let i = 0; i < blocks.length; i++) {
+    const group = [blocks[i]]
+    let maxCol = blocks[i].column
+    for (let j = 0; j < blocks.length; j++) {
+      if (i === j) continue
+      const a = blocks[i]
+      const b = blocks[j]
+      if (a.startHour < b.endHour && b.startHour < a.endHour) {
+        group.push(b)
+        maxCol = Math.max(maxCol, b.column)
+      }
+    }
+    const count = maxCol + 1
+    for (const g of group) g.columnCount = Math.max(g.columnCount, count)
+  }
+
   return blocks
 }
 
 export function hourFromTimelineY(y: number) {
-  const hour = WORK_DAY_START + y / HOUR_HEIGHT
-  return Math.max(WORK_DAY_START, Math.min(WORK_DAY_END - 0.25, Math.round(hour * 4) / 4))
+  const hour = y / HOUR_HEIGHT
+  return Math.max(DAY_START, Math.min(DAY_END - 0.25, Math.round(hour * 4) / 4))
 }
 
-export function schedulePatchForDrop(dayKey: string, hour: number) {
+export function schedulePatchForDrop(dayKey: string, hour: number, durationHours = DEFAULT_TASK_HOURS) {
   const whole = Math.floor(hour)
   const minutes = Math.round((hour - whole) * 60)
+  const endHour = Math.min(DAY_END, hour + durationHours)
   return {
     due_date: dayKey,
     due_at: dueAtFromLocalSchedule(dayKey, whole, minutes),
+    estimated_hours: Math.max(0.5, Math.round((endHour - hour) * 4) / 4),
   }
 }
 
@@ -161,7 +196,6 @@ export function buildAiSuggestions(input: {
   return tips.slice(0, 4)
 }
 
-/** Suggest the next open work-hour slot on a day for an untimed task. */
 export function suggestBestSlot(
   tasks: TaskWithProject[],
   dayKey: string,
@@ -175,12 +209,12 @@ export function suggestBestSlot(
     const now = new Date()
     const today = todayLocalISO()
     if (dayKey === today) {
-      const hour = Math.max(WORK_DAY_START, Math.ceil(now.getHours() + now.getMinutes() / 60))
-      return Math.min(WORK_DAY_END - durationHours, hour)
+      const hour = Math.ceil(now.getHours() + now.getMinutes() / 60)
+      return Math.min(DAY_END - durationHours, Math.max(0, hour))
     }
-    return WORK_DAY_START + 1
+    return 9
   }
-  const last = blocks.reduce((max, block) => Math.max(max, block.endHour), WORK_DAY_START)
-  if (last + durationHours <= WORK_DAY_END) return Math.min(WORK_DAY_END - 0.25, last + 0.25)
-  return WORK_DAY_START
+  const last = blocks.reduce((max, block) => Math.max(max, block.endHour), 0)
+  if (last + durationHours <= DAY_END) return Math.min(DAY_END - 0.25, last + 0.25)
+  return 9
 }

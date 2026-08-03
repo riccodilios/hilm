@@ -113,6 +113,30 @@ export function WorkspaceProfilePage() {
       icon: Crosshair,
     },
     {
+      to: `/workspace/${workspaceId}/org`,
+      label: t('workspace.orgTitle'),
+      description: t('workspace.orgDesc'),
+      icon: Crosshair,
+    },
+    {
+      to: `/workspace/${workspaceId}/crm`,
+      label: t('workspace.crmTitle'),
+      description: t('workspace.crmDesc'),
+      icon: Activity,
+    },
+    {
+      to: `/workspace/${workspaceId}/load-balancer`,
+      label: t('workspace.loadBalancerTitle'),
+      description: t('workspace.loadBalancerDesc'),
+      icon: Activity,
+    },
+    {
+      to: `/workspace/${workspaceId}/reports`,
+      label: t('workspace.reportsTitle'),
+      description: t('workspace.reportsDesc'),
+      icon: Activity,
+    },
+    {
       to: `/workspace/${workspaceId}/activity`,
       label: t('workspace.activity'),
       description: t('workspace.activityDesc'),

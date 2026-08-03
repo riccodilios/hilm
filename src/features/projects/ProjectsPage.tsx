@@ -11,6 +11,8 @@ import {
   projectsKeys,
   updateProject,
 } from '@/features/projects/api'
+import { createLabel, labelKeys, listLabels, listProjectLabels } from '@/features/projects/labels-api'
+import { LabelChip } from '@/components/labels/LabelChip'
 import { homeKeys } from '@/features/home/api'
 import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
 import { useLongPress } from '@/hooks/useLongPress'
@@ -107,6 +109,12 @@ export function ProjectsPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { data, isLoading } = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
+  const labelsQuery = useQuery({
+    queryKey: labelKeys.list(),
+    queryFn: listLabels,
+  })
+  const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
+  const [labelSearch, setLabelSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -173,6 +181,40 @@ export function ProjectsPage() {
     setEditColor(project.color)
     setEditIcon(project.icon ?? 'folder')
   }
+
+  const createLabelMut = useMutation({
+    mutationFn: () => createLabel({ name: labelSearch.trim() || 'Work', color: PROJECT_COLORS[0] }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: labelKeys.all })
+      setLabelSearch('')
+      toast.success(t('projects.created'))
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const projectLinks = useQuery({
+    queryKey: [...labelKeys.all, 'links'],
+    queryFn: async () => {
+      const projects = data ?? []
+      const map = new Map<string, string[]>()
+      await Promise.all(
+        projects.map(async (p) => {
+          const labels = await listProjectLabels(p.id)
+          map.set(
+            p.id,
+            labels.map((l) => l.id),
+          )
+        }),
+      )
+      return map
+    },
+    enabled: Boolean(data?.length),
+  })
+
+  const filteredProjects = (data ?? []).filter((project) => {
+    if (labelFilter === 'all') return true
+    return projectLinks.data?.get(project.id)?.includes(labelFilter)
+  })
 
   return (
     <div>
@@ -256,11 +298,50 @@ export function ProjectsPage() {
           }
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {data.map((project) => (
-            <ProjectCard key={project.id} project={project} onOpenMenu={setMenuProject} />
-          ))}
-        </div>
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLabelFilter('all')}
+              className={`rounded-full border px-3 py-1 text-xs ${
+                labelFilter === 'all' ? 'border-accent/40 bg-accent/10' : 'border-border-subtle'
+              }`}
+            >
+              All
+            </button>
+            {(labelsQuery.data ?? []).map((label) => (
+              <button key={label.id} type="button" onClick={() => setLabelFilter(label.id)}>
+                <LabelChip
+                  name={label.name}
+                  color={label.color}
+                  className={labelFilter === label.id ? 'ring-1 ring-accent' : ''}
+                />
+              </button>
+            ))}
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (labelSearch.trim()) createLabelMut.mutate()
+              }}
+            >
+              <Input
+                value={labelSearch}
+                onChange={(e) => setLabelSearch(e.target.value)}
+                placeholder="New label"
+                className="h-8 w-32"
+              />
+              <Button type="submit" size="sm" variant="secondary" disabled={createLabelMut.isPending}>
+                +
+              </Button>
+            </form>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {filteredProjects.map((project) => (
+              <ProjectCard key={project.id} project={project} onOpenMenu={setMenuProject} />
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={Boolean(menuProject)} onOpenChange={(next) => !next && setMenuProject(null)}>

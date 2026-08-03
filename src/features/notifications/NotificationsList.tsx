@@ -105,7 +105,7 @@ export function NotificationsList({ compact = false }: { compact?: boolean }) {
           }
         />
       ) : (
-        <div className={compact ? 'max-h-[60vh] space-y-2 overflow-y-auto pe-1' : 'space-y-2'}>
+        <div className={compact ? 'max-h-[min(50vh,360px)] space-y-2 overflow-y-auto overflow-x-hidden pe-1' : 'space-y-2'}>
           <AnimatePresence initial={false}>
             {data.map((item) => {
               const content = (
@@ -115,21 +115,23 @@ export function NotificationsList({ compact = false }: { compact?: boolean }) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   transition={{ duration: 0.18 }}
-                  className={`flex items-start gap-3 rounded-xl border border-border-subtle bg-surface/70 transition-colors hover:border-border hover:bg-surface ${
+                  className={`flex w-full min-w-0 items-start gap-3 rounded-xl border border-border-subtle bg-surface/70 transition-colors hover:border-border hover:bg-surface ${
                     compact ? 'p-3' : 'p-4'
                   }`}
                 >
                   <Bell
                     className={`mt-0.5 size-4 shrink-0 ${item.read_at ? 'text-muted' : 'text-foreground'}`}
                   />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <p className={`truncate text-sm ${item.read_at ? 'text-muted' : 'font-medium'}`}>
                       {item.title}
                     </p>
-                    {item.body ? <p className="mt-1 text-xs text-muted">{item.body}</p> : null}
+                    {item.body ? (
+                      <p className="mt-1 break-words text-xs text-muted whitespace-pre-wrap">{item.body}</p>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
                       {item.projects ? <ProjectBadge {...item.projects} /> : null}
-                      <span>{format(new Date(item.created_at), 'MMM d · HH:mm')}</span>
+                      <span className="shrink-0">{format(new Date(item.created_at), 'MMM d · HH:mm')}</span>
                     </div>
                   </div>
                 </motion.div>

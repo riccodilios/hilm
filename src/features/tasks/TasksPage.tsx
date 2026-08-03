@@ -108,12 +108,14 @@ export function TasksPage() {
         }
       />
       <Dialog open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(85dvh,560px)] max-w-md flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-border-subtle px-5 py-4">
             <DialogTitle>{t('nav.notifications')}</DialogTitle>
             <DialogDescription>{t('notifications.panelDesc')}</DialogDescription>
           </DialogHeader>
-          <NotificationsList compact />
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
+            <NotificationsList compact />
+          </div>
         </DialogContent>
       </Dialog>
       <div className="mb-5 flex flex-wrap gap-2">

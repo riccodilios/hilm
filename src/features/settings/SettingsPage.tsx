@@ -46,6 +46,7 @@ export function SettingsPage() {
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
   const [hideWorkspaceOs, setHideWorkspaceOs] = useState(false)
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('24h')
   const [projectEmail, setProjectEmail] = useState<Record<string, boolean>>({})
 
   const [pushBusy, setPushBusy] = useState(false)
@@ -90,6 +91,7 @@ export function SettingsPage() {
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
       setStartupMode(settings.data.default_startup_mode ?? 'personal')
       setHideWorkspaceOs(settings.data.hide_workspace_os ?? false)
+      setTimeFormat(settings.data.time_format === '12h' ? '12h' : '24h')
     }
   }, [settings.data, setTheme])
 
@@ -186,6 +188,7 @@ export function SettingsPage() {
           default_reminder_type: defaultReminder,
           default_startup_mode: hideWorkspaceOs ? 'personal' : startupMode,
           hide_workspace_os: hideWorkspaceOs,
+          time_format: timeFormat,
           notification_prefs: {
             email_reminders: emailReminders,
             push_notifications: pushNotifications,
@@ -307,6 +310,41 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.timeFormat')}</CardTitle>
+            <CardDescription>{t('settings.timeFormatDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(['24h', '12h'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setTimeFormat(mode)}
+                className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-start transition ${
+                  timeFormat === mode
+                    ? 'border-accent/40 bg-accent/10'
+                    : 'border-border-subtle bg-surface-2/40'
+                }`}
+              >
+                <span
+                  className={`mt-1 size-2.5 rounded-full ${
+                    timeFormat === mode ? 'bg-accent' : 'bg-muted'
+                  }`}
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    {mode === '24h' ? t('settings.time24h') : t('settings.time12h')}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    {mode === '24h' ? t('settings.time24hDesc') : t('settings.time12hDesc')}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

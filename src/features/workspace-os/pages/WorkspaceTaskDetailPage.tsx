@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -5,11 +6,21 @@ import { toast } from 'sonner'
 import {
   deleteWorkspaceTask,
   getWorkspaceTask,
+  listWorkspaceMembers,
   updateWorkspaceTask,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import {
+  downloadWorkspaceTaskAttachment,
+  listWorkspaceTaskAttachments,
+  removeWorkspaceTaskAttachment,
+  uploadWorkspaceTaskAttachment,
+} from '@/features/workspace-os/attachments-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { RichTextEditor } from '@/components/editor/RichTextEditor'
+import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
 export function WorkspaceTaskDetailPage() {
@@ -17,14 +28,28 @@ export function WorkspaceTaskDetailPage() {
   const { taskId = '' } = useParams()
   const { workspaceId, canEdit } = useWorkspace()
   const qc = useQueryClient()
+  const [description, setDescription] = useState('')
   const task = useQuery({
     queryKey: workspaceKeys.task(workspaceId, taskId),
     queryFn: () => getWorkspaceTask(workspaceId, taskId),
   })
+  const attachments = useQuery({
+    queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
+    queryFn: () => listWorkspaceTaskAttachments(workspaceId, taskId),
+    enabled: Boolean(taskId),
+  })
+  const members = useQuery({
+    queryKey: workspaceKeys.members(workspaceId),
+    queryFn: () => listWorkspaceMembers(workspaceId),
+  })
+
+  useEffect(() => {
+    if (task.data) setDescription(task.data.description ?? '')
+  }, [task.data?.id, task.data?.description])
 
   const save = useMutation({
-    mutationFn: (status: 'todo' | 'in_progress' | 'done') =>
-      updateWorkspaceTask(workspaceId, taskId, { status }),
+    mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
+      updateWorkspaceTask(workspaceId, taskId, patch),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
@@ -46,21 +71,70 @@ export function WorkspaceTaskDetailPage() {
   if (task.isLoading) return <Skeleton className="h-40" />
   if (!task.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
 
+  const mentionOptions =
+    members.data?.map((m) => ({
+      id: m.user_id,
+      label:
+        m.display_name_override ||
+        m.profiles?.display_name ||
+        m.email ||
+        m.user_id.slice(0, 8),
+    })) ?? []
+
   return (
-    <div>
+    <div className="max-w-3xl space-y-4">
       <PageHeader
         title={task.data.title}
         description={`${task.data.workspace_projects?.name ?? '—'} · ${task.data.status}`}
       />
-      {task.data.description ? (
-        <p className="mt-4 whitespace-pre-wrap text-sm text-muted">{task.data.description}</p>
-      ) : null}
+      <div className="space-y-2">
+        <Label>{t('projects.desc')}</Label>
+        <RichTextEditor
+          value={description}
+          editable={canEdit}
+          mentions={mentionOptions}
+          onChange={setDescription}
+          onBlur={(html) => {
+            if (!canEdit) return
+            if (html === (task.data?.description ?? '')) return
+            save.mutate({ description: html })
+          }}
+        />
+      </div>
+      <AttachmentPanel
+        items={attachments.data ?? []}
+        onUpload={async (files) => {
+          for (const file of Array.from(files)) {
+            await uploadWorkspaceTaskAttachment(workspaceId, taskId, file)
+          }
+          await qc.invalidateQueries({
+            queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
+          })
+        }}
+        onRemove={async (id) => {
+          await removeWorkspaceTaskAttachment(id)
+          await qc.invalidateQueries({
+            queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
+          })
+        }}
+        onDownload={(item) =>
+          downloadWorkspaceTaskAttachment(
+            item as Awaited<ReturnType<typeof listWorkspaceTaskAttachments>>[number],
+          )
+        }
+      />
       {canEdit ? (
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => save.mutate('todo')}>Todo</Button>
-          <Button variant="secondary" onClick={() => save.mutate('in_progress')}>In progress</Button>
-          <Button onClick={() => save.mutate('done')}>{t('common.complete')}</Button>
-          <Button variant="ghost" onClick={() => remove.mutate()}>{t('common.delete')}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => save.mutate({ status: 'todo' })}>
+            Todo
+          </Button>
+          <Button variant="secondary" onClick={() => save.mutate({ status: 'in_progress' })}>
+            In progress
+          </Button>
+          <Button onClick={() => save.mutate({ status: 'done' })}>{t('common.complete')}</Button>
+          <Button variant="ghost" onClick={() => remove.mutate()}>
+            {t('common.delete')}
+          </Button>
         </div>
       ) : null}
     </div>

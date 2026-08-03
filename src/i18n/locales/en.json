@@ -47,7 +47,11 @@
     "personal": "Personal",
     "team": "Team",
     "sprint": "Sprint",
-    "roadmap": "Roadmap"
+    "roadmap": "Roadmap",
+    "org": "Org",
+    "crm": "CRM",
+    "loadBalancer": "Load balance",
+    "reports": "Reports"
   },
   "os": {
     "personal": "Personal OS",
@@ -187,7 +191,15 @@
     "reminderHint": "Reminds around {{when}}",
     "missionDesc": "Plan the team’s calendar, timeline, and workload for this workspace.",
     "accountDesc": "Your Hilm account — shared across Personal and Workspace OS.",
-    "accountNameHint": "This updates your account display name everywhere."
+    "accountNameHint": "This updates your account display name everywhere.",
+    "orgTitle": "Organization",
+    "orgDesc": "Departments, teams, and hierarchy.",
+    "crmTitle": "CRM Integrations",
+    "crmDesc": "Prepare connectors for Salesforce, HubSpot, and more.",
+    "loadBalancerTitle": "AI Load Balancer",
+    "loadBalancerDesc": "Balance work across the team.",
+    "reportsTitle": "Workspace Reports",
+    "reportsDesc": "Org-scoped branded reports."
   },
   "auth": {
     "signInTitle": "Sign in",
@@ -760,7 +772,13 @@
     "aiSpendToday": "Estimated spend today",
     "aiRequestsMonth": "Requests this month",
     "aiUsageHint": "All AI calls go through Hilm’s backend. OpenRouter keys never reach the browser.",
-    "aiUsageUnavailable": "Usage summary is unavailable right now."
+    "aiUsageUnavailable": "Usage summary is unavailable right now.",
+    "timeFormat": "Time format",
+    "timeFormatDesc": "Applies everywhere times are shown.",
+    "time24h": "24-hour",
+    "time24hDesc": "Example: 14:30",
+    "time12h": "12-hour",
+    "time12hDesc": "Example: 2:30 PM"
   },
   "profile": {
     "title": "Profile",
@@ -858,5 +876,20 @@
     "2d": "2 days before",
     "1w": "1 week before",
     "custom": "Custom reminder"
+  },
+  "attachments": {
+    "title": "Attachments",
+    "upload": "Upload",
+    "empty": "No files yet",
+    "download": "Download",
+    "remove": "Remove"
+  },
+  "reports": {
+    "title": "AI Reports",
+    "description": "Generate branded reports from your Personal OS data.",
+    "generate": "Generate",
+    "exportPdf": "Export PDF",
+    "exportDocx": "Export DOCX",
+    "saved": "Report saved"
   }
 }

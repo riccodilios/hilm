@@ -26,7 +26,15 @@ import {
   type HorizonZoom,
 } from '@/features/mission-control/lib/schedule'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/page'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { addLocalDays, taskDueDateKey, todayLocalISO, toLocalDateKey } from '@/lib/dates'
 
@@ -44,6 +52,8 @@ export function MissionControlPage() {
   const [selectedDay, setSelectedDay] = useState(todayLocalISO())
   const [projectFilter, setProjectFilter] = useState<string | 'all'>('all')
   const [mobilePane, setMobilePane] = useState<MobilePane>('timeline')
+  const [slotCreate, setSlotCreate] = useState<{ dayKey: string; hour: number } | null>(null)
+  const [slotTitle, setSlotTitle] = useState('')
 
   const tasksQuery = useQuery({ queryKey: tasksKeys.list(), queryFn: () => listTasks() })
   const projectsQuery = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
@@ -82,14 +92,48 @@ export function MissionControlPage() {
   }
 
   const reschedule = useMutation({
-    mutationFn: async (input: { taskId: string; dayKey: string; hour?: number }) => {
+    mutationFn: async (input: {
+      taskId: string
+      dayKey: string
+      hour?: number
+      durationHours?: number
+    }) => {
       const hour = input.hour ?? 9
-      const patch = schedulePatchForDrop(input.dayKey, hour)
-      return updateTask(input.taskId, patch)
+      const patch = schedulePatchForDrop(input.dayKey, hour, input.durationHours)
+      return updateTask(input.taskId, {
+        due_date: patch.due_date,
+        due_at: patch.due_at,
+        estimated_hours: patch.estimated_hours,
+      })
     },
     onSuccess: async () => {
       await invalidate()
       toast.success(t('mission.moved'))
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const slotCreateMutation = useMutation({
+    mutationFn: async () => {
+      if (!slotCreate) throw new Error('No slot')
+      const projectId = projectFilter !== 'all' ? projectFilter : projects[0]?.id
+      if (!projectId) throw new Error(t('tasks.projectRequired'))
+      const patch = schedulePatchForDrop(slotCreate.dayKey, slotCreate.hour, 1)
+      return createTask({
+        title: slotTitle.trim() || t('mission.newBlock'),
+        projectId,
+        dueDate: patch.due_date,
+        dueAt: patch.due_at,
+        status: 'todo',
+        priority: 'medium',
+        estimatedHours: 1,
+      })
+    },
+    onSuccess: async (task) => {
+      setSlotCreate(null)
+      setSlotTitle('')
+      await invalidate()
+      navigate(`/personal/tasks/${task.id}`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -319,14 +363,21 @@ export function MissionControlPage() {
             tasks={tasks}
             projectFilter={projectFilter}
             onOpenTask={(task) => navigate(`/personal/tasks/${task.id}`)}
-            onReschedule={(taskId, dayKey, hour) => reschedule.mutate({ taskId, dayKey, hour })}
+            onReschedule={async (taskId, dayKey, hour, durationHours) => {
+              await reschedule.mutateAsync({ taskId, dayKey, hour, durationHours })
+            }}
             onComplete={(taskId) => complete.mutate(taskId)}
+            onEmptySlotClick={(dayKey, hour) => {
+              setSelectedDay(dayKey)
+              setSlotCreate({ dayKey, hour })
+              setSlotTitle('')
+            }}
           />
         </section>
 
         <section
           className={cn(
-            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            'flex min-h-0 min-h-[420px] max-h-[calc(100dvh-12rem)] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
             mobilePane === 'overview' ? 'flex' : 'hidden lg:flex',
           )}
         >
@@ -345,6 +396,33 @@ export function MissionControlPage() {
           />
         </section>
       </div>
+
+      <Dialog open={Boolean(slotCreate)} onOpenChange={(open) => !open && setSlotCreate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('tasks.new')}</DialogTitle>
+            <DialogDescription>
+              {slotCreate
+                ? `${slotCreate.dayKey} · ${String(Math.floor(slotCreate.hour)).padStart(2, '0')}:${String(
+                    Math.round((slotCreate.hour % 1) * 60),
+                  ).padStart(2, '0')}`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={slotTitle}
+            onChange={(e) => setSlotTitle(e.target.value)}
+            placeholder={t('mission.newBlock')}
+            autoFocus
+          />
+          <Button
+            disabled={slotCreateMutation.isPending}
+            onClick={() => slotCreateMutation.mutate()}
+          >
+            {t('common.create')}
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
