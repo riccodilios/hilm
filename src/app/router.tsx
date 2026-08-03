@@ -137,9 +137,9 @@ const WorkspaceCrmPage = lazy(() =>
     default: m.WorkspaceCrmPage,
   })),
 )
-const WorkspaceLoadBalancerPage = lazy(() =>
-  import('@/features/workspace-os/pages/WorkspaceLoadBalancerPage').then((m) => ({
-    default: m.WorkspaceLoadBalancerPage,
+const WorkspaceTeamLeadPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceTeamLeadPage').then((m) => ({
+    default: m.WorkspaceTeamLeadPage,
   })),
 )
 const WorkspaceReportsPage = lazy(() =>
@@ -150,11 +150,6 @@ const WorkspaceReportsPage = lazy(() =>
 const WorkspacePersonalSettingsPage = lazy(() =>
   import('@/features/workspace-os/pages/WorkspacePersonalSettingsPage').then((m) => ({
     default: m.WorkspacePersonalSettingsPage,
-  })),
-)
-const WorkspaceTeamLeadPage = lazy(() =>
-  import('@/features/workspace-os/pages/WorkspaceTeamLeadPage').then((m) => ({
-    default: m.WorkspaceTeamLeadPage,
   })),
 )
 const WorkspaceMissionControlPage = lazy(() =>
@@ -195,6 +190,11 @@ function AppToPersonalRedirect() {
   const params = useParams()
   const rest = params['*']
   return <Navigate to={rest ? `/personal/${rest}` : '/personal'} replace />
+}
+
+function WorkspaceLoadBalancerRedirect() {
+  const { workspaceId } = useParams()
+  return <Navigate to={`/workspace/${workspaceId}/team-lead`} replace />
 }
 
 export function AppRouter() {
@@ -351,7 +351,7 @@ export function AppRouter() {
               <Route path="team-lead" element={<Suspense fallback={<AppFallback />}><WorkspaceTeamLeadPage /></Suspense>} />
               <Route path="org" element={<Suspense fallback={<AppFallback />}><WorkspaceOrgPage /></Suspense>} />
               <Route path="crm" element={<Suspense fallback={<AppFallback />}><WorkspaceCrmPage /></Suspense>} />
-              <Route path="load-balancer" element={<Suspense fallback={<AppFallback />}><WorkspaceLoadBalancerPage /></Suspense>} />
+              <Route path="load-balancer" element={<WorkspaceLoadBalancerRedirect />} />
               <Route path="reports" element={<Suspense fallback={<AppFallback />}><WorkspaceReportsPage /></Suspense>} />
               <Route path="settings" element={<Navigate to="profile" replace />} />
               <Route path="account-settings" element={<Suspense fallback={<AppFallback />}><WorkspacePersonalSettingsPage /></Suspense>} />

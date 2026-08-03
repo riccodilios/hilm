@@ -7,7 +7,6 @@ import {
   CheckSquare,
   ChevronDown,
   FolderKanban,
-  Gauge,
   Home,
   LayoutGrid,
   Network,
@@ -138,7 +137,6 @@ function WorkspaceShellInner() {
     { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/org`, label: t('nav.org'), icon: Network },
     { to: `${base}/crm`, label: t('nav.crm'), icon: Building2 },
-    { to: `${base}/load-balancer`, label: t('nav.loadBalancer'), icon: Gauge },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
     ...(!hidePersonal
       ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]

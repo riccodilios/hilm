@@ -138,12 +138,6 @@ export function WorkspaceProfilePage() {
       icon: Activity,
     },
     {
-      to: `/workspace/${workspaceId}/load-balancer`,
-      label: t('workspace.loadBalancerTitle'),
-      description: t('workspace.loadBalancerDesc'),
-      icon: Activity,
-    },
-    {
       to: `/workspace/${workspaceId}/reports`,
       label: t('workspace.reportsTitle'),
       description: t('workspace.reportsDesc'),
