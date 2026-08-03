@@ -168,6 +168,8 @@
     "anyDepartment": "Entire workspace / no department",
     "anyTeam": "No specific team",
     "unassignedMember": "Team lead will distribute",
+    "unassigned": "Unassigned",
+    "assignedTo": "Assigned to",
     "recommendedAssignee": "Recommended",
     "confidenceScore": "Confidence {{score}}%",
     "assignRecommended": "Assign as recommended",

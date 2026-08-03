@@ -20,6 +20,7 @@ import {
   TaskAssignmentFields,
   type TaskAssignmentValue,
 } from '@/features/workspace-os/components/TaskAssignmentFields'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
@@ -103,6 +104,10 @@ export function WorkspaceTaskDetailPage() {
         title={task.data.title}
         description={`${task.data.workspace_projects?.name ?? '—'} · ${task.data.status}`}
       />
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted">{t('workspace.assignedTo')}</span>
+        <TaskAssigneeLabel assignee={task.data.assignee} />
+      </div>
       <div className="space-y-2">
         <Label>{t('projects.desc')}</Label>
         <RichTextEditor

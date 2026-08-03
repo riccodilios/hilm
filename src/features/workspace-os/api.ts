@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
+import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import type { Tables, Updates } from '@/types/database'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 
@@ -32,8 +33,14 @@ export type WorkspaceMember = Tables<'workspace_members'> & {
   } | null
 }
 export type WorkspaceProject = Tables<'workspace_projects'>
+export type WorkspaceTaskAssignee = {
+  id: string
+  display_name: string
+  avatar_url: string | null
+}
 export type WorkspaceTask = Tables<'workspace_tasks'> & {
   workspace_projects?: Pick<WorkspaceProject, 'id' | 'name' | 'color' | 'icon'> | null
+  assignee?: WorkspaceTaskAssignee | null
 }
 export type WorkspaceActivity = Tables<'workspace_activity_events'>
 
@@ -369,22 +376,36 @@ export async function deleteWorkspaceProject(workspaceId: string, projectId: str
 }
 
 export async function listWorkspaceTasks(workspaceId: string) {
-  const [{ data, error }, projects] = await Promise.all([
+  const [{ data, error }, projects, members] = await Promise.all([
     supabase
       .from('workspace_tasks')
       .select('*')
       .eq('workspace_id', workspaceId)
       .order('updated_at', { ascending: false }),
     listWorkspaceProjects(workspaceId),
+    listWorkspaceMembers(workspaceId),
   ])
   if (error) throw error
   const projectMap = new Map(projects.map((project) => [project.id, project]))
+  const memberMap = new Map(members.map((member) => [member.user_id, member]))
   return (data ?? []).map((task) => {
     const project = projectMap.get(task.project_id)
+    const member = task.assignee_id ? memberMap.get(task.assignee_id) : null
     return {
       ...task,
       workspace_projects: project
         ? { id: project.id, name: project.name, color: project.color, icon: project.icon }
+        : null,
+      assignee: member
+        ? {
+            id: member.user_id,
+            display_name: resolveMemberDisplayName({
+              displayNameOverride: member.display_name_override,
+              displayName: member.profiles?.display_name,
+              email: member.email ?? member.profiles?.email,
+            }),
+            avatar_url: member.profiles?.avatar_url ?? null,
+          }
         : null,
     } as WorkspaceTask
   })
@@ -398,7 +419,13 @@ export async function getWorkspaceTask(workspaceId: string, taskId: string) {
     .eq('id', taskId)
     .single()
   if (error) throw error
-  const project = await getWorkspaceProject(workspaceId, data.project_id)
+  const [project, members] = await Promise.all([
+    getWorkspaceProject(workspaceId, data.project_id),
+    listWorkspaceMembers(workspaceId),
+  ])
+  const member = data.assignee_id
+    ? members.find((m) => m.user_id === data.assignee_id)
+    : null
   return {
     ...data,
     workspace_projects: {
@@ -407,6 +434,17 @@ export async function getWorkspaceTask(workspaceId: string, taskId: string) {
       color: project.color,
       icon: project.icon,
     },
+    assignee: member
+      ? {
+          id: member.user_id,
+          display_name: resolveMemberDisplayName({
+            displayNameOverride: member.display_name_override,
+            displayName: member.profiles?.display_name,
+            email: member.email ?? member.profiles?.email,
+          }),
+          avatar_url: member.profiles?.avatar_url ?? null,
+        }
+      : null,
   } as WorkspaceTask
 }
 

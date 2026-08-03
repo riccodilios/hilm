@@ -168,6 +168,8 @@
     "anyDepartment": "المساحة بالكامل / بدون قسم",
     "anyTeam": "بدون فريق محدد",
     "unassignedMember": "قائد الفريق سيقوم بالتوزيع",
+    "unassigned": "غير معيّن",
+    "assignedTo": "معيّن إلى",
     "recommendedAssignee": "موصى به",
     "confidenceScore": "الثقة {{score}}%",
     "assignRecommended": "تعيين حسب التوصية",

@@ -23,6 +23,7 @@ import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDueRemaining } from '@/lib/dates'
 import { cn, formatRelative } from '@/lib/utils'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 
 function DueTaskRow({
   task,
@@ -49,9 +50,12 @@ function DueTaskRow({
           </span>
         ) : null}
         <p className="truncate text-sm font-medium">{task.title}</p>
-        <p className="truncate text-xs text-muted">
-          {formatDueRemaining(task, { locale }) || '—'}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <TaskAssigneeLabel assignee={task.assignee} compact />
+          <p className="truncate text-xs text-muted">
+            {formatDueRemaining(task, { locale }) || '—'}
+          </p>
+        </div>
       </div>
       <PriorityBadge priority={task.priority} />
     </Link>
@@ -166,6 +170,7 @@ export function WorkspaceHomePage() {
             </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PriorityBadge priority={focus.priority ?? 'none'} />
+              <TaskAssigneeLabel assignee={focus.assignee} />
               {focus.workspace_projects ? (
                 <Badge className="bg-surface-3 text-muted">
                   <span

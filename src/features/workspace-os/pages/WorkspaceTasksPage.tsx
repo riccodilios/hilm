@@ -16,6 +16,7 @@ import {
   TaskAssignmentFields,
   type TaskAssignmentValue,
 } from '@/features/workspace-os/components/TaskAssignmentFields'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, type Priority } from '@/types/domain'
@@ -193,6 +194,7 @@ export function WorkspaceTasksPage() {
                           {task.workspace_projects.name}
                         </span>
                       ) : null}
+                      <TaskAssigneeLabel assignee={task.assignee} />
                       <span>
                         {task.due_at || task.due_date
                           ? formatDueRemaining(task, { locale: i18n.language })

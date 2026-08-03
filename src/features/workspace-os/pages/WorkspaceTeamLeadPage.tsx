@@ -14,6 +14,7 @@ import {
   TaskAssignmentFields,
   type TaskAssignmentValue,
 } from '@/features/workspace-os/components/TaskAssignmentFields'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { Button } from '@/components/ui/button'
 import { PageHeader, Skeleton } from '@/components/ui/page'
@@ -124,9 +125,10 @@ export function WorkspaceTeamLeadPage() {
                   >
                     {task.title}
                   </Link>
-                  <div className="mt-1 flex flex-wrap gap-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     <PriorityBadge priority={task.priority} />
                     <StatusBadge status={task.status} />
+                    <TaskAssigneeLabel assignee={task.assignee} />
                   </div>
                 </div>
                 {canEdit ? (

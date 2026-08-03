@@ -9,6 +9,7 @@ import {
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { Button } from '@/components/ui/button'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
@@ -59,9 +60,10 @@ export function WorkspaceProjectDetailPage() {
           <Link
             key={task.id}
             to={`/workspace/${workspaceId}/tasks/${task.id}`}
-            className="block rounded-xl border border-border-subtle bg-surface/40 px-4 py-3 text-sm hover:bg-surface"
+            className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface/40 px-4 py-3 text-sm hover:bg-surface"
           >
-            {task.title}
+            <span className="min-w-0 truncate font-medium">{task.title}</span>
+            <TaskAssigneeLabel assignee={task.assignee} compact className="shrink-0" />
           </Link>
         ))}
         {!projectTasks.length ? <p className="text-sm text-muted">{t('workspace.noTasks')}</p> : null}
