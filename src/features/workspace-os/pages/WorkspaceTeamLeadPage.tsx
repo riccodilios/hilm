@@ -53,14 +53,15 @@ export function WorkspaceTeamLeadPage() {
   )
 
   const inbox = useMemo(() => {
+    // Awaiting distribution: org-scoped, no individual assignee yet
     return (tasks.data ?? []).filter((task) => {
       if (task.status === 'done' || task.status === 'archived') return false
+      if (task.assignee_id) return false
       if (task.team_id && leadTeamIds.has(task.team_id)) return true
       if (task.department_id && leadDeptIds.has(task.department_id) && !task.team_id) return true
-      if (task.assignee_id === user?.id && (task.team_id || task.department_id)) return true
       return false
     })
-  }, [tasks.data, leadTeamIds, leadDeptIds, user?.id])
+  }, [tasks.data, leadTeamIds, leadDeptIds])
 
   const distribute = useMutation({
     mutationFn: ({
@@ -128,7 +129,10 @@ export function WorkspaceTeamLeadPage() {
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <PriorityBadge priority={task.priority} />
                     <StatusBadge status={task.status} />
-                    <TaskAssigneeLabel assignee={task.assignee} />
+                    <TaskAssigneeLabel
+                      assignee={task.assignee}
+                      assignment={task.assignment}
+                    />
                   </div>
                 </div>
                 {canEdit ? (

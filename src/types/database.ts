@@ -1043,6 +1043,8 @@ export type Database = {
           parent_id: string | null
           name: string
           description: string | null
+          head_user_id: string | null
+          sort_order: number
           created_at: string
           updated_at: string
         },
@@ -1052,8 +1054,55 @@ export type Database = {
           parent_id?: string | null
           name: string
           description?: string | null
+          head_user_id?: string | null
+          sort_order?: number
         },
-        { parent_id?: string | null; name?: string; description?: string | null; updated_at?: string }
+        {
+          parent_id?: string | null
+          name?: string
+          description?: string | null
+          head_user_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+      >
+      workspace_assignment_events: Table<
+        {
+          id: string
+          workspace_id: string
+          task_id: string
+          actor_id: string | null
+          event_type: string
+          from_department_id: string | null
+          to_department_id: string | null
+          from_team_id: string | null
+          to_team_id: string | null
+          from_assignee_id: string | null
+          to_assignee_id: string | null
+          summary: string
+          payload: Json
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          task_id: string
+          actor_id?: string | null
+          event_type: string
+          from_department_id?: string | null
+          to_department_id?: string | null
+          from_team_id?: string | null
+          to_team_id?: string | null
+          from_assignee_id?: string | null
+          to_assignee_id?: string | null
+          summary: string
+          payload?: Json
+          created_at?: string
+        },
+        {
+          summary?: string
+          payload?: Json
+        }
       >
       workspace_teams: Table<
         {

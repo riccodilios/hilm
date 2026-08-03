@@ -22,6 +22,7 @@ import { useOnline } from '@/hooks/useOnline'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { WorkspaceProvider, useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { OrgVisibilityProvider } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { listMyWorkspaces, workspaceKeys } from '@/features/workspace-os/api'
 import { getSettings, settingsKeys } from '@/features/settings/api'
 import { Button } from '@/components/ui/button'
@@ -239,7 +240,9 @@ function WorkspaceShellInner() {
 export function WorkspaceShell() {
   return (
     <WorkspaceProvider>
-      <WorkspaceShellInner />
+      <OrgVisibilityProvider>
+        <WorkspaceShellInner />
+      </OrgVisibilityProvider>
     </WorkspaceProvider>
   )
 }

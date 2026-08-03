@@ -13,6 +13,9 @@ import {
   type WorkspaceTask,
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
+import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
+import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
 import {
   memberInitials,
   resolveMemberDisplayName,
@@ -23,7 +26,6 @@ import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDueRemaining } from '@/lib/dates'
 import { cn, formatRelative } from '@/lib/utils'
-import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 
 function DueTaskRow({
   task,
@@ -51,7 +53,7 @@ function DueTaskRow({
         ) : null}
         <p className="truncate text-sm font-medium">{task.title}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <TaskAssigneeLabel assignee={task.assignee} compact />
+          <TaskAssigneeLabel assignee={task.assignee} assignment={task.assignment} compact />
           <p className="truncate text-xs text-muted">
             {formatDueRemaining(task, { locale }) || '—'}
           </p>
@@ -74,6 +76,7 @@ const fadeUp = {
 export function WorkspaceHomePage() {
   const { t, i18n } = useTranslation()
   const { workspaceId, workspace, canEdit } = useWorkspace()
+  const { filterTasks } = useOrgVisibility()
   const qc = useQueryClient()
   const locale = i18n.language
   const dateLocale = locale.startsWith('ar') ? ar : enUS
@@ -122,10 +125,14 @@ export function WorkspaceHomePage() {
   }
 
   const data = home.data
-  const focus = data.focus
-  const overdueTasks = data.overdueTasks ?? []
-  const todayTasks = data.todayTasks ?? []
-  const upcoming = data.upcoming ?? []
+  const overdueTasks = filterTasks(data.overdueTasks ?? [])
+  const todayTasks = filterTasks(data.todayTasks ?? [])
+  const upcoming = filterTasks(data.upcoming ?? [])
+  const focus =
+    overdueTasks[0] ??
+    todayTasks[0] ??
+    filterTasks(data.focus ? [data.focus] : [])[0] ??
+    null
   const projects = data.projects ?? []
   const recentActivity = data.recentActivity ?? []
   const members = data.members ?? []
@@ -155,6 +162,8 @@ export function WorkspaceHomePage() {
         }
       />
 
+      <DepartmentFilterBar className="mb-6" />
+
       <motion.section
         custom={0}
         variants={fadeUp}
@@ -170,7 +179,7 @@ export function WorkspaceHomePage() {
             </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PriorityBadge priority={focus.priority ?? 'none'} />
-              <TaskAssigneeLabel assignee={focus.assignee} />
+              <TaskAssigneeLabel assignee={focus.assignee} assignment={focus.assignment} />
               {focus.workspace_projects ? (
                 <Badge className="bg-surface-3 text-muted">
                   <span

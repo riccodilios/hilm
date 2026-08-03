@@ -23,6 +23,8 @@ import {
   type WorkspaceMember,
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { OrgLeadershipHealth } from '@/features/workspace-os/components/OrgLeadershipHealth'
+import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
 import {
   memberInitials,
   resolveMemberDisplayName,
@@ -310,6 +312,9 @@ export function WorkspaceOrgPage() {
           defaultValue: 'Departments, teams, and reporting structure.',
         })}
       />
+
+      <DepartmentFilterBar className="mb-4" />
+      <OrgLeadershipHealth />
 
       {canManage ? (
         <div className="mb-6 grid gap-4 md:grid-cols-2">

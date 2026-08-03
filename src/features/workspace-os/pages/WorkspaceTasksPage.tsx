@@ -17,6 +17,8 @@ import {
   type TaskAssignmentValue,
 } from '@/features/workspace-os/components/TaskAssignmentFields'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
+import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
+import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, type Priority } from '@/types/domain'
@@ -44,6 +46,7 @@ const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
 export function WorkspaceTasksPage() {
   const { t, i18n } = useTranslation()
   const { workspaceId, canEdit } = useWorkspace()
+  const { filterTasks } = useOrgVisibility()
   const [params, setSearchParams] = useSearchParams()
   const projectFilter = params.get('project')
   const qc = useQueryClient()
@@ -73,10 +76,10 @@ export function WorkspaceTasksPage() {
 
   const filtered = useMemo(
     () =>
-      (tasks.data ?? []).filter((task) =>
+      filterTasks(tasks.data ?? []).filter((task) =>
         projectFilter ? task.project_id === projectFilter : true,
       ),
-    [tasks.data, projectFilter],
+    [tasks.data, projectFilter, filterTasks],
   )
 
   function resetForm() {
@@ -143,6 +146,8 @@ export function WorkspaceTasksPage() {
         }
       />
 
+      <DepartmentFilterBar className="mt-4" />
+
       {tasks.isLoading ? (
         <div className="mt-2 space-y-2">
           <Skeleton className="h-16" />
@@ -194,7 +199,10 @@ export function WorkspaceTasksPage() {
                           {task.workspace_projects.name}
                         </span>
                       ) : null}
-                      <TaskAssigneeLabel assignee={task.assignee} />
+                      <TaskAssigneeLabel
+                        assignee={task.assignee}
+                        assignment={task.assignment}
+                      />
                       <span>
                         {task.due_at || task.due_date
                           ? formatDueRemaining(task, { locale: i18n.language })

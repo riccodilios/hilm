@@ -210,6 +210,8 @@ export function buildOrgTree(
         parent_id: null,
         name: '',
         description: null,
+        head_user_id: null,
+        sort_order: 9999,
         created_at: '',
         updated_at: '',
       },

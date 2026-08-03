@@ -34,6 +34,7 @@ import {
   upsertWorkspaceMemberSettings,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import { listDepartments, orgKeys } from '@/features/workspace-os/org-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import { Button } from '@/components/ui/button'
@@ -61,10 +62,15 @@ export function WorkspaceProfilePage() {
     queryFn: () => listWorkspaceMembers(workspaceId),
     enabled: canManage || canDelete,
   })
+  const departments = useQuery({
+    queryKey: orgKeys.departments(workspaceId),
+    queryFn: () => listDepartments(workspaceId),
+  })
 
   const [displayOverride, setDisplayOverride] = useState('')
   const [accountDisplayName, setAccountDisplayName] = useState('')
   const [hidePersonalOs, setHidePersonalOs] = useState(false)
+  const [homeDepartmentId, setHomeDepartmentId] = useState('')
   const [notifyTasks, setNotifyTasks] = useState(true)
   const [notifyMentions, setNotifyMentions] = useState(true)
   const [compactUi, setCompactUi] = useState(false)
@@ -77,6 +83,7 @@ export function WorkspaceProfilePage() {
   useEffect(() => {
     const settings = memberSettings.data
     setDisplayOverride(settings?.display_name_override ?? '')
+    setHomeDepartmentId(settings?.department_id ?? '')
     const notifications = (settings?.notification_prefs ?? {}) as Record<string, unknown>
     const appearance = (settings?.appearance_prefs ?? {}) as Record<string, unknown>
     const ai = (settings?.ai_prefs ?? {}) as Record<string, unknown>
@@ -159,6 +166,7 @@ export function WorkspaceProfilePage() {
           notificationPrefs: { tasks: notifyTasks, mentions: notifyMentions },
           appearancePrefs: { compact: compactUi },
           aiPrefs: { suggestAssign: aiSuggestAssign },
+          departmentId: homeDepartmentId || null,
         }),
         updateProfile({ display_name: accountDisplayName.trim() || undefined }),
         updateSettings({ hide_personal_os: hidePersonalOs }),
@@ -351,6 +359,23 @@ export function WorkspaceProfilePage() {
                 onChange={(e) => setDisplayOverride(e.target.value)}
                 placeholder={accountName}
               />
+            </div>
+            <div>
+              <Label htmlFor="ws-home-dept">{t('workspace.homeDepartment')}</Label>
+              <select
+                id="ws-home-dept"
+                className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+                value={homeDepartmentId}
+                onChange={(e) => setHomeDepartmentId(e.target.value)}
+              >
+                <option value="">{t('workspace.noHomeDepartment')}</option>
+                {(departments.data ?? []).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted">{t('workspace.homeDepartmentHint')}</p>
             </div>
             <div className="rounded-xl border border-border-subtle bg-surface-2/40 px-3 py-2 text-sm">
               <p className="text-muted">{t('workspace.yourRole')}</p>

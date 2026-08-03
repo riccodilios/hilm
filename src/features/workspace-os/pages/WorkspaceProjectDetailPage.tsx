@@ -63,7 +63,7 @@ export function WorkspaceProjectDetailPage() {
             className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface/40 px-4 py-3 text-sm hover:bg-surface"
           >
             <span className="min-w-0 truncate font-medium">{task.title}</span>
-            <TaskAssigneeLabel assignee={task.assignee} compact className="shrink-0" />
+            <TaskAssigneeLabel assignee={task.assignee} assignment={task.assignment} compact className="shrink-0" />
           </Link>
         ))}
         {!projectTasks.length ? <p className="text-sm text-muted">{t('workspace.noTasks')}</p> : null}

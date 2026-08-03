@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import {
   deleteWorkspaceTask,
   getWorkspaceTask,
+  listAssignmentEvents,
   listWorkspaceMembers,
   updateWorkspaceTask,
   workspaceKeys,
@@ -52,6 +53,11 @@ export function WorkspaceTaskDetailPage() {
     queryKey: workspaceKeys.members(workspaceId),
     queryFn: () => listWorkspaceMembers(workspaceId),
   })
+  const assignmentHistory = useQuery({
+    queryKey: [...workspaceKeys.task(workspaceId, taskId), 'assignment-events'],
+    queryFn: () => listAssignmentEvents(workspaceId, taskId),
+    enabled: Boolean(taskId),
+  })
 
   useEffect(() => {
     if (task.data) {
@@ -70,6 +76,9 @@ export function WorkspaceTaskDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
+      await qc.invalidateQueries({
+        queryKey: [...workspaceKeys.task(workspaceId, taskId), 'assignment-events'],
+      })
       toast.success(t('workspace.taskUpdated'))
     },
     onError: (error: Error) => toast.error(error.message),
@@ -106,7 +115,7 @@ export function WorkspaceTaskDetailPage() {
       />
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted">{t('workspace.assignedTo')}</span>
-        <TaskAssigneeLabel assignee={task.data.assignee} />
+        <TaskAssigneeLabel assignee={task.data.assignee} assignment={task.data.assignment} />
       </div>
       <div className="space-y-2">
         <Label>{t('projects.desc')}</Label>
@@ -147,6 +156,21 @@ export function WorkspaceTaskDetailPage() {
         >
           {t('workspace.saveAssignment')}
         </Button>
+      ) : null}
+      {(assignmentHistory.data?.length ?? 0) > 0 ? (
+        <div className="rounded-xl border border-border-subtle bg-surface/40 p-4">
+          <p className="mb-2 text-sm font-medium">{t('workspace.assignmentHistory')}</p>
+          <ul className="space-y-2 text-xs text-muted">
+            {assignmentHistory.data!.map((event) => (
+              <li key={event.id} className="border-b border-border-subtle pb-2 last:border-0">
+                <p className="text-foreground">{event.summary}</p>
+                <p className="mt-0.5">
+                  {new Date(event.created_at).toLocaleString()} · {event.event_type}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       <AttachmentPanel
         items={attachments.data ?? []}

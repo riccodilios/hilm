@@ -41,6 +41,7 @@ export type WorkspaceTaskAssignee = {
 export type WorkspaceTask = Tables<'workspace_tasks'> & {
   workspace_projects?: Pick<WorkspaceProject, 'id' | 'name' | 'color' | 'icon'> | null
   assignee?: WorkspaceTaskAssignee | null
+  assignment?: import('@/features/workspace-os/lib/org-visibility').TaskAssignmentInfo | null
 }
 export type WorkspaceActivity = Tables<'workspace_activity_events'>
 
@@ -376,7 +377,7 @@ export async function deleteWorkspaceProject(workspaceId: string, projectId: str
 }
 
 export async function listWorkspaceTasks(workspaceId: string) {
-  const [{ data, error }, projects, members] = await Promise.all([
+  const [{ data, error }, projects, members, departments, teams] = await Promise.all([
     supabase
       .from('workspace_tasks')
       .select('*')
@@ -384,57 +385,33 @@ export async function listWorkspaceTasks(workspaceId: string) {
       .order('updated_at', { ascending: false }),
     listWorkspaceProjects(workspaceId),
     listWorkspaceMembers(workspaceId),
+    supabase
+      .from('workspace_departments')
+      .select('id, name')
+      .eq('workspace_id', workspaceId)
+      .then((r) => r.data ?? []),
+    supabase
+      .from('workspace_teams')
+      .select('id, name, department_id')
+      .eq('workspace_id', workspaceId)
+      .then((r) => r.data ?? []),
   ])
   if (error) throw error
   const projectMap = new Map(projects.map((project) => [project.id, project]))
   const memberMap = new Map(members.map((member) => [member.user_id, member]))
+  const deptMap = new Map(departments.map((d) => [d.id, d]))
+  const teamMap = new Map(teams.map((t) => [t.id, t]))
+
   return (data ?? []).map((task) => {
     const project = projectMap.get(task.project_id)
     const member = task.assignee_id ? memberMap.get(task.assignee_id) : null
-    return {
-      ...task,
-      workspace_projects: project
-        ? { id: project.id, name: project.name, color: project.color, icon: project.icon }
-        : null,
-      assignee: member
-        ? {
-            id: member.user_id,
-            display_name: resolveMemberDisplayName({
-              displayNameOverride: member.display_name_override,
-              displayName: member.profiles?.display_name,
-              email: member.email ?? member.profiles?.email,
-            }),
-            avatar_url: member.profiles?.avatar_url ?? null,
-          }
-        : null,
-    } as WorkspaceTask
-  })
-}
-
-export async function getWorkspaceTask(workspaceId: string, taskId: string) {
-  const { data, error } = await supabase
-    .from('workspace_tasks')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .eq('id', taskId)
-    .single()
-  if (error) throw error
-  const [project, members] = await Promise.all([
-    getWorkspaceProject(workspaceId, data.project_id),
-    listWorkspaceMembers(workspaceId),
-  ])
-  const member = data.assignee_id
-    ? members.find((m) => m.user_id === data.assignee_id)
-    : null
-  return {
-    ...data,
-    workspace_projects: {
-      id: project.id,
-      name: project.name,
-      color: project.color,
-      icon: project.icon,
-    },
-    assignee: member
+    const team = task.team_id ? teamMap.get(task.team_id) : null
+    const department = task.department_id
+      ? deptMap.get(task.department_id)
+      : team?.department_id
+        ? deptMap.get(team.department_id)
+        : null
+    const assignee = member
       ? {
           id: member.user_id,
           display_name: resolveMemberDisplayName({
@@ -444,8 +421,33 @@ export async function getWorkspaceTask(workspaceId: string, taskId: string) {
           }),
           avatar_url: member.profiles?.avatar_url ?? null,
         }
-      : null,
-  } as WorkspaceTask
+      : null
+    const state = assignee
+      ? ('individual' as const)
+      : task.team_id || task.department_id
+        ? ('team' as const)
+        : ('unassigned' as const)
+    return {
+      ...task,
+      workspace_projects: project
+        ? { id: project.id, name: project.name, color: project.color, icon: project.icon }
+        : null,
+      assignee,
+      assignment: {
+        state,
+        department: department ? { id: department.id, name: department.name } : null,
+        team: team ? { id: team.id, name: team.name } : null,
+        assignee,
+      },
+    } as WorkspaceTask
+  })
+}
+
+export async function getWorkspaceTask(workspaceId: string, taskId: string) {
+  const tasks = await listWorkspaceTasks(workspaceId)
+  const task = tasks.find((t) => t.id === taskId)
+  if (!task) throw new Error('Task not found')
+  return task
 }
 
 export async function createWorkspaceTask(
@@ -516,13 +518,34 @@ export async function createWorkspaceTask(
       user_id: leadId,
       channel: 'in_app',
       type: 'workspace.task.lead',
-      title: 'Team task to distribute',
-      body: `"${input.title}" was assigned to your team — please distribute.`,
+      title: 'New task for your team',
+      body: `"${input.title}" was assigned to your team — open the assignment queue to distribute.`,
       entity_type: 'workspace_task',
       entity_id: data.id,
       href: `/workspace/${workspaceId}/team-lead`,
     })
   }
+
+  const eventType = assignment.assigneeId
+    ? 'assigned_member'
+    : assignment.teamId || assignment.departmentId
+      ? 'assigned_team'
+      : 'unassigned'
+  await recordAssignmentEvent(workspaceId, {
+    taskId: data.id,
+    eventType,
+    summary: assignment.assigneeId
+      ? `Assigned to member`
+      : assignment.teamId
+        ? `Assigned to team for distribution`
+        : assignment.departmentId
+          ? `Assigned to department`
+          : `Created unassigned`,
+    toDepartmentId: assignment.departmentId,
+    toTeamId: assignment.teamId,
+    toAssigneeId: assignment.assigneeId,
+    payload: { title: input.title },
+  })
 
   await recordWsActivity({
     workspaceId,
@@ -549,7 +572,8 @@ async function resolveOrgAssignment(
 }> {
   let departmentId = input.departmentId
   let teamId = input.teamId
-  let assigneeId = input.assigneeId
+  // Team Lead is NEVER auto-assigned as the worker — only notified to distribute.
+  const assigneeId = input.assigneeId
   const notifyLeadIds: string[] = []
 
   if (teamId) {
@@ -561,10 +585,7 @@ async function resolveOrgAssignment(
       .maybeSingle()
     if (team) {
       departmentId = departmentId ?? team.department_id
-      if (team.lead_user_id) {
-        notifyLeadIds.push(team.lead_user_id)
-        if (!assigneeId) assigneeId = team.lead_user_id
-      }
+      if (team.lead_user_id) notifyLeadIds.push(team.lead_user_id)
     }
   } else if (departmentId) {
     const { data: teams } = await supabase
@@ -575,7 +596,6 @@ async function resolveOrgAssignment(
     for (const team of teams ?? []) {
       if (team.lead_user_id) notifyLeadIds.push(team.lead_user_id)
     }
-    if (!assigneeId && notifyLeadIds[0]) assigneeId = notifyLeadIds[0]
   }
 
   return {
@@ -586,11 +606,55 @@ async function resolveOrgAssignment(
   }
 }
 
+export async function recordAssignmentEvent(
+  workspaceId: string,
+  input: {
+    taskId: string
+    eventType: string
+    summary: string
+    fromDepartmentId?: string | null
+    toDepartmentId?: string | null
+    fromTeamId?: string | null
+    toTeamId?: string | null
+    fromAssigneeId?: string | null
+    toAssigneeId?: string | null
+    payload?: Record<string, unknown>
+  },
+) {
+  const userId = await requireUserId()
+  await supabase.from('workspace_assignment_events').insert({
+    workspace_id: workspaceId,
+    task_id: input.taskId,
+    actor_id: userId,
+    event_type: input.eventType,
+    from_department_id: input.fromDepartmentId ?? null,
+    to_department_id: input.toDepartmentId ?? null,
+    from_team_id: input.fromTeamId ?? null,
+    to_team_id: input.toTeamId ?? null,
+    from_assignee_id: input.fromAssigneeId ?? null,
+    to_assignee_id: input.toAssigneeId ?? null,
+    summary: input.summary,
+    payload: (input.payload ?? {}) as import('@/types/database').Json,
+  })
+}
+
+export async function listAssignmentEvents(workspaceId: string, taskId: string) {
+  const { data, error } = await supabase
+    .from('workspace_assignment_events')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function updateWorkspaceTask(
   workspaceId: string,
   taskId: string,
   patch: Updates<'workspace_tasks'>,
 ) {
+  const before = await getWorkspaceTask(workspaceId, taskId)
   const next = { ...patch }
   if (patch.status === 'done' && patch.completed_at === undefined) {
     next.completed_at = new Date().toISOString()
@@ -598,12 +662,90 @@ export async function updateWorkspaceTask(
   if (patch.status && patch.status !== 'done') {
     next.completed_at = null
   }
+
+  const assignmentChanging =
+    patch.assignee_id !== undefined ||
+    patch.department_id !== undefined ||
+    patch.team_id !== undefined
+
+  if (assignmentChanging) {
+    const resolved = await resolveOrgAssignment(workspaceId, {
+      departmentId:
+        patch.department_id !== undefined ? patch.department_id : before.department_id,
+      teamId: patch.team_id !== undefined ? patch.team_id : before.team_id,
+      assigneeId: patch.assignee_id !== undefined ? patch.assignee_id : before.assignee_id,
+    })
+    next.department_id = resolved.departmentId
+    next.team_id = resolved.teamId
+    next.assignee_id = resolved.assigneeId
+
+    for (const leadId of resolved.notifyLeadIds) {
+      if (leadId === resolved.assigneeId) continue
+      if (before.team_id === resolved.teamId && before.department_id === resolved.departmentId) {
+        if (before.assignee_id === resolved.assigneeId) continue
+        // Only notify lead when newly routed to team without member
+        if (resolved.assigneeId) continue
+      }
+      await supabase.from('notifications').insert({
+        user_id: leadId,
+        channel: 'in_app',
+        type: 'workspace.task.lead',
+        title: 'New task for your team',
+        body: `"${before.title}" needs distribution — open the assignment queue.`,
+        entity_type: 'workspace_task',
+        entity_id: taskId,
+        href: `/workspace/${workspaceId}/team-lead`,
+      })
+    }
+
+    if (resolved.assigneeId && resolved.assigneeId !== before.assignee_id) {
+      const userId = await requireUserId()
+      if (resolved.assigneeId !== userId) {
+        await supabase.from('notifications').insert({
+          user_id: resolved.assigneeId,
+          channel: 'in_app',
+          type: 'workspace.task.assigned',
+          title: 'Task assigned',
+          body: `You were assigned "${before.title}"`,
+          entity_type: 'workspace_task',
+          entity_id: taskId,
+          href: `/workspace/${workspaceId}/tasks/${taskId}`,
+        })
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('workspace_tasks')
     .update(next)
     .eq('workspace_id', workspaceId)
     .eq('id', taskId)
   if (error) throw error
+
+  if (assignmentChanging) {
+    await recordAssignmentEvent(workspaceId, {
+      taskId,
+      eventType: next.assignee_id
+        ? 'assigned_member'
+        : next.team_id || next.department_id
+          ? 'assigned_team'
+          : 'unassigned',
+      summary: next.assignee_id
+        ? 'Assigned to member'
+        : next.team_id
+          ? 'Assigned to team for distribution'
+          : next.department_id
+            ? 'Assigned to department'
+            : 'Cleared assignment',
+      fromDepartmentId: before.department_id,
+      toDepartmentId: (next.department_id as string | null | undefined) ?? before.department_id,
+      fromTeamId: before.team_id,
+      toTeamId: (next.team_id as string | null | undefined) ?? before.team_id,
+      fromAssigneeId: before.assignee_id,
+      toAssigneeId: (next.assignee_id as string | null | undefined) ?? null,
+    })
+  }
+
   await recordWsActivity({
     workspaceId,
     eventType: 'task.updated',
@@ -701,6 +843,9 @@ export async function upsertWorkspaceMemberSettings(
     notificationPrefs?: Record<string, unknown>
     appearancePrefs?: Record<string, unknown>
     aiPrefs?: Record<string, unknown>
+    departmentId?: string | null
+    skills?: string[]
+    availability?: Record<string, unknown>
   },
 ) {
   const userId = await requireUserId()
@@ -720,6 +865,12 @@ export async function upsertWorkspaceMemberSettings(
       existing?.appearance_prefs ??
       {}) as import('@/types/database').Json,
     ai_prefs: (patch.aiPrefs ?? existing?.ai_prefs ?? {}) as import('@/types/database').Json,
+    department_id:
+      patch.departmentId !== undefined ? patch.departmentId : (existing?.department_id ?? null),
+    skills: patch.skills !== undefined ? patch.skills : (existing?.skills ?? []),
+    availability: (patch.availability ??
+      existing?.availability ??
+      {}) as import('@/types/database').Json,
     updated_at: new Date().toISOString(),
   }
   const { data, error } = await supabase
