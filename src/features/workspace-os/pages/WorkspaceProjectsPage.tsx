@@ -107,7 +107,7 @@ export function WorkspaceProjectsPage() {
 
   const filtered = (projects.data ?? []).filter((project) => {
     if (labelFilter === 'all') return true
-    return projectLinks.data?.ids.get(project.id)?.includes(labelFilter)
+    return projectLinks.data?.ids?.get(project.id)?.includes(labelFilter)
   })
 
   return (
