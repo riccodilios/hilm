@@ -10,7 +10,19 @@ import {
   listWorkspaceProjects,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import {
+  createWorkspaceLabel,
+  deleteWorkspaceLabel,
+  listProjectLabels,
+  listWorkspaceLabels,
+  setProjectLabels,
+  updateWorkspaceLabel,
+  workspaceLabelKeys,
+} from '@/features/workspace-os/labels-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { LabelsBar } from '@/components/labels/LabelsBar'
+import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
+import { LabelChip } from '@/components/labels/LabelChip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,40 +35,79 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-const COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb7185']
+import { PROJECT_COLORS } from '@/types/domain'
 
 export function WorkspaceProjectsPage() {
   const { t } = useTranslation()
-  const { workspaceId, canEdit } = useWorkspace()
+  const { workspaceId, canEdit, canManage } = useWorkspace()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [color, setColor] = useState(COLORS[0]!)
+  const [color, setColor] = useState<string>(PROJECT_COLORS[0]!)
+  const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
+  const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
 
   const projects = useQuery({
     queryKey: workspaceKeys.projects(workspaceId),
     queryFn: () => listWorkspaceProjects(workspaceId),
   })
 
+  const labelsQuery = useQuery({
+    queryKey: workspaceLabelKeys.all(workspaceId),
+    queryFn: () => listWorkspaceLabels(workspaceId),
+  })
+
+  const projectLinks = useQuery({
+    queryKey: [...workspaceLabelKeys.all(workspaceId), 'links'],
+    queryFn: async () => {
+      const list = projects.data ?? []
+      const byProject = new Map<string, Array<{ id: string; name: string; color: string }>>()
+      const ids = new Map<string, string[]>()
+      await Promise.all(
+        list.map(async (p) => {
+          const labels = await listProjectLabels(workspaceId, p.id)
+          byProject.set(p.id, labels)
+          ids.set(
+            p.id,
+            labels.map((l) => l.id),
+          )
+        }),
+      )
+      return { byProject, ids }
+    },
+    enabled: Boolean(projects.data?.length),
+  })
+
   const create = useMutation({
-    mutationFn: () =>
-      createWorkspaceProject(workspaceId, {
+    mutationFn: async () => {
+      const project = await createWorkspaceProject(workspaceId, {
         name,
         description: description || undefined,
         color,
-      }),
+      })
+      if (createLabelIds.length) {
+        await setProjectLabels(workspaceId, project.id, createLabelIds)
+      }
+      return project
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
+      await qc.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) })
       setOpen(false)
       setName('')
       setDescription('')
-      setColor(COLORS[0]!)
+      setColor(PROJECT_COLORS[0]!)
+      setCreateLabelIds([])
       toast.success(t('workspace.projectCreated'))
     },
     onError: (error: Error) => toast.error(error.message),
+  })
+
+  const filtered = (projects.data ?? []).filter((project) => {
+    if (labelFilter === 'all') return true
+    return projectLinks.data?.ids.get(project.id)?.includes(labelFilter)
   })
 
   return (
@@ -73,6 +124,19 @@ export function WorkspaceProjectsPage() {
         }
       />
 
+      {(projects.data?.length || labelsQuery.data?.length) ? (
+        <LabelsBar
+          labels={labelsQuery.data ?? []}
+          filter={labelFilter}
+          onFilterChange={setLabelFilter}
+          canManage={canManage}
+          queryKey={workspaceLabelKeys.all(workspaceId)}
+          createLabel={(input) => createWorkspaceLabel(workspaceId, input)}
+          updateLabel={(id, patch) => updateWorkspaceLabel(workspaceId, id, patch)}
+          deleteLabel={(id) => deleteWorkspaceLabel(workspaceId, id)}
+        />
+      ) : null}
+
       {projects.isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-20" />
@@ -80,7 +144,7 @@ export function WorkspaceProjectsPage() {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {(projects.data ?? []).map((project, index) => (
+          {filtered.map((project, index) => (
             <motion.div
               key={project.id}
               initial={{ opacity: 0, y: 8 }}
@@ -129,6 +193,11 @@ export function WorkspaceProjectsPage() {
                   <p className="line-clamp-2 text-sm text-muted">
                     {project.description || t('workspace.noDescription')}
                   </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(projectLinks.data?.byProject.get(project.id) ?? []).map((label) => (
+                      <LabelChip key={label.id} name={label.name} color={label.color} />
+                    ))}
+                  </div>
                 </div>
               </Link>
             </motion.div>
@@ -182,7 +251,7 @@ export function WorkspaceProjectsPage() {
             <div className="space-y-2">
               <Label>{t('workspace.color')}</Label>
               <div className="flex flex-wrap gap-2">
-                {COLORS.map((swatch) => (
+                {PROJECT_COLORS.map((swatch) => (
                   <button
                     key={swatch}
                     type="button"
@@ -198,7 +267,17 @@ export function WorkspaceProjectsPage() {
                 ))}
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={!name.trim() || create.isPending}>
+            {canEdit ? (
+              <div className="space-y-2">
+                <Label>Labels</Label>
+                <ProjectLabelPicker
+                  labels={labelsQuery.data ?? []}
+                  selectedIds={createLabelIds}
+                  onChange={setCreateLabelIds}
+                />
+              </div>
+            ) : null}
+            <Button type="submit" className="w-full" disabled={create.isPending || !name.trim()}>
               {t('common.create')}
             </Button>
           </form>

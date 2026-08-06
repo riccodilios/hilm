@@ -16,7 +16,17 @@ import {
   streamChat,
   updateConversation,
 } from '@/features/ai/api'
-import { executeAiActions } from '@/features/ai/lib/action-executor'
+import {
+  executeAiActions,
+  extractActionsFromContent,
+  getActionRisk,
+  parseActionsForOs,
+} from '@/features/ai/lib/action-executor'
+import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
+import { getRegisteredAction } from '@/features/ai/registry'
+import type { ParsedRegistryAction } from '@/features/ai/registry/types'
+import { labelKeys } from '@/features/projects/labels-api'
+import { workspaceLabelKeys } from '@/features/workspace-os/labels-api'
 import { activityKeys } from '@/features/activity/api'
 import { homeKeys } from '@/features/home/api'
 import { ideasKeys } from '@/features/ideas/api'
@@ -36,7 +46,8 @@ import { cn } from '@/lib/utils'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiMessage } from '@/features/ai/api'
 import type { AiAction } from '@/types/ai-actions'
-import { extractAiActionsFromContent } from '@/types/ai-actions'
+
+ensureAiRegistry()
 
 type DraftMessage = AiMessage & { pending?: boolean }
 
@@ -54,34 +65,25 @@ function appendVoiceText(current: string, addition: string) {
 }
 
 function actionLabel(action: AiAction) {
-  switch (action.type) {
-    case 'task.create':
-    case 'note.create':
-    case 'roadmap.create':
-    case 'idea.create':
-    case 'documentation.generate':
-    case 'release.notes':
-    case 'milestone.create':
-      return action.title
-    case 'meeting.summarize':
-      return action.title
-    case 'project.create':
-      return action.name
-    case 'activity.note':
-      return action.summary
-    case 'task.assign':
-      return action.type.replace('.', ' ')
-    default:
-      return action.type.replace('.', ' ')
-  }
+  const def = getRegisteredAction(String(action.type))
+  const title = typeof action.title === 'string' ? action.title : undefined
+  const name = typeof action.name === 'string' ? action.name : undefined
+  const summary = typeof action.summary === 'string' ? action.summary : undefined
+  return title || name || summary || def?.title || String(action.type).replace(/\./g, ' ')
+}
+
+function riskNeedsConfirm(actions: ParsedRegistryAction[]) {
+  const risk = getActionRisk(actions)
+  return risk === 'confirm' || risk === 'destructive'
 }
 
 export type AiPageProps = {
   mode?: 'personal' | 'workspace'
   workspaceId?: string
+  workspaceRole?: import('@/features/workspace-os/lib/permissions').WorkspaceRole | null
 }
 
-export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
+export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPageProps = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -93,6 +95,7 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
   const [streaming, setStreaming] = useState(false)
   const [draft, setDraft] = useState<DraftMessage | null>(null)
   const [proposedActions, setProposedActions] = useState<AiAction[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const streamingRef = useRef(false)
@@ -228,9 +231,19 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
         content += event.token
         setDraft({ ...pending, content })
       } else if (event.type === 'actions') {
-        setProposedActions(event.actions)
+        const parsed = parseActionsForOs(event.actions, {
+          workspaceId: isWorkspace ? workspaceId : undefined,
+          role: workspaceRole,
+        })
+        setProposedActions(parsed.length ? parsed : (event.actions as AiAction[]))
       } else if (event.type === 'done') {
-        if (event.actions) setProposedActions(event.actions)
+        if (event.actions) {
+          const parsed = parseActionsForOs(event.actions, {
+            workspaceId: isWorkspace ? workspaceId : undefined,
+            role: workspaceRole,
+          })
+          setProposedActions(parsed.length ? parsed : (event.actions as AiAction[]))
+        }
       } else if (event.type === 'error') {
         toast.error(event.error)
       }
@@ -239,7 +252,10 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
     setDraft(null)
     setStreaming(false)
     streamingRef.current = false
-    const fromContent = extractAiActionsFromContent(content)
+    const fromContent = extractActionsFromContent(content, {
+      workspaceId: isWorkspace ? workspaceId : undefined,
+      role: workspaceRole,
+    })
     if (fromContent.length) setProposedActions(fromContent)
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: aiKeys.messages(conversationId) }),
@@ -282,11 +298,13 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
     dictation.start()
   }
 
-  async function executeActions() {
+  async function runActions() {
     if (!proposedActions.length) return
     try {
       const results = await executeAiActions(proposedActions, {
         workspaceId: isWorkspace ? workspaceId : undefined,
+        role: workspaceRole,
+        sequential: true,
       })
       const succeeded = results.filter((result) => result.success)
       const failed = results.filter((result) => !result.success)
@@ -316,6 +334,7 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
           queryClient.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
           queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
           queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) }),
+          queryClient.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) }),
         ])
       } else {
         await Promise.all([
@@ -325,11 +344,23 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
           queryClient.invalidateQueries({ queryKey: activityKeys.all }),
           queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
           queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+          queryClient.invalidateQueries({ queryKey: labelKeys.all }),
         ])
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('ai.applyFailed'))
+    } finally {
+      setConfirmOpen(false)
     }
+  }
+
+  async function executeActions() {
+    if (!proposedActions.length) return
+    if (riskNeedsConfirm(proposedActions)) {
+      setConfirmOpen(true)
+      return
+    }
+    await runActions()
   }
 
   const displayedMessages: DraftMessage[] = [...(messages.data ?? []), ...(draft ? [draft] : [])]
@@ -529,11 +560,43 @@ export function AiPage({ mode = 'personal', workspaceId }: AiPageProps = {}) {
                     className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
                   >
                     {actionLabel(action)}
+                    {getRegisteredAction(String(action.type))?.risk !== 'safe' ? (
+                      <span className="ms-1 text-[10px] uppercase text-warning">
+                        {getRegisteredAction(String(action.type))?.risk}
+                      </span>
+                    ) : null}
                   </span>
                 ))}
               </div>
             </div>
           ) : null}
+
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Confirm actions</DialogTitle>
+                <DialogDescription>
+                  These actions include confirm or destructive steps. Review before applying.
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="max-h-48 space-y-2 overflow-auto text-sm">
+                {proposedActions.map((action, index) => (
+                  <li key={`${action.type}-confirm-${index}`} className="rounded-lg bg-surface-2 px-3 py-2">
+                    <span className="font-medium">{actionLabel(action)}</span>
+                    <span className="ms-2 text-xs text-muted">
+                      {getRegisteredAction(String(action.type))?.risk}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => void runActions()}>Confirm & apply</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <form
             className="border-t border-border-subtle p-3"

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hilm system map</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --bg-elevated: #ffffff;
+      --editor: #fafafa;
+      --text: #1a1a1a;
+      --text-secondary: #5c5c5c;
+      --text-tertiary: #8a8a8a;
+      --stroke: #d4d4d0;
+      --stroke-secondary: #c0c0ba;
+      --stroke-tertiary: #e4e4e0;
+      --fill-secondary: #e8f0fe;
+      --fill-tertiary: #fff3e0;
+      --fill-quaternary: #f0f0ec;
+      --accent: #2563eb;
+      --btn-bg: #ffffff;
+      --btn-border: #d4d4d0;
+      --btn-primary-bg: #2563eb;
+      --btn-primary-text: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1e1e1e;
+        --bg-elevated: #2a2a2a;
+        --editor: #252525;
+        --text: #e8e8e8;
+        --text-secondary: #b0b0b0;
+        --text-tertiary: #888888;
+        --stroke: #3a3a3a;
+        --stroke-secondary: #4a4a4a;
+        --stroke-tertiary: #333333;
+        --fill-secondary: #1e3a5f;
+        --fill-tertiary: #4a3520;
+        --fill-quaternary: #2f2f2f;
+        --accent: #60a5fa;
+        --btn-bg: #2a2a2a;
+        --btn-border: #3a3a3a;
+        --btn-primary-bg: #2563eb;
+        --btn-primary-text: #ffffff;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .blurb {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .tabs {
+      gap: 8px;
+    }
+    button.tab {
+      appearance: none;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.tab.active {
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-bg);
+      color: var(--btn-primary-text);
+    }
+    button.tab:hover:not(.active) {
+      border-color: var(--accent);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+    }
+    .map-frame {
+      overflow: auto;
+      border: 1px solid var(--stroke-tertiary);
+      background: var(--editor);
+      max-height: 70vh;
+      border-radius: 4px;
+    }
+    .map-frame svg {
+      display: block;
+      min-width: 100%;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .download {
+      appearance: none;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .download:hover { border-color: var(--accent); }
+    .legend { gap: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Hilm system map</h1>
+      <p class="blurb" style="margin-top: 6px">
+        Interactive node maps for architecture, routing, both OS surfaces, assignment, and data
+        isolation. Switch views below — open this file in a browser to share with the team.
+      </p>
+    </div>
+
+    <div class="toolbar">
+      <div class="row tabs" id="tabs"></div>
+      <button type="button" class="download" id="download-svg">Download SVG</button>
+    </div>
+
+    <div>
+      <div class="row" style="gap: 10px; margin-bottom: 8px">
+        <h2 id="title"></h2>
+        <span class="pill" id="node-count"></span>
+        <span class="pill" id="edge-count"></span>
+      </div>
+      <p class="blurb small" id="subtitle"></p>
+    </div>
+
+    <div class="map-frame" id="map"></div>
+
+    <div class="row legend">
+      <span class="small">Accent border = primary path</span>
+      <span class="small">Muted = public / optional</span>
+      <span class="small">Source: router.tsx · workspace-os · migrations 0001–0021</span>
+    </div>
+  </div>
+
+  <script>
+    const MAPS = {
+      system: {
+        title: "System architecture",
+        blurb: "How the client, Netlify, Supabase, and OpenRouter connect.",
+        nodes: [
+          { id: "browser", label: "Browser / PWA", sub: "React · Router · Query", tone: "accent" },
+          { id: "personal-shell", label: "PersonalShell", sub: "/personal/*" },
+          { id: "workspace-shell", label: "WorkspaceShell", sub: "/workspace/:id/*" },
+          { id: "netlify", label: "Netlify SPA", sub: "Static host" },
+          { id: "api", label: "Netlify Functions", sub: "/api/ai-chat · reminders", tone: "accent" },
+          { id: "supabase", label: "Supabase", sub: "Auth · Postgres · Storage · Realtime", tone: "accent" },
+          { id: "edge", label: "Edge Functions", sub: "ai-chat · reminders" },
+          { id: "openrouter", label: "OpenRouter", sub: "LLM routing", tone: "warn" },
+          { id: "push", label: "Web Push", sub: "VAPID" },
+        ],
+        edges: [
+          { from: "browser", to: "personal-shell" },
+          { from: "browser", to: "workspace-shell" },
+          { from: "browser", to: "netlify" },
+          { from: "browser", to: "api" },
+          { from: "browser", to: "supabase" },
+          { from: "browser", to: "push" },
+          { from: "api", to: "openrouter" },
+          { from: "api", to: "supabase" },
+          { from: "edge", to: "openrouter" },
+          { from: "edge", to: "supabase" },
+          { from: "netlify", to: "api" },
+        ],
+      },
+      routing: {
+        title: "Route tree",
+        blurb: "Top-level routing gates and OS prefixes.",
+        nodes: [
+          { id: "public", label: "Public", sub: "/ · /privacy", tone: "muted" },
+          { id: "auth-routes", label: "Auth routes", sub: "/login · /signup · /auth/*", tone: "accent" },
+          { id: "require-auth", label: "RequireAuth", sub: "session gate" },
+          { id: "onboarding", label: "/onboarding", sub: "first-run OS choice" },
+          { id: "require-onboard", label: "RequireOnboarding", sub: "completed flag" },
+          { id: "personal", label: "/personal/*", sub: "Personal OS", tone: "accent" },
+          { id: "ws-select", label: "/workspace", sub: "Workspace selector" },
+          { id: "ws-shell", label: "/workspace/:id/*", sub: "Workspace OS", tone: "accent" },
+          { id: "compat", label: "/app/*", sub: "→ /personal" },
+        ],
+        edges: [
+          { from: "public", to: "auth-routes" },
+          { from: "auth-routes", to: "require-auth" },
+          { from: "require-auth", to: "onboarding" },
+          { from: "require-auth", to: "require-onboard" },
+          { from: "require-onboard", to: "personal" },
+          { from: "require-onboard", to: "ws-select" },
+          { from: "ws-select", to: "ws-shell" },
+          { from: "require-onboard", to: "compat" },
+        ],
+      },
+      auth: {
+        title: "Auth & startup",
+        blurb: "From login to the correct OS.",
+        nodes: [
+          { id: "login", label: "Login / Signup", tone: "accent" },
+          { id: "callback", label: "Auth callback", sub: "session + bootstrap" },
+          { id: "bootstrap", label: "ensureUserBootstrap", sub: "profile · settings · Inbox" },
+          { id: "dest", label: "resolvePostAuthDestination", tone: "accent" },
+          { id: "need-onboard", label: "Needs onboarding?", sub: "flag check" },
+          { id: "hide-ws", label: "hide_workspace_os?", sub: "settings" },
+          { id: "startup", label: "default_startup_mode", sub: "personal | workspace" },
+          { id: "go-personal", label: "→ /personal", tone: "accent" },
+          { id: "go-workspace", label: "→ /workspace", tone: "accent" },
+          { id: "go-onboard", label: "→ /onboarding", tone: "warn" },
+        ],
+        edges: [
+          { from: "login", to: "callback" },
+          { from: "callback", to: "bootstrap" },
+          { from: "bootstrap", to: "dest" },
+          { from: "dest", to: "need-onboard" },
+          { from: "need-onboard", to: "go-onboard" },
+          { from: "need-onboard", to: "hide-ws" },
+          { from: "hide-ws", to: "go-personal" },
+          { from: "hide-ws", to: "startup" },
+          { from: "startup", to: "go-personal" },
+          { from: "startup", to: "go-workspace" },
+        ],
+      },
+      personal: {
+        title: "Personal OS map",
+        blurb: "Individual productivity surfaces under /personal.",
+        nodes: [
+          { id: "home", label: "Home", sub: "/personal", tone: "accent" },
+          { id: "projects", label: "Projects", sub: "/projects" },
+          { id: "tasks", label: "Tasks", sub: "/tasks · /board" },
+          { id: "task-detail", label: "Task detail", sub: "reminders · attachments" },
+          { id: "notes", label: "Notes", sub: "/notes" },
+          { id: "ai", label: "Personal AI", sub: "/ai" },
+          { id: "mc", label: "Mission Control", sub: "/mission-control" },
+          { id: "daily", label: "Daily log", sub: "/daily-log" },
+          { id: "activity", label: "Activity", sub: "/activity" },
+          { id: "settings", label: "Settings", sub: "/settings" },
+          { id: "profile", label: "Profile hub", sub: "/profile" },
+          { id: "reports", label: "Reports", sub: "/reports" },
+          { id: "bridge", label: "Workspaces bridge", sub: "/workspace", tone: "warn" },
+        ],
+        edges: [
+          { from: "home", to: "projects" },
+          { from: "home", to: "tasks" },
+          { from: "home", to: "ai" },
+          { from: "home", to: "mc" },
+          { from: "projects", to: "tasks" },
+          { from: "projects", to: "notes" },
+          { from: "tasks", to: "task-detail" },
+          { from: "ai", to: "tasks" },
+          { from: "daily", to: "ai" },
+          { from: "profile", to: "settings" },
+          { from: "profile", to: "reports" },
+          { from: "profile", to: "activity" },
+          { from: "profile", to: "bridge" },
+          { from: "mc", to: "tasks" },
+        ],
+      },
+      workspace: {
+        title: "Workspace OS map",
+        blurb: "Org collaboration under /workspace/:workspaceId.",
+        nodes: [
+          { id: "selector", label: "Selector", sub: "/workspace", tone: "muted" },
+          { id: "home", label: "Home", sub: "/:id", tone: "accent" },
+          { id: "projects", label: "Projects", sub: "/projects" },
+          { id: "tasks", label: "Tasks", sub: "/tasks" },
+          { id: "task-detail", label: "Task detail", sub: "assignment history" },
+          { id: "org", label: "Organization", sub: "tree · health", tone: "accent" },
+          { id: "team", label: "Team", sub: "members · invites" },
+          { id: "team-lead", label: "Team Lead inbox", sub: "distribute work", tone: "accent" },
+          { id: "ai", label: "Workspace AI", sub: "/ai" },
+          { id: "mc", label: "Mission Control", sub: "/mission-control" },
+          { id: "crm", label: "CRM", sub: "integrations stub" },
+          { id: "reports", label: "Reports", sub: "/reports" },
+          { id: "profile", label: "Profile", sub: "home department" },
+          { id: "account", label: "Account settings", sub: "no OS switch", tone: "warn" },
+          { id: "activity", label: "Activity", sub: "/activity" },
+          { id: "vis", label: "OrgVisibility", sub: "dept filter", tone: "accent" },
+        ],
+        edges: [
+          { from: "selector", to: "home" },
+          { from: "home", to: "projects" },
+          { from: "home", to: "tasks" },
+          { from: "home", to: "org" },
+          { from: "home", to: "team-lead" },
+          { from: "home", to: "ai" },
+          { from: "home", to: "mc" },
+          { from: "tasks", to: "task-detail" },
+          { from: "tasks", to: "team-lead" },
+          { from: "org", to: "team" },
+          { from: "team", to: "team-lead" },
+          { from: "vis", to: "home" },
+          { from: "vis", to: "tasks" },
+          { from: "vis", to: "org" },
+          { from: "profile", to: "account" },
+          { from: "profile", to: "activity" },
+          { from: "home", to: "crm" },
+          { from: "home", to: "reports" },
+          { from: "ai", to: "tasks" },
+        ],
+      },
+      assignment: {
+        title: "Assignment & Team Lead flow",
+        blurb: "Unassigned → Team → Individual, with AI assist.",
+        nodes: [
+          { id: "create", label: "Create / edit task", tone: "accent" },
+          { id: "pick-dept", label: "Select department" },
+          { id: "pick-team", label: "Select team" },
+          { id: "state-unassigned", label: "Unassigned", sub: "no owner", tone: "muted" },
+          { id: "state-team", label: "Assigned to Team", sub: "no member yet", tone: "warn" },
+          { id: "notify", label: "Notify Team Lead", sub: "workspace.task.lead" },
+          { id: "queue", label: "Team Lead queue", sub: "/team-lead", tone: "accent" },
+          { id: "ai", label: "AI Load Balancer", sub: "recommend + reasons", tone: "accent" },
+          { id: "load", label: "Team load viz", sub: "capacity bars" },
+          { id: "accept", label: "Assign recommended" },
+          { id: "manual", label: "Assign manually" },
+          { id: "member", label: "Assigned to member", tone: "accent" },
+          { id: "audit", label: "Assignment history", sub: "workspace_assignment_events" },
+        ],
+        edges: [
+          { from: "create", to: "pick-dept" },
+          { from: "pick-dept", to: "pick-team" },
+          { from: "pick-team", to: "state-unassigned" },
+          { from: "pick-team", to: "state-team" },
+          { from: "state-team", to: "notify" },
+          { from: "notify", to: "queue" },
+          { from: "queue", to: "ai" },
+          { from: "queue", to: "load" },
+          { from: "ai", to: "accept" },
+          { from: "ai", to: "manual" },
+          { from: "load", to: "manual" },
+          { from: "accept", to: "member" },
+          { from: "manual", to: "member" },
+          { from: "create", to: "audit" },
+          { from: "member", to: "audit" },
+        ],
+      },
+      data: {
+        title: "Data isolation map",
+        blurb: "Personal tables stay separate from workspace_* tables.",
+        nodes: [
+          { id: "user", label: "auth.users / profiles", tone: "accent" },
+          { id: "settings", label: "user_settings", sub: "startup · hide OS" },
+          { id: "p-projects", label: "projects", sub: "Personal" },
+          { id: "p-tasks", label: "tasks", sub: "Personal" },
+          { id: "p-notes", label: "notes · daily_logs" },
+          { id: "p-ai", label: "ai_conversations", sub: "workspace_id NULL" },
+          { id: "ws", label: "workspaces", tone: "accent" },
+          { id: "members", label: "workspace_members", sub: "roles" },
+          { id: "depts", label: "workspace_departments" },
+          { id: "teams", label: "workspace_teams", sub: "lead_user_id" },
+          { id: "w-projects", label: "workspace_projects" },
+          { id: "w-tasks", label: "workspace_tasks", sub: "dept · team · assignee" },
+          { id: "events", label: "assignment_events", sub: "audit" },
+          { id: "w-ai", label: "ai_conversations", sub: "workspace_id SET", tone: "warn" },
+        ],
+        edges: [
+          { from: "user", to: "settings" },
+          { from: "user", to: "p-projects" },
+          { from: "p-projects", to: "p-tasks" },
+          { from: "user", to: "p-notes" },
+          { from: "user", to: "p-ai" },
+          { from: "user", to: "members" },
+          { from: "ws", to: "members" },
+          { from: "ws", to: "depts" },
+          { from: "depts", to: "teams" },
+          { from: "ws", to: "w-projects" },
+          { from: "w-projects", to: "w-tasks" },
+          { from: "teams", to: "w-tasks" },
+          { from: "depts", to: "w-tasks" },
+          { from: "w-tasks", to: "events" },
+          { from: "ws", to: "w-ai" },
+        ],
+      },
+    };
+
+    const MAP_ORDER = [
+      { id: "system", label: "System" },
+      { id: "routing", label: "Routing" },
+      { id: "auth", label: "Auth" },
+      { id: "personal", label: "Personal OS" },
+      { id: "workspace", label: "Workspace OS" },
+      { id: "assignment", label: "Assignment" },
+      { id: "data", label: "Data" },
+    ];
+
+    /** Layered DAG layout matching cursor/canvas computeDAGLayout options. */
+    function computeDAGLayout(options) {
+      const {
+        nodes,
+        edges,
+        direction = "vertical",
+        nodeWidth = 160,
+        nodeHeight = 40,
+        rankGap = 64,
+        nodeGap = 48,
+        padding = 24,
+      } = options;
+
+      const ids = nodes.map((n) => n.id);
+      const idSet = new Set(ids);
+      const outs = new Map(ids.map((id) => [id, []]));
+      const ins = new Map(ids.map((id) => [id, []]));
+
+      for (const e of edges) {
+        if (!idSet.has(e.from) || !idSet.has(e.to)) continue;
+        outs.get(e.from).push(e.to);
+        ins.get(e.to).push(e.from);
+      }
+
+      // DFS back-edge detection
+      const color = new Map(ids.map((id) => [id, 0])); // 0 white, 1 gray, 2 black
+      const backEdgeKeys = new Set();
+      function dfs(u) {
+        color.set(u, 1);
+        for (const v of outs.get(u)) {
+          const c = color.get(v);
+          if (c === 1) backEdgeKeys.add(`${u}->${v}`);
+          else if (c === 0) dfs(v);
+        }
+        color.set(u, 2);
+      }
+      for (const id of ids) if (color.get(id) === 0) dfs(id);
+
+      const forward = edges.filter(
+        (e) => idSet.has(e.from) && idSet.has(e.to) && !backEdgeKeys.has(`${e.from}->${e.to}`),
+      );
+      const fwdOuts = new Map(ids.map((id) => [id, []]));
+      const fwdIns = new Map(ids.map((id) => [id, []]));
+      for (const e of forward) {
+        fwdOuts.get(e.from).push(e.to);
+        fwdIns.get(e.to).push(e.from);
+      }
+
+      // Longest-path ranking
+      const rank = new Map();
+      const indeg = new Map(ids.map((id) => [id, fwdIns.get(id).length]));
+      const queue = ids.filter((id) => indeg.get(id) === 0);
+      for (const id of queue) rank.set(id, 0);
+      let qi = 0;
+      while (qi < queue.length) {
+        const u = queue[qi++];
+        const ru = rank.get(u) ?? 0;
+        for (const v of fwdOuts.get(u)) {
+          rank.set(v, Math.max(rank.get(v) ?? 0, ru + 1));
+          indeg.set(v, indeg.get(v) - 1);
+          if (indeg.get(v) === 0) queue.push(v);
+        }
+      }
+      for (const id of ids) if (!rank.has(id)) rank.set(id, 0);
+
+      const maxRank = Math.max(0, ...ids.map((id) => rank.get(id)));
+      const byRank = Array.from({ length: maxRank + 1 }, () => []);
+      for (const id of ids) byRank[rank.get(id)].push(id);
+
+      // Barycenter ordering (2 passes)
+      function median(arr) {
+        if (!arr.length) return 0;
+        const s = [...arr].sort((a, b) => a - b);
+        const m = Math.floor(s.length / 2);
+        return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+      }
+      const orderInRank = byRank.map((list) => list.map((id, i) => ({ id, order: i })));
+      function posOf(id) {
+        const r = rank.get(id);
+        const row = orderInRank[r];
+        const found = row.find((x) => x.id === id);
+        return found ? found.order : 0;
+      }
+      for (let pass = 0; pass < 2; pass++) {
+        for (let r = 1; r <= maxRank; r++) {
+          orderInRank[r].sort((a, b) => {
+            const pa = median(fwdIns.get(a.id).map(posOf));
+            const pb = median(fwdIns.get(b.id).map(posOf));
+            return pa - pb || a.id.localeCompare(b.id);
+          });
+          orderInRank[r].forEach((x, i) => (x.order = i));
+        }
+        for (let r = maxRank - 1; r >= 0; r--) {
+          orderInRank[r].sort((a, b) => {
+            const pa = median(fwdOuts.get(a.id).map(posOf));
+            const pb = median(fwdOuts.get(b.id).map(posOf));
+            return pa - pb || a.id.localeCompare(b.id);
+          });
+          orderInRank[r].forEach((x, i) => (x.order = i));
+        }
+      }
+
+      const vertical = direction !== "horizontal";
+      const positioned = [];
+      const pos = new Map();
+
+      if (vertical) {
+        let maxRowWidth = 0;
+        for (let r = 0; r <= maxRank; r++) {
+          const count = orderInRank[r].length;
+          const rowW = count * nodeWidth + Math.max(0, count - 1) * nodeGap;
+          maxRowWidth = Math.max(maxRowWidth, rowW);
+        }
+        for (let r = 0; r <= maxRank; r++) {
+          const count = orderInRank[r].length;
+          const rowW = count * nodeWidth + Math.max(0, count - 1) * nodeGap;
+          const startX = padding + (maxRowWidth - rowW) / 2;
+          const y = padding + r * (nodeHeight + rankGap);
+          orderInRank[r].forEach((item, i) => {
+            const x = startX + i * (nodeWidth + nodeGap);
+            const n = { id: item.id, x, y, rank: r, order: i };
+            positioned.push(n);
+            pos.set(item.id, n);
+          });
+        }
+      } else {
+        let maxColHeight = 0;
+        for (let r = 0; r <= maxRank; r++) {
+          const count = orderInRank[r].length;
+          const colH = count * nodeHeight + Math.max(0, count - 1) * nodeGap;
+          maxColHeight = Math.max(maxColHeight, colH);
+        }
+        for (let r = 0; r <= maxRank; r++) {
+          const count = orderInRank[r].length;
+          const colH = count * nodeHeight + Math.max(0, count - 1) * nodeGap;
+          const startY = padding + (maxColHeight - colH) / 2;
+          const x = padding + r * (nodeWidth + rankGap);
+          orderInRank[r].forEach((item, i) => {
+            const y = startY + i * (nodeHeight + nodeGap);
+            const n = { id: item.id, x, y, rank: r, order: i };
+            positioned.push(n);
+            pos.set(item.id, n);
+          });
+        }
+      }
+
+      const ranks = [];
+      for (let r = 0; r <= maxRank; r++) {
+        const row = orderInRank[r];
+        if (!row.length) continue;
+        const xs = row.map((item) => pos.get(item.id).x);
+        const ys = row.map((item) => pos.get(item.id).y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        ranks.push({
+          rank: r,
+          x: minX - 8,
+          y: minY - 8,
+          width: Math.max(...xs) - minX + nodeWidth + 16,
+          height: Math.max(...ys) - minY + nodeHeight + 16,
+          nodeIds: row.map((item) => item.id),
+        });
+      }
+
+      const layoutEdges = edges
+        .filter((e) => pos.has(e.from) && pos.has(e.to))
+        .map((e) => {
+          const s = pos.get(e.from);
+          const t = pos.get(e.to);
+          const isBackEdge = backEdgeKeys.has(`${e.from}->${e.to}`);
+          if (vertical) {
+            return {
+              from: e.from,
+              to: e.to,
+              sourceX: s.x + nodeWidth / 2,
+              sourceY: s.y + nodeHeight,
+              targetX: t.x + nodeWidth / 2,
+              targetY: t.y,
+              isBackEdge,
+            };
+          }
+          return {
+            from: e.from,
+            to: e.to,
+            sourceX: s.x + nodeWidth,
+            sourceY: s.y + nodeHeight / 2,
+            targetX: t.x,
+            targetY: t.y + nodeHeight / 2,
+            isBackEdge,
+          };
+        });
+
+      let maxX = 0;
+      let maxY = 0;
+      for (const n of positioned) {
+        maxX = Math.max(maxX, n.x + nodeWidth);
+        maxY = Math.max(maxY, n.y + nodeHeight);
+      }
+
+      return {
+        nodes: positioned,
+        edges: layoutEdges,
+        ranks,
+        direction: vertical ? "vertical" : "horizontal",
+        width: maxX + padding,
+        height: maxY + padding,
+      };
+    }
+
+    function cssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function fillForTone(tone) {
+      if (tone === "accent") return cssVar("--fill-secondary");
+      if (tone === "warn") return cssVar("--fill-tertiary");
+      if (tone === "muted") return cssVar("--fill-quaternary");
+      return cssVar("--bg-elevated");
+    }
+
+    function strokeForTone(tone) {
+      if (tone === "accent") return cssVar("--accent");
+      return cssVar("--stroke-secondary");
+    }
+
+    let currentMapId = "system";
+    let lastSvgMarkup = "";
+
+    function render() {
+      const map = MAPS[currentMapId];
+      document.getElementById("title").textContent = map.title;
+      document.getElementById("subtitle").textContent = map.blurb;
+      document.getElementById("node-count").textContent = `${map.nodes.length} nodes`;
+      document.getElementById("edge-count").textContent = `${map.edges.length} edges`;
+
+      document.querySelectorAll("button.tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.id === currentMapId);
+      });
+
+      const nodeWidth = 168;
+      const nodeHeight = 52;
+      const layout = computeDAGLayout({
+        nodes: map.nodes.map((n) => ({ id: n.id })),
+        edges: map.edges,
+        direction: "vertical",
+        nodeWidth,
+        nodeHeight,
+        rankGap: 56,
+        nodeGap: 28,
+        padding: 20,
+      });
+
+      const pos = Object.fromEntries(layout.nodes.map((n) => [n.id, n]));
+      const textPrimary = cssVar("--text");
+      const textTertiary = cssVar("--text-tertiary");
+      const fillBand = cssVar("--fill-quaternary");
+      const strokeEdge = cssVar("--stroke-secondary");
+      const strokeBack = cssVar("--stroke-tertiary");
+
+      const bands = layout.ranks
+        .map(
+          (rank) =>
+            `<rect x="${rank.x}" y="${rank.y}" width="${rank.width}" height="${rank.height}" fill="${fillBand}" opacity="0.35" />`,
+        )
+        .join("");
+
+      const paths = layout.edges
+        .map((edge) => {
+          const midY = (edge.sourceY + edge.targetY) / 2;
+          const d = `M ${edge.sourceX} ${edge.sourceY} C ${edge.sourceX} ${midY}, ${edge.targetX} ${midY}, ${edge.targetX} ${edge.targetY}`;
+          const stroke = edge.isBackEdge ? strokeBack : strokeEdge;
+          const dash = edge.isBackEdge ? ' stroke-dasharray="4 4"' : "";
+          return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="1.5"${dash} />`;
+        })
+        .join("");
+
+      const boxes = map.nodes
+        .map((node) => {
+          const p = pos[node.id];
+          if (!p) return "";
+          const fill = fillForTone(node.tone);
+          const stroke = strokeForTone(node.tone);
+          const sw = node.tone === "accent" ? 1.5 : 1;
+          const labelY = node.sub ? 20 : 30;
+          const sub =
+            node.sub && node.sub.length > 26 ? `${node.sub.slice(0, 24)}…` : node.sub || "";
+          const subText = node.sub
+            ? `<text x="${nodeWidth / 2}" y="38" text-anchor="middle" fill="${textTertiary}" font-size="10">${escapeXml(sub)}</text>`
+            : "";
+          return `<g transform="translate(${p.x}, ${p.y})">
+            <rect width="${nodeWidth}" height="${nodeHeight}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" />
+            <text x="${nodeWidth / 2}" y="${labelY}" text-anchor="middle" fill="${textPrimary}" font-size="12" font-weight="600">${escapeXml(node.label)}</text>
+            ${subText}
+          </g>`;
+        })
+        .join("");
+
+      lastSvgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">
+        <rect width="100%" height="100%" fill="${cssVar("--editor")}" />
+        ${bands}${paths}${boxes}
+      </svg>`;
+
+      document.getElementById("map").innerHTML = lastSvgMarkup;
+    }
+
+    function escapeXml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function initTabs() {
+      const tabs = document.getElementById("tabs");
+      MAP_ORDER.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tab";
+        btn.dataset.id = item.id;
+        btn.textContent = item.label;
+        btn.addEventListener("click", () => {
+          currentMapId = item.id;
+          render();
+        });
+        tabs.appendChild(btn);
+      });
+    }
+
+    document.getElementById("download-svg").addEventListener("click", () => {
+      const blob = new Blob([lastSvgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hilm-${currentMapId}-map.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    initTabs();
+    render();
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+  </script>
+</body>
+</html>

@@ -15,7 +15,7 @@ export type AgentPreset = {
   systemPrompt: string
 }
 
-const actionInstruction = `When an action would help, finish your reply with a fenced \`\`\`actions json block containing a JSON array of proposed actions. Use only these action types: task.complete, task.create, task.move, task.update, project.create, project.update, note.create, roadmap.create, daily_log.upsert, activity.note, and idea.create. The JSON must be valid and use IDs only when they are provided in context. Do not put actions anywhere else in the response.`
+const actionInstruction = `When an action would help, finish your reply with a fenced \`\`\`actions json block containing a JSON array of proposed actions (multi-step workflows allowed). Prefer registry action types for the active OS (projects, tasks, subtasks, labels, roadmaps, reports, mission scheduling, org/analytics in Workspace). The JSON must be valid and use IDs only when they are provided in context. Do not put actions anywhere else in the response.`
 
 export const agents: AgentPreset[] = [
   {

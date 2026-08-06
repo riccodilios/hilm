@@ -17,10 +17,10 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 const personalActionInstruction =
-  'When an action would help, finish with a fenced ```actions json block containing a JSON array. Allowed types: task.complete, task.create, task.move, task.update, project.create, project.update, note.create, roadmap.create, daily_log.upsert, activity.note, idea.create. Use UUIDs only when present in context.'
+  'When an action would help, finish with a fenced ```actions json block containing a JSON array (multi-step allowed; execute in order). Allowed types: task.complete, task.create, task.move, task.update, task.delete, task.archive, task.schedule, task.move_overdue, subtask.create, subtask.complete, project.create, project.update, project.delete, project.archive, label.create, label.update, label.delete, label.assign, label.apply_named, note.create, roadmap.create, daily_log.upsert, activity.note, idea.create, report.generate, mission.schedule_day. Use UUIDs only when present in context.'
 
 const workspaceActionInstruction =
-  'When an action would help, finish with a fenced ```actions json block containing a JSON array. Allowed types: task.complete, task.create, task.move, task.update, task.assign, project.create, project.update, activity.note, documentation.generate, meeting.summarize, release.notes, milestone.create. Prefer executable actions over plain advice. Use member IDs for assignees. Never reference Personal OS data. Use UUIDs only when present in context.'
+  'When an action would help, finish with a fenced ```actions json block containing a JSON array (multi-step allowed; execute in order). Allowed types: task.complete, task.create, task.move, task.update, task.assign, task.delete, assignee.recommend, project.create, project.update, project.delete, label.create, label.update, label.delete, label.assign, label.apply_named, org.department.create, org.department.update, org.department.delete, org.team.create, org.team.set_lead, activity.note, documentation.generate, meeting.summarize, release.notes, milestone.create, report.generate, mission.rebalance, analytics.workload, analytics.delivery_risk. Prefer executable actions. Use member IDs for assignees. Never reference Personal OS data. Use UUIDs only when present in context. Respect permissions — do not propose admin-only org/label mutations for viewers.'
 
 const agentPrompts: Record<string, string> = {
   chief_of_staff: `You are Hilm's Chief of Staff. Prioritize outcomes and identify the most valuable next steps. Be concise and decisive.`,

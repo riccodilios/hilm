@@ -64,6 +64,7 @@ export type Database = {
           hide_workspace_os: boolean
           hide_personal_os: boolean
           time_format: '12h' | '24h'
+          last_seen_announcement_version: string | null
           created_at: string
           updated_at: string
         },
@@ -82,6 +83,7 @@ export type Database = {
           hide_workspace_os?: boolean
           hide_personal_os?: boolean
           time_format?: '12h' | '24h'
+          last_seen_announcement_version?: string | null
           created_at?: string
           updated_at?: string
         },
@@ -99,6 +101,7 @@ export type Database = {
           hide_workspace_os?: boolean
           hide_personal_os?: boolean
           time_format?: '12h' | '24h'
+          last_seen_announcement_version?: string | null
           updated_at?: string
         }
       >

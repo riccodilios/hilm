@@ -1,0 +1,73 @@
+import { z } from 'zod'
+
+export const uuidLoose = z
+  .string()
+  .trim()
+  .refine(
+    (value) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+    { message: 'Invalid id' },
+  )
+
+export const optionalUuid = z.preprocess((value) => {
+  if (value == null || value === '') return undefined
+  if (typeof value !== 'string') return undefined
+  return uuidLoose.safeParse(value.trim()).success ? value.trim() : undefined
+}, uuidLoose.optional())
+
+export const requiredUuid = z.preprocess((value) => {
+  if (typeof value !== 'string') return value
+  return value.trim()
+}, uuidLoose)
+
+export const priorityEnum = z.enum(['none', 'low', 'medium', 'high', 'urgent'])
+export const taskStatusEnum = z.enum([
+  'backlog',
+  'todo',
+  'in_progress',
+  'waiting',
+  'testing',
+  'done',
+  'archived',
+])
+
+export const healthEnum = z.enum([
+  'unengaged',
+  'started',
+  'active',
+  'healthy',
+  'near_completion',
+  'blocked',
+  'stalled',
+  'warning',
+  'critical',
+])
+
+export const snakeToCamel: Record<string, string> = {
+  project_id: 'projectId',
+  task_id: 'taskId',
+  due_at: 'dueAt',
+  completion_pct: 'completionPct',
+  log_date: 'logDate',
+  worked_on: 'workedOn',
+  ai_summary: 'aiSummary',
+  entity_type: 'entityType',
+  entity_id: 'entityId',
+  assignee_id: 'assigneeId',
+  label_id: 'labelId',
+  label_ids: 'labelIds',
+  department_id: 'departmentId',
+  team_id: 'teamId',
+  parent_id: 'parentId',
+  lead_user_id: 'leadUserId',
+}
+
+export function normalizeAiAction(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+  const input = raw as Record<string, unknown>
+  const out: Record<string, unknown> = { ...input }
+  for (const [snake, camel] of Object.entries(snakeToCamel)) {
+    if (snake in out && !(camel in out)) out[camel] = out[snake]
+  }
+  return out
+}

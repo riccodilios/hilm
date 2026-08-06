@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getSettings, settingsKeys } from '@/features/settings/api'
+import { WhatsNewGate } from '@/features/announcements/WhatsNewGate'
 import { Skeleton } from '@/components/ui/page'
 
 /** Ensures onboarding is finished before entering Personal or Workspace OS. */
@@ -11,10 +11,6 @@ export function RequireOnboarding() {
     queryKey: settingsKeys.me(),
     queryFn: getSettings,
   })
-
-  useEffect(() => {
-    // Warm cache after auth
-  }, [])
 
   if (settings.isLoading) {
     return (
@@ -28,5 +24,9 @@ export function RequireOnboarding() {
     return <Navigate to="/onboarding" replace />
   }
 
-  return <Outlet />
+  return (
+    <WhatsNewGate>
+      <Outlet />
+    </WhatsNewGate>
+  )
 }

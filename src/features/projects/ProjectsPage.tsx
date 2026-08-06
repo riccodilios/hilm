@@ -11,7 +11,17 @@ import {
   projectsKeys,
   updateProject,
 } from '@/features/projects/api'
-import { createLabel, labelKeys, listLabels, listProjectLabels } from '@/features/projects/labels-api'
+import {
+  createLabel,
+  deleteLabel,
+  labelKeys,
+  listLabels,
+  listProjectLabels,
+  setProjectLabels,
+  updateLabel,
+} from '@/features/projects/labels-api'
+import { LabelsBar } from '@/components/labels/LabelsBar'
+import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
 import { LabelChip } from '@/components/labels/LabelChip'
 import { homeKeys } from '@/features/home/api'
 import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
@@ -37,9 +47,11 @@ type Project = Tables<'projects'>
 
 function ProjectCard({
   project,
+  labels,
   onOpenMenu,
 }: {
   project: Project
+  labels: Array<{ id: string; name: string; color: string }>
   onOpenMenu: (project: Project) => void
 }) {
   const { t } = useTranslation()
@@ -97,8 +109,11 @@ function ProjectCard({
         </div>
         <span className="text-xs tabular-nums text-muted">{project.completion_pct}%</span>
       </div>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <PriorityBadge priority={project.priority} />
+        {labels.map((label) => (
+          <LabelChip key={label.id} name={label.name} color={label.color} />
+        ))}
       </div>
     </div>
   )
@@ -114,27 +129,33 @@ export function ProjectsPage() {
     queryFn: listLabels,
   })
   const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
-  const [labelSearch, setLabelSearch] = useState('')
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState<string>(PROJECT_COLORS[0])
   const [icon, setIcon] = useState('folder')
+  const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
   const [menuProject, setMenuProject] = useState<Project | null>(null)
   const [editProject, setEditProject] = useState<Project | null>(null)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editColor, setEditColor] = useState<string>(PROJECT_COLORS[0])
   const [editIcon, setEditIcon] = useState('folder')
+  const [editLabelIds, setEditLabelIds] = useState<string[]>([])
 
   const invalidate = () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: projectsKeys.all }),
       qc.invalidateQueries({ queryKey: homeKeys.all }),
+      qc.invalidateQueries({ queryKey: labelKeys.all }),
     ])
 
   const create = useMutation({
-    mutationFn: createProject,
+    mutationFn: async () => {
+      const project = await createProject({ name, description, color, icon })
+      if (createLabelIds.length) await setProjectLabels(project.id, createLabelIds)
+      return project
+    },
     onSuccess: async () => {
       await invalidate()
       setOpen(false)
@@ -142,19 +163,22 @@ export function ProjectsPage() {
       setDescription('')
       setIcon('folder')
       setColor(PROJECT_COLORS[0])
+      setCreateLabelIds([])
       toast.success(t('projects.created'))
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
   const saveEdit = useMutation({
-    mutationFn: () =>
-      updateProject(editProject!.id, {
+    mutationFn: async () => {
+      await updateProject(editProject!.id, {
         name: editName.trim(),
         description: editDescription,
         color: editColor,
         icon: editIcon,
-      }),
+      })
+      await setProjectLabels(editProject!.id, editLabelIds)
+    },
     onSuccess: async () => {
       await invalidate()
       setEditProject(null)
@@ -173,6 +197,27 @@ export function ProjectsPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const projectLinks = useQuery({
+    queryKey: [...labelKeys.all, 'links'],
+    queryFn: async () => {
+      const projects = data ?? []
+      const map = new Map<string, Array<{ id: string; name: string; color: string }>>()
+      const idMap = new Map<string, string[]>()
+      await Promise.all(
+        projects.map(async (p) => {
+          const labels = await listProjectLabels(p.id)
+          map.set(p.id, labels)
+          idMap.set(
+            p.id,
+            labels.map((l) => l.id),
+          )
+        }),
+      )
+      return { byProject: map, ids: idMap }
+    },
+    enabled: Boolean(data?.length),
+  })
+
   function openEdit(project: Project) {
     setMenuProject(null)
     setEditProject(project)
@@ -180,40 +225,12 @@ export function ProjectsPage() {
     setEditDescription(project.description ?? '')
     setEditColor(project.color)
     setEditIcon(project.icon ?? 'folder')
+    setEditLabelIds(projectLinks.data?.ids.get(project.id) ?? [])
   }
-
-  const createLabelMut = useMutation({
-    mutationFn: () => createLabel({ name: labelSearch.trim() || 'Work', color: PROJECT_COLORS[0] }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: labelKeys.all })
-      setLabelSearch('')
-      toast.success(t('projects.created'))
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  const projectLinks = useQuery({
-    queryKey: [...labelKeys.all, 'links'],
-    queryFn: async () => {
-      const projects = data ?? []
-      const map = new Map<string, string[]>()
-      await Promise.all(
-        projects.map(async (p) => {
-          const labels = await listProjectLabels(p.id)
-          map.set(
-            p.id,
-            labels.map((l) => l.id),
-          )
-        }),
-      )
-      return map
-    },
-    enabled: Boolean(data?.length),
-  })
 
   const filteredProjects = (data ?? []).filter((project) => {
     if (labelFilter === 'all') return true
-    return projectLinks.data?.get(project.id)?.includes(labelFilter)
+    return projectLinks.data?.ids.get(project.id)?.includes(labelFilter)
   })
 
   return (
@@ -237,7 +254,7 @@ export function ProjectsPage() {
                 className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  create.mutate({ name, description, color, icon })
+                  create.mutate()
                 }}
               >
                 <div className="space-y-2">
@@ -273,6 +290,14 @@ export function ProjectsPage() {
                     ))}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Labels</Label>
+                  <ProjectLabelPicker
+                    labels={labelsQuery.data ?? []}
+                    selectedIds={createLabelIds}
+                    onChange={setCreateLabelIds}
+                  />
+                </div>
                 <Button type="submit" disabled={create.isPending} className="w-full">
                   {t('common.create')}
                 </Button>
@@ -299,46 +324,24 @@ export function ProjectsPage() {
         />
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setLabelFilter('all')}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                labelFilter === 'all' ? 'border-accent/40 bg-accent/10' : 'border-border-subtle'
-              }`}
-            >
-              All
-            </button>
-            {(labelsQuery.data ?? []).map((label) => (
-              <button key={label.id} type="button" onClick={() => setLabelFilter(label.id)}>
-                <LabelChip
-                  name={label.name}
-                  color={label.color}
-                  className={labelFilter === label.id ? 'ring-1 ring-accent' : ''}
-                />
-              </button>
-            ))}
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (labelSearch.trim()) createLabelMut.mutate()
-              }}
-            >
-              <Input
-                value={labelSearch}
-                onChange={(e) => setLabelSearch(e.target.value)}
-                placeholder="New label"
-                className="h-8 w-32"
-              />
-              <Button type="submit" size="sm" variant="secondary" disabled={createLabelMut.isPending}>
-                +
-              </Button>
-            </form>
-          </div>
+          <LabelsBar
+            labels={labelsQuery.data ?? []}
+            filter={labelFilter}
+            onFilterChange={setLabelFilter}
+            canManage
+            queryKey={labelKeys.all}
+            createLabel={createLabel}
+            updateLabel={updateLabel}
+            deleteLabel={deleteLabel}
+          />
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} onOpenMenu={setMenuProject} />
+              <ProjectCard
+                key={project.id}
+                project={project}
+                labels={projectLinks.data?.byProject.get(project.id) ?? []}
+                onOpenMenu={setMenuProject}
+              />
             ))}
           </div>
         </>
@@ -446,6 +449,14 @@ export function ProjectsPage() {
                   />
                 ))}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Labels</Label>
+              <ProjectLabelPicker
+                labels={labelsQuery.data ?? []}
+                selectedIds={editLabelIds}
+                onChange={setEditLabelIds}
+              />
             </div>
             <Button type="submit" disabled={saveEdit.isPending} className="w-full">
               {t('common.save')}
