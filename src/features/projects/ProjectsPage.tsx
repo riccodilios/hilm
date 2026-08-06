@@ -198,22 +198,19 @@ export function ProjectsPage() {
   })
 
   const projectLinks = useQuery({
-    queryKey: [...labelKeys.all, 'links', 'v2'],
+    queryKey: [...labelKeys.all, 'links', 'v3'],
     queryFn: async () => {
       const projects = data ?? []
-      const map = new Map<string, Array<{ id: string; name: string; color: string }>>()
-      const idMap = new Map<string, string[]>()
+      const byProject: Record<string, Array<{ id: string; name: string; color: string }>> = {}
+      const ids: Record<string, string[]> = {}
       await Promise.all(
         projects.map(async (p) => {
           const labels = await listProjectLabels(p.id)
-          map.set(p.id, labels)
-          idMap.set(
-            p.id,
-            labels.map((l) => l.id),
-          )
+          byProject[p.id] = labels
+          ids[p.id] = labels.map((l) => l.id)
         }),
       )
-      return { byProject: map, ids: idMap }
+      return { byProject, ids }
     },
     enabled: Boolean(data?.length),
   })
@@ -225,12 +222,12 @@ export function ProjectsPage() {
     setEditDescription(project.description ?? '')
     setEditColor(project.color)
     setEditIcon(project.icon ?? 'folder')
-    setEditLabelIds(projectLinks.data?.ids?.get(project.id) ?? [])
+    setEditLabelIds(projectLinks.data?.ids?.[project.id] ?? [])
   }
 
   const filteredProjects = (data ?? []).filter((project) => {
     if (labelFilter === 'all') return true
-    return projectLinks.data?.ids?.get(project.id)?.includes(labelFilter)
+    return projectLinks.data?.ids?.[project.id]?.includes(labelFilter)
   })
 
   return (
@@ -339,7 +336,7 @@ export function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
-                labels={projectLinks.data?.byProject?.get(project.id) ?? []}
+                labels={projectLinks.data?.byProject?.[project.id] ?? []}
                 onOpenMenu={setMenuProject}
               />
             ))}

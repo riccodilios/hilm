@@ -59,19 +59,16 @@ export function WorkspaceProjectsPage() {
   })
 
   const projectLinks = useQuery({
-    queryKey: [...workspaceLabelKeys.all(workspaceId), 'links', 'v2'],
+    queryKey: [...workspaceLabelKeys.all(workspaceId), 'links', 'v3'],
     queryFn: async () => {
       const list = projects.data ?? []
-      const byProject = new Map<string, Array<{ id: string; name: string; color: string }>>()
-      const ids = new Map<string, string[]>()
+      const byProject: Record<string, Array<{ id: string; name: string; color: string }>> = {}
+      const ids: Record<string, string[]> = {}
       await Promise.all(
         list.map(async (p) => {
           const labels = await listProjectLabels(workspaceId, p.id)
-          byProject.set(p.id, labels)
-          ids.set(
-            p.id,
-            labels.map((l) => l.id),
-          )
+          byProject[p.id] = labels
+          ids[p.id] = labels.map((l) => l.id)
         }),
       )
       return { byProject, ids }
@@ -107,7 +104,7 @@ export function WorkspaceProjectsPage() {
 
   const filtered = (projects.data ?? []).filter((project) => {
     if (labelFilter === 'all') return true
-    return projectLinks.data?.ids?.get(project.id)?.includes(labelFilter)
+    return projectLinks.data?.ids?.[project.id]?.includes(labelFilter)
   })
 
   return (
@@ -194,7 +191,7 @@ export function WorkspaceProjectsPage() {
                     {project.description || t('workspace.noDescription')}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {(projectLinks.data?.byProject?.get(project.id) ?? []).map((label) => (
+                    {(projectLinks.data?.byProject?.[project.id] ?? []).map((label) => (
                       <LabelChip key={label.id} name={label.name} color={label.color} />
                     ))}
                   </div>
