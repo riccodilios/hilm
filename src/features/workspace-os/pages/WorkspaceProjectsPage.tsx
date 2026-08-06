@@ -59,7 +59,7 @@ export function WorkspaceProjectsPage() {
   })
 
   const projectLinks = useQuery({
-    queryKey: [...workspaceLabelKeys.all(workspaceId), 'links'],
+    queryKey: [...workspaceLabelKeys.all(workspaceId), 'links', 'v2'],
     queryFn: async () => {
       const list = projects.data ?? []
       const byProject = new Map<string, Array<{ id: string; name: string; color: string }>>()
@@ -194,7 +194,7 @@ export function WorkspaceProjectsPage() {
                     {project.description || t('workspace.noDescription')}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {(projectLinks.data?.byProject.get(project.id) ?? []).map((label) => (
+                    {(projectLinks.data?.byProject?.get(project.id) ?? []).map((label) => (
                       <LabelChip key={label.id} name={label.name} color={label.color} />
                     ))}
                   </div>

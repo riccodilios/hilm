@@ -198,7 +198,7 @@ export function ProjectsPage() {
   })
 
   const projectLinks = useQuery({
-    queryKey: [...labelKeys.all, 'links'],
+    queryKey: [...labelKeys.all, 'links', 'v2'],
     queryFn: async () => {
       const projects = data ?? []
       const map = new Map<string, Array<{ id: string; name: string; color: string }>>()
@@ -225,12 +225,12 @@ export function ProjectsPage() {
     setEditDescription(project.description ?? '')
     setEditColor(project.color)
     setEditIcon(project.icon ?? 'folder')
-    setEditLabelIds(projectLinks.data?.ids.get(project.id) ?? [])
+    setEditLabelIds(projectLinks.data?.ids?.get(project.id) ?? [])
   }
 
   const filteredProjects = (data ?? []).filter((project) => {
     if (labelFilter === 'all') return true
-    return projectLinks.data?.ids.get(project.id)?.includes(labelFilter)
+    return projectLinks.data?.ids?.get(project.id)?.includes(labelFilter)
   })
 
   return (
@@ -339,7 +339,7 @@ export function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
-                labels={projectLinks.data?.byProject.get(project.id) ?? []}
+                labels={projectLinks.data?.byProject?.get(project.id) ?? []}
                 onOpenMenu={setMenuProject}
               />
             ))}

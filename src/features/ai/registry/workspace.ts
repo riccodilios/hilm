@@ -417,6 +417,33 @@ export function registerWorkspaceActions() {
   })
 
   registerAction({
+    type: 'label.remove_named',
+    os: 'workspace',
+    title: 'Remove named label',
+    description: 'Remove a label from a workspace project by name',
+    risk: 'safe',
+    permission: editOk,
+    inputSchema: z.object({
+      type: z.literal('label.remove_named'),
+      projectId: requiredUuid,
+      name: z.string().min(1),
+    }),
+    promptFields: 'projectId, name',
+    execute: async (input, ctx) => {
+      const labels = await listWorkspaceLabels(ctx.workspaceId!)
+      const label = labels.find((l) => l.name.toLowerCase() === input.name.toLowerCase())
+      if (!label) return { ok: true, summary: `Label ${input.name} not found — nothing to remove` }
+      const current = await listProjectLabels(ctx.workspaceId!, input.projectId)
+      await setProjectLabels(
+        ctx.workspaceId!,
+        input.projectId,
+        current.filter((l) => l.id !== label.id).map((l) => l.id),
+      )
+      return { ok: true, summary: `Removed label ${label.name} from project` }
+    },
+  })
+
+  registerAction({
     type: 'org.department.create',
     os: 'workspace',
     title: 'Create department',

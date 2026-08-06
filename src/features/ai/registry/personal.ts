@@ -459,6 +459,32 @@ export function registerPersonalActions() {
   })
 
   registerAction({
+    type: 'label.remove_named',
+    os: 'personal',
+    title: 'Remove named label',
+    description: 'Remove a label from a project by name without deleting the label',
+    risk: 'safe',
+    inputSchema: z.object({
+      type: z.literal('label.remove_named'),
+      projectId: requiredUuid,
+      name: z.string().min(1),
+    }),
+    promptFields: 'projectId, name',
+    execute: async (input) => {
+      const labels = await listLabels()
+      const label = labels.find((l) => l.name.toLowerCase() === input.name.toLowerCase())
+      if (!label) return { ok: true, summary: `Label ${input.name} not found — nothing to remove` }
+      const { listProjectLabels } = await import('@/features/projects/labels-api')
+      const current = await listProjectLabels(input.projectId)
+      await setProjectLabels(
+        input.projectId,
+        current.filter((l) => l.id !== label.id).map((l) => l.id),
+      )
+      return { ok: true, summary: `Removed label ${label.name} from project` }
+    },
+  })
+
+  registerAction({
     type: 'note.create',
     os: 'personal',
     title: 'Create note',

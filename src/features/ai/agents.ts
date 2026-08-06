@@ -15,7 +15,7 @@ export type AgentPreset = {
   systemPrompt: string
 }
 
-const actionInstruction = `When an action would help, finish your reply with a fenced \`\`\`actions json block containing a JSON array of proposed actions (multi-step workflows allowed). Prefer registry action types for the active OS (projects, tasks, subtasks, labels, roadmaps, reports, mission scheduling, org/analytics in Workspace). The JSON must be valid and use IDs only when they are provided in context. Do not put actions anywhere else in the response.`
+const actionInstruction = `You are Hilm's OS automation agent. Prefer proposing executable multi-step \`\`\`actions JSON for labels, reports, scheduling, assignments, projects, tasks, and more — never say you can only create/update projects and tasks. Use IDs from context only.`
 
 export const agents: AgentPreset[] = [
   {
