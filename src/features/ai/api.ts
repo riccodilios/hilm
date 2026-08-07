@@ -182,6 +182,18 @@ function parseSseEvent(raw: string, workspaceId?: string): ChatStreamEvent | nul
   return null
 }
 
+export function clientAiClock() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    clientNow: now.toISOString(),
+    clientLocalDate: `${y}-${m}-${d}`,
+  }
+}
+
 export async function* streamChat(input: {
   conversationId: string
   message: string
@@ -190,6 +202,9 @@ export async function* streamChat(input: {
   workspaceId?: string
   model?: string
   locale?: string
+  timezone?: string
+  clientNow?: string
+  clientLocalDate?: string
   idempotencyKey?: string
 }): AsyncGenerator<ChatStreamEvent> {
   const {
@@ -213,6 +228,7 @@ export async function* streamChat(input: {
 
   const idempotencyKey = input.idempotencyKey?.trim() || newIdempotencyKey()
   inFlightFingerprints.add(fingerprint)
+  const clock = clientAiClock()
 
   try {
     const response = await fetch(getAiChatUrl(), {
@@ -229,6 +245,9 @@ export async function* streamChat(input: {
         message,
         idempotencyKey,
         fingerprint,
+        timezone: clock.timezone,
+        clientNow: clock.clientNow,
+        clientLocalDate: clock.clientLocalDate,
       }),
     })
     if (!response.ok) {

@@ -16,6 +16,11 @@ import {
   workspaceActionCatalog,
   workspaceActionInstruction,
 } from './_shared/ai-action-catalog'
+import {
+  annotateTasksForAi,
+  buildAiTimeContextPrompt,
+  resolveAiClock,
+} from './_shared/ai-time-context'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -97,6 +102,9 @@ export default async (request: Request) => {
       workspaceId?: string
       model?: string
       locale?: string
+      timezone?: string
+      clientNow?: string
+      clientLocalDate?: string
       idempotencyKey?: string
       fingerprint?: string
     }
@@ -162,6 +170,14 @@ export default async (request: Request) => {
       .order('created_at', { ascending: false })
       .limit(16)
 
+    const clock = resolveAiClock({
+      timezone: body.timezone,
+      clientNow: body.clientNow,
+      clientLocalDate: body.clientLocalDate,
+      locale: body.locale,
+    })
+    const timeContext = buildAiTimeContextPrompt(clock)
+
     let contextPack = ''
     let actionCatalog = ''
     let modeLabel = 'Personal OS'
@@ -216,9 +232,12 @@ export default async (request: Request) => {
         name: (profileMap.get(m.user_id) || '').trim() || 'Unnamed User',
       }))
 
-      const scopedTasks = activeProjectId
-        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
-        : (tasks ?? [])
+      const scopedTasks = annotateTasksForAi(
+        activeProjectId
+          ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+          : (tasks ?? []),
+        clock,
+      )
 
       actionCatalog = workspaceActionCatalog
       const [{ data: wsLabels }] = await Promise.all([
@@ -253,9 +272,12 @@ Recent activity: ${JSON.stringify(activity ?? [])}`
           .limit(20),
         userClient.from('tags').select('id, name, color').eq('user_id', user.id).order('name').limit(40),
       ])
-      const scopedTasks = activeProjectId
-        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
-        : (tasks ?? [])
+      const scopedTasks = annotateTasksForAi(
+        activeProjectId
+          ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+          : (tasks ?? []),
+        clock,
+      )
       actionCatalog = personalActionCatalog
       contextPack = `You are operating strictly inside Personal OS. Never access workspace/team data.
 Projects: ${JSON.stringify(projects ?? [])}
@@ -272,6 +294,7 @@ Labels: ${JSON.stringify(labels ?? [])}`
         : 'Respond to the user in English.'
     const systemPrompt = `You are Hilm AI (${modeLabel}). ${agentInstruction}
 ${languageInstruction}
+${timeContext}
 Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end, for example:
 \`\`\`actions
 [{"type":"task.create","title":"Example","priority":"medium"}]
