@@ -25,8 +25,8 @@ export type ExecuteAiActionsOptions = {
 
 ensureAiRegistry()
 
-export function getActionRisk(actions: ParsedRegistryAction[]): ActionRisk {
-  return maxRisk(actions)
+export function getActionRisk(actions: ParsedRegistryAction[], os?: ActionContext['os']): ActionRisk {
+  return maxRisk(actions, os)
 }
 
 export function parseActionsForOs(
@@ -92,7 +92,7 @@ export async function executeAiActions(
   const results: ActionExecutionResult[] = []
 
   for (const action of actions) {
-    const def = getRegisteredAction(action.type)
+    const def = getRegisteredAction(action.type, os)
     if (!def) {
       results.push({ action, success: false, error: `Unknown action ${action.type}` })
       if (sequential) break

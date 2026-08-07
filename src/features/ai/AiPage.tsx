@@ -64,16 +64,16 @@ function appendVoiceText(current: string, addition: string) {
   return `${base}${needsSpace ? ' ' : ''}${next}`
 }
 
-function actionLabel(action: AiAction) {
-  const def = getRegisteredAction(String(action.type))
+function actionLabel(action: AiAction, os?: 'personal' | 'workspace') {
+  const def = getRegisteredAction(String(action.type), os)
   const title = typeof action.title === 'string' ? action.title : undefined
   const name = typeof action.name === 'string' ? action.name : undefined
   const summary = typeof action.summary === 'string' ? action.summary : undefined
   return title || name || summary || def?.title || String(action.type).replace(/\./g, ' ')
 }
 
-function riskNeedsConfirm(actions: ParsedRegistryAction[]) {
-  const risk = getActionRisk(actions)
+function riskNeedsConfirm(actions: ParsedRegistryAction[], os?: 'personal' | 'workspace') {
+  const risk = getActionRisk(actions, os)
   return risk === 'confirm' || risk === 'destructive'
 }
 
@@ -89,6 +89,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('projectId') ?? undefined
   const isWorkspace = mode === 'workspace' && Boolean(workspaceId)
+  const osMode = isWorkspace ? 'workspace' : 'personal'
   const [selectedId, setSelectedId] = useState<string>()
   const [agentId, setAgentId] = useState<AgentId>(defaultAgentId)
   const [input, setInput] = useState('')
@@ -231,18 +232,21 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         content += event.token
         setDraft({ ...pending, content })
       } else if (event.type === 'actions') {
-        const parsed = parseActionsForOs(event.actions, {
+        const incoming = event.actions ?? []
+        if (!incoming.length) continue
+        const parsed = parseActionsForOs(incoming, {
           workspaceId: isWorkspace ? workspaceId : undefined,
-          role: workspaceRole,
+          role: workspaceRole ?? undefined,
         })
-        setProposedActions(parsed.length ? parsed : (event.actions as AiAction[]))
+        setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
       } else if (event.type === 'done') {
-        if (event.actions) {
-          const parsed = parseActionsForOs(event.actions, {
+        const incoming = event.actions ?? []
+        if (incoming.length) {
+          const parsed = parseActionsForOs(incoming, {
             workspaceId: isWorkspace ? workspaceId : undefined,
-            role: workspaceRole,
+            role: workspaceRole ?? undefined,
           })
-          setProposedActions(parsed.length ? parsed : (event.actions as AiAction[]))
+          setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
         }
       } else if (event.type === 'error') {
         toast.error(event.error)
@@ -254,7 +258,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     streamingRef.current = false
     const fromContent = extractActionsFromContent(content, {
       workspaceId: isWorkspace ? workspaceId : undefined,
-      role: workspaceRole,
+      role: workspaceRole ?? undefined,
     })
     if (fromContent.length) setProposedActions(fromContent)
     await Promise.all([
@@ -303,7 +307,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     try {
       const results = await executeAiActions(proposedActions, {
         workspaceId: isWorkspace ? workspaceId : undefined,
-        role: workspaceRole,
+        role: workspaceRole ?? undefined,
         sequential: true,
       })
       const succeeded = results.filter((result) => result.success)
@@ -356,7 +360,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
 
   async function executeActions() {
     if (!proposedActions.length) return
-    if (riskNeedsConfirm(proposedActions)) {
+    if (riskNeedsConfirm(proposedActions, osMode)) {
       setConfirmOpen(true)
       return
     }
@@ -559,10 +563,10 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                     key={`${action.type}-${index}`}
                     className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
                   >
-                    {actionLabel(action)}
-                    {getRegisteredAction(String(action.type))?.risk !== 'safe' ? (
+                    {actionLabel(action, osMode)}
+                    {getRegisteredAction(String(action.type), osMode)?.risk !== 'safe' ? (
                       <span className="ms-1 text-[10px] uppercase text-warning">
-                        {getRegisteredAction(String(action.type))?.risk}
+                        {getRegisteredAction(String(action.type), osMode)?.risk}
                       </span>
                     ) : null}
                   </span>
@@ -582,9 +586,9 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
               <ul className="max-h-48 space-y-2 overflow-auto text-sm">
                 {proposedActions.map((action, index) => (
                   <li key={`${action.type}-confirm-${index}`} className="rounded-lg bg-surface-2 px-3 py-2">
-                    <span className="font-medium">{actionLabel(action)}</span>
+                    <span className="font-medium">{actionLabel(action, osMode)}</span>
                     <span className="ms-2 text-xs text-muted">
-                      {getRegisteredAction(String(action.type))?.risk}
+                      {getRegisteredAction(String(action.type), osMode)?.risk}
                     </span>
                   </li>
                 ))}

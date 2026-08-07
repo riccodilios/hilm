@@ -14,12 +14,12 @@ ensureAiRegistry()
 
 export type AiAction = ParsedRegistryAction
 
-export function parseAiActions(value: unknown): AiAction[] {
-  return parseActionsForOs(value)
+export function parseAiActions(value: unknown, workspaceId?: string): AiAction[] {
+  return parseActionsForOs(value, { workspaceId })
 }
 
-export function extractAiActionsFromContent(content: string): AiAction[] {
-  return extractActionsFromContent(content)
+export function extractAiActionsFromContent(content: string, workspaceId?: string): AiAction[] {
+  return extractActionsFromContent(content, { workspaceId })
 }
 
 export { normalizeAiAction }

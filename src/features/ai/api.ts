@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
+import { coerceActionsList } from '@/features/ai/registry'
 import { parseAiActions } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
@@ -139,11 +140,14 @@ export async function listMessages(conversationId: string) {
   return data as AiMessage[]
 }
 
-function parseActions(value: unknown): AiAction[] {
-  return parseAiActions(value)
+function parseActions(value: unknown, workspaceId?: string): AiAction[] {
+  // Keep raw shapes for the UI even if OS validation is strict; AiPage re-validates on Apply.
+  const strict = parseAiActions(value, workspaceId)
+  if (strict.length) return strict
+  return coerceActionsList(value) as AiAction[]
 }
 
-function parseSseEvent(raw: string): ChatStreamEvent | null {
+function parseSseEvent(raw: string, workspaceId?: string): ChatStreamEvent | null {
   const data = raw
     .split('\n')
     .filter((line) => line.startsWith('data:'))
@@ -154,12 +158,12 @@ function parseSseEvent(raw: string): ChatStreamEvent | null {
   try {
     const event = JSON.parse(data) as Record<string, unknown>
     if (event.type === 'token' && typeof event.token === 'string') return { type: 'token', token: event.token }
-    if (event.type === 'actions') return { type: 'actions', actions: parseActions(event.actions) }
+    if (event.type === 'actions') return { type: 'actions', actions: parseActions(event.actions, workspaceId) }
     if (event.type === 'done') {
       return {
         type: 'done',
         content: typeof event.content === 'string' ? event.content : undefined,
-        actions: parseActions(event.actions),
+        actions: parseActions(event.actions, workspaceId),
       }
     }
     if (event.type === 'error') {
@@ -251,7 +255,7 @@ export async function* streamChat(input: {
         return
       }
       if (payload.content) yield { type: 'token', token: payload.content }
-      const actions = parseActions(payload.actions)
+      const actions = parseActions(payload.actions, input.workspaceId)
       if (actions.length) yield { type: 'actions', actions }
       yield { type: 'done', content: payload.content, actions }
       return
@@ -266,12 +270,12 @@ export async function* streamChat(input: {
       const events = buffer.split(/\r?\n\r?\n/)
       buffer = events.pop() ?? ''
       for (const raw of events) {
-        const event = parseSseEvent(raw)
+        const event = parseSseEvent(raw, input.workspaceId)
         if (event) yield event
       }
       if (done) break
     }
-    const finalEvent = parseSseEvent(buffer)
+    const finalEvent = parseSseEvent(buffer, input.workspaceId)
     if (finalEvent) yield finalEvent
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : undefined
