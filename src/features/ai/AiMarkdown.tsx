@@ -53,11 +53,15 @@ export function AiMarkdown({
           ol: ({ children }) => (
             <ol className="mb-2.5 list-decimal space-y-1.5 ps-5 last:mb-0">{children}</ol>
           ),
-          li: ({ children, className: liClass, checked, ...props }) => {
+          li: ({ children, className: liClass, ...props }) => {
+            const checked =
+              'checked' in props ? (props as { checked?: boolean | null }).checked : undefined
+            const rest = { ...props } as Record<string, unknown>
+            delete rest.checked
             const isTask = typeof checked === 'boolean' || liClass?.includes('task-list-item')
             if (isTask) {
               return (
-                <li className={cn('list-none leading-6', liClass)} {...props}>
+                <li className={cn('list-none leading-6', liClass)} {...rest}>
                   <span className="inline-flex items-start gap-2">
                     <span
                       className={cn(
@@ -72,7 +76,7 @@ export function AiMarkdown({
               )
             }
             return (
-              <li className={cn('leading-6', liClass)} {...props}>
+              <li className={cn('leading-6', liClass)} {...rest}>
                 {children}
               </li>
             )
