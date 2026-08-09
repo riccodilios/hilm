@@ -5,7 +5,6 @@ import {
   Brain,
   Building2,
   CheckSquare,
-  FileBarChart,
   FolderKanban,
   Home,
   Search,
@@ -33,7 +32,6 @@ export function PersonalShell() {
       ? [{ to: '/personal/workspace', label: t('nav.workspace'), icon: Building2 }]
       : []),
     { to: '/personal/ai', label: t('nav.ai'), icon: Brain },
-    { to: '/personal/reports', label: t('nav.reports'), icon: FileBarChart },
     { to: '/personal/profile', label: t('nav.profile'), icon: UserRound },
   ]
 
