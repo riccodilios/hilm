@@ -17,17 +17,24 @@ export const tasksKeys = {
   byProject: (projectId: string) => [...tasksKeys.all, 'project', projectId] as const,
 }
 
-const taskSelect = '*, projects(id, name, color, icon)'
+/** List/detail UI can use the embed; mutations must not — embeds + single-row Prefer break Apply. */
+const taskListSelect = '*, projects(id, name, color, icon)'
 
-function isNoRowsError(error: { code?: string; message?: string } | null | undefined) {
-  if (!error) return false
-  if (error.code === 'PGRST116') return true
-  return /coerce the result to a single json object/i.test(error.message ?? '')
+function asTaskWithProject(
+  task: Tables<'tasks'>,
+  project?: Pick<Tables<'projects'>, 'id' | 'name' | 'color' | 'icon'> | null,
+): TaskWithProject {
+  return { ...task, projects: project ?? null }
 }
 
-function throwTaskNotFound(error?: { code?: string; message?: string } | null): never {
-  if (error && !isNoRowsError(error)) throw error
-  throw new Error('Task not found or you do not have access to it')
+async function loadProjectHint(projectId: string | null | undefined) {
+  if (!projectId) return null
+  const { data } = await supabase
+    .from('projects')
+    .select('id, name, color, icon')
+    .eq('id', projectId)
+    .maybeSingle()
+  return data
 }
 
 export async function listTasks(opts?: {
@@ -38,7 +45,7 @@ export async function listTasks(opts?: {
 }) {
   let q = supabase
     .from('tasks')
-    .select(taskSelect)
+    .select(taskListSelect)
     .not('project_id', 'is', null)
     .neq('status', 'archived')
     .order('position')
@@ -56,14 +63,36 @@ export async function listTasks(opts?: {
 }
 
 export async function getTask(id: string) {
-  const { data, error } = await supabase
-    .from('tasks')
-    .select(taskSelect)
-    .eq('id', id)
-    .maybeSingle()
+  const { data, error } = await supabase.from('tasks').select('*').eq('id', id).maybeSingle()
   if (error) throw error
-  if (!data) throwTaskNotFound()
-  return data as TaskWithProject
+  if (!data) throw new Error('Task not found or you do not have access to it')
+  const project = await loadProjectHint(data.project_id)
+  return asTaskWithProject(data, project)
+}
+
+/**
+ * Resolve a task id for AI actions. Prefer exact id; fall back to latest open task
+ * with a matching title so Apply still works when the model invents/stales an id.
+ */
+export async function resolveTaskIdForAction(taskId: string, titleHint?: string) {
+  const { data: exact, error } = await supabase.from('tasks').select('id').eq('id', taskId).limit(1)
+  if (error) throw error
+  if (exact?.[0]?.id) return exact[0].id
+
+  const hint = titleHint?.trim()
+  if (hint) {
+    const { data: byTitle, error: titleError } = await supabase
+      .from('tasks')
+      .select('id')
+      .ilike('title', hint)
+      .neq('status', 'archived')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    if (titleError) throw titleError
+    if (byTitle?.[0]?.id) return byTitle[0].id
+  }
+
+  return null
 }
 
 async function upsertPrimaryReminder(input: {
@@ -73,15 +102,12 @@ async function upsertPrimaryReminder(input: {
   remindAt: string | null
   reminderType: ReminderType
 }) {
-  // Replace unsent primary reminders for this task
   const { error: deleteError } = await supabase
     .from('task_reminders')
     .delete()
     .eq('task_id', input.taskId)
     .eq('notification_sent', false)
-  if (deleteError) {
-    console.error('Failed to clear old reminders', deleteError)
-  }
+  if (deleteError) console.error('Failed to clear old reminders', deleteError)
 
   if (!input.remindAt || !input.projectId) return null
 
@@ -95,7 +121,6 @@ async function upsertPrimaryReminder(input: {
   if (settings?.email_reminders_enabled !== false) channels.push('email')
   if (settings?.push_notifications_enabled) channels.push('push')
 
-  // Avoid .single() — a missing RETURNING row must not fail the parent task action.
   const { error } = await supabase.from('task_reminders').insert({
     user_id: input.userId,
     task_id: input.taskId,
@@ -147,18 +172,17 @@ export async function createTask(input: {
     estimated_hours: input.estimatedHours ?? null,
   }
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert(payload)
-    .select(taskSelect)
-    .maybeSingle()
+  // Insert without Prefer: object — then read back. Avoids PGRST116 on RETURNING.
+  const { data: created, error } = await supabase.from('tasks').insert(payload).select('id').maybeSingle()
   if (error) throw error
-  if (!data) throw new Error('Could not create task')
+  if (!created?.id) throw new Error('Could not create task')
+
+  const task = await getTask(created.id)
 
   await upsertPrimaryReminder({
     userId,
-    taskId: data.id,
-    projectId: data.project_id,
+    taskId: task.id,
+    projectId: task.project_id,
     remindAt: reminderDatetime,
     reminderType,
   })
@@ -166,19 +190,19 @@ export async function createTask(input: {
   await recordActivity({
     userId,
     entityType: 'task',
-    entityId: data.id,
-    projectId: data.project_id,
+    entityId: task.id,
+    projectId: task.project_id,
     action: 'created',
-    summary: `Created task ${data.title}`,
+    summary: `Created task ${task.title}`,
   })
-  if (data.project_id) {
+  if (task.project_id) {
     try {
-      await refreshProjectCompletion(data.project_id)
-    } catch (error) {
-      console.error('Failed to refresh project completion', error)
+      await refreshProjectCompletion(task.project_id)
+    } catch (refreshError) {
+      console.error('Failed to refresh project completion', refreshError)
     }
   }
-  return data as TaskWithProject
+  return task
 }
 
 export async function updateTask(id: string, patch: Updates<'tasks'> & {
@@ -190,13 +214,11 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
   delete (next as { reminderType?: ReminderType }).reminderType
   delete (next as { customReminderAt?: string | null }).customReminderAt
 
-  // Load once — avoids repeated .single() failures with opaque PostgREST errors.
   const current = await getTask(id)
 
   if (patch.due_date !== undefined || patch.due_time !== undefined) {
     const dueDate = patch.due_date !== undefined ? patch.due_date : current.due_date
     next.due_time = null
-    // Keep an explicit due_at (timed schedule) when Mission Control provides one.
     if (patch.due_at === undefined) {
       next.due_at = combineDueAt(dueDate)
     }
@@ -230,14 +252,20 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
     })
   }
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .update(next)
-    .eq('id', id)
-    .select(taskSelect)
-    .maybeSingle()
+  // Mutation only — never .select().single()/maybeSingle() on the update call.
+  const { error } = await supabase.from('tasks').update(next).eq('id', id)
   if (error) throw error
-  if (!data) throwTaskNotFound(error)
+
+  let data: TaskWithProject
+  try {
+    data = await getTask(id)
+  } catch {
+    // Update succeeded; return merged local view if read-back races.
+    data = asTaskWithProject(
+      { ...current, ...next, id: current.id, user_id: current.user_id } as Tables<'tasks'>,
+      current.projects ?? null,
+    )
+  }
 
   await recordActivity({
     userId,
@@ -258,7 +286,7 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
       console.error('Failed to refresh project completion', refreshError)
     }
   }
-  return data as TaskWithProject
+  return data
 }
 
 export async function moveTask(id: string, status: TaskStatus, position?: number) {

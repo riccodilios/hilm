@@ -186,18 +186,25 @@ export async function upsertDailyLog(input: {
   const { data, error } = await supabase
     .from('daily_logs')
     .upsert(payload, { onConflict: 'user_id,log_date' })
-    .select('*')
+    .select('id')
     .maybeSingle()
   if (error) throw error
-  if (!data) throw new Error('Could not save daily log')
+  if (!data?.id) throw new Error('Could not save daily log')
+  const { data: saved, error: readError } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('id', data.id)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!saved) throw new Error('Could not save daily log')
   await recordActivity({
     userId,
     entityType: 'daily_log',
-    entityId: data.id,
+    entityId: saved.id,
     action: 'upserted',
     summary: `Updated daily log for ${logDate}`,
   })
-  return data as Tables<'daily_logs'>
+  return saved as Tables<'daily_logs'>
 }
 
 export async function generateDailyLog(input: {

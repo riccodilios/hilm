@@ -31,8 +31,12 @@ export async function createIdea(input: {
     impact: input.impact ?? 3,
     effort: input.effort ?? 3,
   }
-  const { data, error } = await supabase.from('ideas').insert(payload).select('*').single()
+  const { data: created, error } = await supabase.from('ideas').insert(payload).select('id').maybeSingle()
   if (error) throw error
+  if (!created?.id) throw new Error('Could not create idea')
+  const { data, error: readError } = await supabase.from('ideas').select('*').eq('id', created.id).maybeSingle()
+  if (readError) throw readError
+  if (!data) throw new Error('Could not create idea')
   await recordActivity({
     userId,
     entityType: 'idea',

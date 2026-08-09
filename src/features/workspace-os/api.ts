@@ -497,9 +497,11 @@ export async function createWorkspaceTask(
       reminder_type: dueDate ? reminderType : null,
       reminder_at: reminderAt,
     })
-    .select('*')
-    .single()
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!data?.id) throw new Error('Could not create workspace task')
+  const created = await getWorkspaceTask(workspaceId, data.id)
 
   if (assignment.assigneeId && assignment.assigneeId !== userId) {
     await supabase.from('notifications').insert({
@@ -509,8 +511,8 @@ export async function createWorkspaceTask(
       title: 'Task assigned',
       body: `You were assigned "${input.title}"`,
       entity_type: 'workspace_task',
-      entity_id: data.id,
-      href: `/workspace/${workspaceId}/tasks/${data.id}`,
+      entity_id: created.id,
+      href: `/workspace/${workspaceId}/tasks/${created.id}`,
     })
   }
   for (const leadId of assignment.notifyLeadIds) {
@@ -522,7 +524,7 @@ export async function createWorkspaceTask(
       title: 'New task for your team',
       body: `"${input.title}" was assigned to your team — open the assignment queue to distribute.`,
       entity_type: 'workspace_task',
-      entity_id: data.id,
+      entity_id: created.id,
       href: `/workspace/${workspaceId}/team-lead`,
     })
   }
@@ -533,7 +535,7 @@ export async function createWorkspaceTask(
       ? 'assigned_team'
       : 'unassigned'
   await recordAssignmentEvent(workspaceId, {
-    taskId: data.id,
+    taskId: created.id,
     eventType,
     summary: assignment.assigneeId
       ? `Assigned to member`
@@ -553,9 +555,9 @@ export async function createWorkspaceTask(
     eventType: 'task.created',
     summary: `Task “${input.title}” created`,
     entityType: 'task',
-    entityId: data.id,
+    entityId: created.id,
   })
-  return getWorkspaceTask(workspaceId, data.id)
+  return created
 }
 
 async function resolveOrgAssignment(

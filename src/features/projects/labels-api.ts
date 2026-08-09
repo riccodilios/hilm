@@ -23,29 +23,43 @@ export async function listLabels() {
 
 export async function createLabel(input: { name: string; color?: string }) {
   const userId = await requireUserId()
-  const { data, error } = await supabase
+  const { data: created, error } = await supabase
     .from('tags')
     .insert({
       user_id: userId,
       name: input.name,
       color: input.color ?? '#94a3b8',
     })
-    .select('*')
-    .single()
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!created?.id) throw new Error('Could not create label')
+  const { data, error: readError } = await supabase
+    .from('tags')
+    .select('*')
+    .eq('id', created.id)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!data) throw new Error('Could not create label')
   return data as Tag
 }
 
 export async function updateLabel(labelId: string, patch: Pick<Updates<'tags'>, 'name' | 'color'>) {
   const userId = await requireUserId()
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('tags')
     .update(patch)
     .eq('id', labelId)
     .eq('user_id', userId)
-    .select('*')
-    .single()
   if (error) throw error
+  const { data, error: readError } = await supabase
+    .from('tags')
+    .select('*')
+    .eq('id', labelId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!data) throw new Error('Label not found')
   return data as Tag
 }
 

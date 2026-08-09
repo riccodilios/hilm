@@ -30,6 +30,7 @@ import {
   deleteTask,
   listTasks,
   moveTask,
+  resolveTaskIdForAction,
   updateTask,
 } from '@/features/tasks/api'
 import { recordActivity, requireUserId } from '@/lib/supabase/activity'
@@ -43,6 +44,12 @@ function tomorrowIso() {
   return d.toISOString()
 }
 
+async function requireResolvedTaskId(taskId: string, titleHint?: string) {
+  const resolved = await resolveTaskIdForAction(taskId, titleHint)
+  if (!resolved) throw new Error('Task not found or you do not have access to it')
+  return resolved
+}
+
 export function registerPersonalActions() {
   registerAction({
     type: 'task.complete',
@@ -51,11 +58,19 @@ export function registerPersonalActions() {
     description: 'Mark a task done',
     risk: 'safe',
     parallelSafe: true,
-    inputSchema: z.object({ type: z.literal('task.complete'), taskId: requiredUuid }),
-    promptFields: 'taskId',
+    inputSchema: z.object({
+      type: z.literal('task.complete'),
+      taskId: requiredUuid,
+      title: z.string().optional(),
+    }),
+    promptFields: 'taskId, title?',
     execute: async (input) => {
-      await updateTask(input.taskId, { status: 'done' })
-      return { ok: true, summary: `Completed task ${input.taskId}` }
+      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+      if (!taskId) {
+        return { ok: true, summary: 'No matching task to complete (already gone or unknown id)' }
+      }
+      await updateTask(taskId, { status: 'done' })
+      return { ok: true, summary: `Completed task ${taskId}` }
     },
   })
 
@@ -76,8 +91,11 @@ export function registerPersonalActions() {
     }),
     promptFields: 'title, description?, projectId?, priority?, status?, dueAt?',
     execute: async (input) => {
-      const projectId = input.projectId ?? (await listProjects())[0]?.id
-      if (!projectId) throw new Error('Create a project before creating a task')
+      let projectId = input.projectId ?? (await listProjects())[0]?.id
+      if (!projectId) {
+        const created = await createProject({ name: 'Inbox', description: 'Default project for uncategorized work', icon: 'inbox', color: '#a1a1aa' })
+        projectId = created.id
+      }
       const task = await createTask({
         title: input.title,
         description: input.description,
@@ -106,10 +124,12 @@ export function registerPersonalActions() {
       type: z.literal('task.move'),
       taskId: requiredUuid,
       status: taskStatusEnum,
+      title: z.string().optional(),
     }),
-    promptFields: 'taskId, status',
+    promptFields: 'taskId, status, title?',
     execute: async (input) => {
-      await moveTask(input.taskId, input.status as TaskStatus)
+      const taskId = await requireResolvedTaskId(input.taskId, input.title)
+      await moveTask(taskId, input.status as TaskStatus)
       return { ok: true, summary: `Moved task to ${input.status}` }
     },
   })
@@ -131,13 +151,17 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
     execute: async (input) => {
-      await updateTask(input.taskId, {
+      const taskId = await requireResolvedTaskId(input.taskId, input.title)
+      await updateTask(taskId, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         due_at: input.dueAt,
+        ...(input.dueAt !== undefined
+          ? { due_date: input.dueAt ? input.dueAt.slice(0, 10) : null }
+          : {}),
       })
-      return { ok: true, summary: `Updated task ${input.taskId}` }
+      return { ok: true, summary: `Updated task ${taskId}` }
     },
   })
 
@@ -147,11 +171,17 @@ export function registerPersonalActions() {
     title: 'Delete task',
     description: 'Permanently delete a task',
     risk: 'destructive',
-    inputSchema: z.object({ type: z.literal('task.delete'), taskId: requiredUuid }),
-    promptFields: 'taskId',
+    inputSchema: z.object({
+      type: z.literal('task.delete'),
+      taskId: requiredUuid,
+      title: z.string().optional(),
+    }),
+    promptFields: 'taskId, title?',
     execute: async (input) => {
-      await deleteTask(input.taskId)
-      return { ok: true, summary: `Deleted task ${input.taskId}` }
+      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+      if (!taskId) return { ok: true, summary: 'Task already deleted or not found' }
+      await deleteTask(taskId)
+      return { ok: true, summary: `Deleted task ${taskId}` }
     },
   })
 
@@ -161,11 +191,17 @@ export function registerPersonalActions() {
     title: 'Archive task',
     description: 'Archive a task',
     risk: 'confirm',
-    inputSchema: z.object({ type: z.literal('task.archive'), taskId: requiredUuid }),
-    promptFields: 'taskId',
+    inputSchema: z.object({
+      type: z.literal('task.archive'),
+      taskId: requiredUuid,
+      title: z.string().optional(),
+    }),
+    promptFields: 'taskId, title?',
     execute: async (input) => {
-      await archiveTask(input.taskId)
-      return { ok: true, summary: `Archived task ${input.taskId}` }
+      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+      if (!taskId) return { ok: true, summary: 'Task already archived or not found' }
+      await archiveTask(taskId)
+      return { ok: true, summary: `Archived task ${taskId}` }
     },
   })
 
@@ -180,15 +216,17 @@ export function registerPersonalActions() {
       type: z.literal('task.schedule'),
       taskId: requiredUuid,
       dueAt: z.string().nullable(),
+      title: z.string().optional(),
     }),
-    promptFields: 'taskId, dueAt',
+    promptFields: 'taskId, dueAt, title?',
     execute: async (input) => {
+      const taskId = await requireResolvedTaskId(input.taskId, input.title)
       const dueAt = input.dueAt
-      await updateTask(input.taskId, {
+      await updateTask(taskId, {
         due_at: dueAt,
         due_date: dueAt ? dueAt.slice(0, 10) : null,
       })
-      return { ok: true, summary: `Scheduled task ${input.taskId}` }
+      return { ok: true, summary: `Scheduled task ${taskId}` }
     },
   })
 

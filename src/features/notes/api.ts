@@ -17,8 +17,9 @@ export async function listNotes(projectId?: string) {
 }
 
 export async function getNote(id: string) {
-  const { data, error } = await supabase.from('notes').select('*').eq('id', id).single()
+  const { data, error } = await supabase.from('notes').select('*').eq('id', id).maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Note not found')
   return data as Tables<'notes'>
 }
 
@@ -34,8 +35,10 @@ export async function createNote(input: {
     body: input.body ?? '',
     project_id: input.projectId ?? null,
   }
-  const { data, error } = await supabase.from('notes').insert(payload).select('*').single()
+  const { data: created, error } = await supabase.from('notes').insert(payload).select('id').maybeSingle()
   if (error) throw error
+  if (!created?.id) throw new Error('Could not create note')
+  const data = await getNote(created.id)
   await recordActivity({
     userId,
     entityType: 'note',
@@ -44,7 +47,7 @@ export async function createNote(input: {
     action: 'created',
     summary: `Created note ${data.title}`,
   })
-  return data as Tables<'notes'>
+  return data
 }
 
 export async function updateNote(
@@ -52,8 +55,9 @@ export async function updateNote(
   patch: { title?: string; body?: string; project_id?: string | null },
 ) {
   const userId = await requireUserId()
-  const { data, error } = await supabase.from('notes').update(patch).eq('id', id).select('*').single()
+  const { error } = await supabase.from('notes').update(patch).eq('id', id)
   if (error) throw error
+  const data = await getNote(id)
   await recordActivity({
     userId,
     entityType: 'note',
@@ -62,5 +66,5 @@ export async function updateNote(
     action: 'updated',
     summary: `Updated note ${data.title}`,
   })
-  return data as Tables<'notes'>
+  return data
 }

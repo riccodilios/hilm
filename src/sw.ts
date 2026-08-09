@@ -6,6 +6,7 @@ import { NetworkOnly } from 'workbox-strategies'
 
 declare let self: ServiceWorkerGlobalScope
 
+// Force clients onto the latest service worker after AI Apply reliability fixes.
 self.skipWaiting()
 clientsClaim()
 precacheAndRoute(self.__WB_MANIFEST)

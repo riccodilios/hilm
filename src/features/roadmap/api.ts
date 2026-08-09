@@ -32,8 +32,20 @@ export async function createRoadmapItem(input: {
     description: input.description ?? null,
     horizon: input.horizon ?? 'next',
   }
-  const { data, error } = await supabase.from('roadmap_items').insert(payload).select('*').single()
+  const { data: created, error } = await supabase
+    .from('roadmap_items')
+    .insert(payload)
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!created?.id) throw new Error('Could not create roadmap item')
+  const { data, error: readError } = await supabase
+    .from('roadmap_items')
+    .select('*')
+    .eq('id', created.id)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!data) throw new Error('Could not create roadmap item')
   await recordActivity({
     userId,
     entityType: 'roadmap_item',
@@ -49,12 +61,14 @@ export async function updateRoadmapItem(
   id: string,
   patch: Partial<Pick<Tables<'roadmap_items'>, 'title' | 'description' | 'horizon' | 'position'>>,
 ) {
-  const { data, error } = await supabase
-    .from('roadmap_items')
-    .update(patch)
-    .eq('id', id)
-    .select('*')
-    .single()
+  const { error } = await supabase.from('roadmap_items').update(patch).eq('id', id)
   if (error) throw error
+  const { data, error: readError } = await supabase
+    .from('roadmap_items')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (readError) throw readError
+  if (!data) throw new Error('Roadmap item not found')
   return data as Tables<'roadmap_items'>
 }

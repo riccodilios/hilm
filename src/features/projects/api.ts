@@ -50,30 +50,26 @@ export async function createProject(input: {
     priority: input.priority ?? 'medium',
     status: input.status ?? 'active',
   }
-  const { data, error } = await supabase.from('projects').insert(payload).select('*').maybeSingle()
+  const { data, error } = await supabase.from('projects').insert(payload).select('id').maybeSingle()
   if (error) throw error
-  if (!data) throw new Error('Could not create project')
+  if (!data?.id) throw new Error('Could not create project')
+  const created = await getProject(data.id)
   await recordActivity({
     userId,
     entityType: 'project',
-    entityId: data.id,
-    projectId: data.id,
+    entityId: created.id,
+    projectId: created.id,
     action: 'created',
-    summary: `Created project ${data.name}`,
+    summary: `Created project ${created.name}`,
   })
-  return data as Tables<'projects'>
+  return created
 }
 
 export async function updateProject(id: string, patch: Updates<'projects'>) {
   const userId = await requireUserId()
-  const { data, error } = await supabase
-    .from('projects')
-    .update(patch)
-    .eq('id', id)
-    .select('*')
-    .maybeSingle()
+  const { error } = await supabase.from('projects').update(patch).eq('id', id)
   if (error) throw error
-  if (!data) throw new Error('Project not found or you do not have access to it')
+  const data = await getProject(id)
   await recordActivity({
     userId,
     entityType: 'project',
@@ -83,19 +79,14 @@ export async function updateProject(id: string, patch: Updates<'projects'>) {
     summary: `Updated project ${data.name}`,
     metadata: patch as import('@/types/database').Json,
   })
-  return data as Tables<'projects'>
+  return data
 }
 
 export async function deleteProject(id: string) {
   const userId = await requireUserId()
-  const { data, error } = await supabase
-    .from('projects')
-    .update({ status: 'archived' })
-    .eq('id', id)
-    .select('*')
-    .maybeSingle()
+  const { error } = await supabase.from('projects').update({ status: 'archived' }).eq('id', id)
   if (error) throw error
-  if (!data) throw new Error('Project not found or you do not have access to it')
+  const data = await getProject(id)
   await recordActivity({
     userId,
     entityType: 'project',
@@ -104,7 +95,7 @@ export async function deleteProject(id: string) {
     action: 'archived',
     summary: `Archived project ${data.name}`,
   })
-  return data as Tables<'projects'>
+  return data
 }
 
 export async function refreshProjectCompletion(projectId: string) {
@@ -181,8 +172,9 @@ export async function refreshProjectCompletion(projectId: string) {
       health_explanation: computed.explanation,
     })
     .eq('id', projectId)
-    .select('*')
+    .select('id')
     .maybeSingle()
   if (updateError) throw updateError
-  return (data as Tables<'projects'> | null) ?? null
+  if (!data?.id) return null
+  return getProject(data.id)
 }
