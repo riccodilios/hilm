@@ -168,27 +168,19 @@ export function registerPersonalActions() {
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
     execute: async (input) => {
       // Do NOT look up by input.title — that field is the NEW title when renaming.
-      let taskId =
+      // Never create a new task from an update request (that caused duplicates/untitled tasks).
+      const taskId =
         (await resolveTaskIdForAction(input.taskId)) ?? (await resolveOpenTaskFallback())
 
       if (!taskId) {
-        const projectId = await ensurePersonalProjectId()
-        const task = await createTask({
-          title: input.title?.trim() || 'Untitled task',
-          description: input.description,
-          projectId,
-          priority: input.priority as Priority | undefined,
-          dueAt: input.dueAt ?? undefined,
-        })
         return {
-          ok: true,
-          summary: `Created task ${task.title} (original id was unknown)`,
-          entities: [{ type: 'task', id: task.id }],
-          data: task,
+          ok: false,
+          summary:
+            'Could not find the task to update. Ask which task to change, or create a new one explicitly.',
         }
       }
 
-      await updateTask(taskId, {
+      const updated = await updateTask(taskId, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
@@ -197,7 +189,12 @@ export function registerPersonalActions() {
           ? { due_date: input.dueAt ? input.dueAt.slice(0, 10) : null }
           : {}),
       })
-      return { ok: true, summary: `Updated task ${taskId}` }
+      return {
+        ok: true,
+        summary: `Updated task ${updated.title ?? taskId}`,
+        entities: [{ type: 'task', id: taskId }],
+        data: updated,
+      }
     },
   })
 
@@ -262,7 +259,11 @@ export function registerPersonalActions() {
         due_at: dueAt,
         due_date: dueAt ? dueAt.slice(0, 10) : null,
       })
-      return { ok: true, summary: `Scheduled task ${taskId}` }
+      return {
+        ok: true,
+        summary: dueAt ? `Scheduled task` : `Cleared schedule`,
+        entities: [{ type: 'task', id: taskId }],
+      }
     },
   })
 

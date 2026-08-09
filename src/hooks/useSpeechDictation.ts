@@ -126,10 +126,10 @@ export function useSpeechDictation(opts: {
 
     const recognition = new Ctor()
     recognition.lang = opts.lang || 'en-US'
-    // continuous=false reduces duplicate finals; keepAlive restarts after pauses.
-    recognition.continuous = false
+    // Continuous mode keeps context across pauses (fewer short-word ASR errors).
+    recognition.continuous = true
     recognition.interimResults = true
-    recognition.maxAlternatives = 3
+    recognition.maxAlternatives = 5
 
     recognition.onresult = (event) => {
       if (sessionId !== sessionIdRef.current) return

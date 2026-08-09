@@ -114,6 +114,13 @@ export default async (request: Request) => {
       clientLocalDate?: string
       idempotencyKey?: string
       fingerprint?: string
+      conversationFocus?: {
+        lastCreatedTaskId?: string | null
+        lastModifiedTaskId?: string | null
+        lastReferencedProjectId?: string | null
+        lastReferencedWorkspaceId?: string | null
+        lastTaskTitle?: string | null
+      }
     }
     if (!body.conversationId || !body.message?.trim()) {
       return json({ error: 'conversationId and message are required' }, 400)
@@ -308,14 +315,43 @@ Labels: ${JSON.stringify(labels ?? [])}`
       locale === 'ar'
         ? 'Respond to the user in Arabic (Modern Standard Arabic). Keep action JSON keys/types in English as specified. User-facing titles and summaries inside action fields may be Arabic when appropriate.'
         : 'Respond to the user in English.'
+    const focus = body.conversationFocus
+    const focusLines: string[] = []
+    if (focus?.lastCreatedTaskId) focusLines.push(`lastCreatedTaskId=${focus.lastCreatedTaskId}`)
+    if (focus?.lastModifiedTaskId) focusLines.push(`lastModifiedTaskId=${focus.lastModifiedTaskId}`)
+    if (focus?.lastTaskTitle) focusLines.push(`lastTaskTitle=${JSON.stringify(focus.lastTaskTitle)}`)
+    if (focus?.lastReferencedProjectId) {
+      focusLines.push(`lastReferencedProjectId=${focus.lastReferencedProjectId}`)
+    }
+    if (focus?.lastReferencedWorkspaceId) {
+      focusLines.push(`lastReferencedWorkspaceId=${focus.lastReferencedWorkspaceId}`)
+    }
+    const focusBlock = focusLines.length
+      ? `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):\n${focusLines.join('\n')}`
+      : ''
+
     const systemPrompt = `You are Hilm AI (${modeLabel}). ${agentInstruction}
 ${languageInstruction}
 ${timeContext}
-Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end, for example:
+${focusBlock}
+Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end.
+
+Create example (only when the user explicitly asks for a NEW task):
 \`\`\`actions
-[{"type":"task.create","title":"Example","priority":"medium"}]
+[{"type":"task.create","title":"Prepare Wasl documentation","priority":"medium"}]
 \`\`\`
-${actionCatalog} Only use IDs in the provided context. Do not include an actions block when no action is useful.
+
+Update example (when refining an existing / focused task — preferred for follow-ups):
+\`\`\`actions
+[{"type":"task.update","taskId":"<existing-task-uuid>","title":"Wasl docs","description":"Add more detail here"}]
+\`\`\`
+
+Schedule example (always update the existing task — never create untitled tasks):
+\`\`\`actions
+[{"type":"task.schedule","taskId":"<existing-task-uuid>","dueAt":"2026-08-11T10:30:00"}]
+\`\`\`
+
+${actionCatalog} Only use IDs in the provided context or Conversation focus. Do not include an actions block when no action is useful.
 Context pack:
 ${contextPack}`
 

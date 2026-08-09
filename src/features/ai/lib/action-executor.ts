@@ -8,6 +8,8 @@ import {
 } from '@/features/ai/registry'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
+import { auditAiAction } from '@/features/ai/lib/conversation-focus'
+import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
 import type { ActionContext, ActionRisk, ParsedRegistryAction } from '@/features/ai/registry/types'
 
 export type ActionExecutionResult = {
@@ -16,6 +18,7 @@ export type ActionExecutionResult = {
   data?: unknown
   summary?: string
   error?: string
+  entities?: Array<{ type: string; id: string }>
 }
 
 export type ExecuteAiActionsOptions = {
@@ -23,6 +26,8 @@ export type ExecuteAiActionsOptions = {
   role?: ActionContext['role']
   /** When true, stop after first failure (default for multi-step plans). */
   sequential?: boolean
+  userMessage?: string
+  conversationFocus?: import('@/features/ai/lib/conversation-focus').ConversationEntityFocus | null
 }
 
 ensureAiRegistry()
@@ -139,7 +144,11 @@ export async function executeAiActions(
 
   const sequential = options?.sequential ?? true
   const results: ActionExecutionResult[] = []
-  const list = coerceActionsList(input)
+  const rewritten = rewriteActionsForConversationFocus(coerceActionsList(input), {
+    userMessage: options?.userMessage,
+    focus: options?.conversationFocus,
+  })
+  const list = rewritten
 
   if (!list.length) {
     return (input?.length ? input : [{ type: 'unknown' }]).map((action) => ({
@@ -153,6 +162,15 @@ export async function executeAiActions(
     const normalized = normalizeAiAction(raw) as ParsedRegistryAction
     const type = typeof normalized.type === 'string' ? normalized.type.trim() : ''
     const action = { ...normalized, type }
+
+    auditAiAction({
+      phase: 'select',
+      userRequest: options?.userMessage,
+      intent: type.split('.')[1] ?? type,
+      tool: type,
+      targetId: typeof action.taskId === 'string' ? action.taskId : null,
+      params: action,
+    })
 
     if (!type) {
       results.push({ action, success: false, error: 'Action is missing a type' })
@@ -195,7 +213,15 @@ export async function executeAiActions(
         success: outcome.ok,
         data: outcome.data,
         summary: outcome.summary,
+        entities: outcome.entities,
         error: outcome.ok ? undefined : outcome.summary || 'Action did not complete',
+      })
+      auditAiAction({
+        phase: 'result',
+        tool: type,
+        targetId: typeof action.taskId === 'string' ? action.taskId : outcome.entities?.[0]?.id,
+        result: { ok: outcome.ok, summary: outcome.summary, entities: outcome.entities },
+        error: outcome.ok ? undefined : outcome.summary,
       })
       if (!outcome.ok && sequential) break
     } catch (error) {
@@ -204,6 +230,12 @@ export async function executeAiActions(
         action: parsed.data as ParsedRegistryAction,
         success: false,
         error: formatActionError(error),
+      })
+      auditAiAction({
+        phase: 'error',
+        tool: type,
+        targetId: typeof action.taskId === 'string' ? action.taskId : null,
+        error,
       })
       if (sequential) break
     }

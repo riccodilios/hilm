@@ -283,19 +283,52 @@ export function MissionTimeline({
                 </div>
                 {!done ? (
                   <span
-                    className="absolute inset-x-2 bottom-0 h-4 cursor-ns-resize touch-none"
+                    className="absolute inset-x-2 bottom-0 h-4 cursor-ns-resize touch-pan-y"
                     onPointerDown={(e) => {
+                      // Hold-to-resize: allow native scroll until armed (mirrors task drag).
                       e.stopPropagation()
-                      e.preventDefault()
                       const pointerId = e.pointerId
                       const startY = e.clientY
+                      const startX = e.clientX
                       const startDuration = taskDurationHours(block.task)
                       const startHour = block.startHour
-                      ;(e.currentTarget as HTMLElement).setPointerCapture(pointerId)
-
+                      const target = e.currentTarget as HTMLElement
+                      const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen'
+                      let activated = !isTouch
                       let last = startDuration
+                      let timer: number | null = null
+
+                      const arm = () => {
+                        if (activated) return
+                        activated = true
+                        target.style.touchAction = 'none'
+                        try {
+                          target.setPointerCapture(pointerId)
+                        } catch {
+                          /* ignore */
+                        }
+                      }
+
+                      if (isTouch) {
+                        timer = window.setTimeout(arm, 280)
+                      } else {
+                        arm()
+                        e.preventDefault()
+                      }
+
                       const onMove = (ev: PointerEvent) => {
                         if (ev.pointerId !== pointerId) return
+                        const dx = ev.clientX - startX
+                        const dy = ev.clientY - startY
+                        if (!activated) {
+                          if (Math.hypot(dx, dy) > 14) {
+                            if (timer != null) window.clearTimeout(timer)
+                            window.removeEventListener('pointermove', onMove)
+                            window.removeEventListener('pointerup', onUp)
+                            window.removeEventListener('pointercancel', onUp)
+                          }
+                          return
+                        }
                         ev.preventDefault()
                         const deltaHours = (ev.clientY - startY) / HOUR_HEIGHT
                         const next = Math.max(0.5, Math.round((startDuration + deltaHours) * 4) / 4)
@@ -305,6 +338,15 @@ export function MissionTimeline({
                       }
                       const onUp = (ev: PointerEvent) => {
                         if (ev.pointerId !== pointerId) return
+                        if (timer != null) window.clearTimeout(timer)
+                        target.style.touchAction = ''
+                        try {
+                          if (target.hasPointerCapture?.(pointerId)) {
+                            target.releasePointerCapture(pointerId)
+                          }
+                        } catch {
+                          /* ignore */
+                        }
                         window.removeEventListener('pointermove', onMove)
                         window.removeEventListener('pointerup', onUp)
                         window.removeEventListener('pointercancel', onUp)

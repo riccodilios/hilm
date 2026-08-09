@@ -22,6 +22,11 @@ import {
   getActionRisk,
   parseActionsForOs,
 } from '@/features/ai/lib/action-executor'
+import {
+  readConversationFocus,
+  writeConversationFocus,
+} from '@/features/ai/lib/conversation-focus'
+import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { getRegisteredAction } from '@/features/ai/registry'
 import type { ParsedRegistryAction } from '@/features/ai/registry/types'
@@ -115,7 +120,22 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {})
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const lastUserMessageRef = useRef('')
   const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
+
+  function applyProposed(raw: AiAction[], conversationId?: string, userMessage?: string) {
+    const focus = readConversationFocus(conversationId ?? selectedId)
+    const parsed = parseActionsForOs(raw, {
+      workspaceId: isWorkspace ? workspaceId : undefined,
+      role: workspaceRole ?? undefined,
+    })
+    const base = parsed.length ? parsed : (raw as AiAction[])
+    const rewritten = rewriteActionsForConversationFocus(base as never, {
+      userMessage: userMessage ?? lastUserMessageRef.current,
+      focus,
+    }) as AiAction[]
+    setProposedActions(rewritten)
+  }
 
   const conversations = useQuery({
     queryKey: aiKeys.conversations(isWorkspace ? workspaceId : null),
@@ -210,7 +230,9 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   }
 
   const scrollToBottom = useCallback((smooth = true) => {
-    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' })
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
     setShowJump(false)
     setStickToBottom(true)
   }, [])
@@ -222,6 +244,15 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     const nearBottom = distance < 80
     setStickToBottom(nearBottom)
     if (nearBottom) setShowJump(false)
+  }
+
+  function handleScrollTouchStart() {
+    // First upward read of older messages — stop auto-follow immediately.
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight > 40) {
+      setStickToBottom(false)
+    }
   }
 
   useEffect(() => {
@@ -272,6 +303,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     setStreaming(true)
     streamingRef.current = true
     setStickToBottom(true)
+    lastUserMessageRef.current = message
 
     let conversationId = selectedId
     if (!conversationId) {
@@ -298,6 +330,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
 
     let content = ''
     let hadError = false
+    const focus = readConversationFocus(conversationId)
 
     for await (const event of streamChat({
       conversationId,
@@ -306,6 +339,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
       projectId,
       workspaceId: isWorkspace ? workspaceId : undefined,
       locale: i18n.language.startsWith('ar') ? 'ar' : 'en',
+      conversationFocus: focus,
     })) {
       if (event.type === 'token') {
         content += event.token
@@ -313,20 +347,10 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
       } else if (event.type === 'actions') {
         const incoming = event.actions ?? []
         if (!incoming.length) continue
-        const parsed = parseActionsForOs(incoming, {
-          workspaceId: isWorkspace ? workspaceId : undefined,
-          role: workspaceRole ?? undefined,
-        })
-        setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
+        applyProposed(incoming, conversationId, message)
       } else if (event.type === 'done') {
         const incoming = event.actions ?? []
-        if (incoming.length) {
-          const parsed = parseActionsForOs(incoming, {
-            workspaceId: isWorkspace ? workspaceId : undefined,
-            role: workspaceRole ?? undefined,
-          })
-          setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
-        }
+        if (incoming.length) applyProposed(incoming, conversationId, message)
       } else if (event.type === 'error') {
         hadError = true
         setRetryMessage(message)
@@ -349,7 +373,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         workspaceId: isWorkspace ? workspaceId : undefined,
         role: workspaceRole ?? undefined,
       })
-      if (fromContent.length) setProposedActions(fromContent)
+      if (fromContent.length) applyProposed(fromContent as AiAction[], conversationId, message)
     } else {
       // Keep the optimistic user bubble visible after a failed reply.
       setOptimisticUser((prev) =>
@@ -471,9 +495,40 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           workspaceId: isWorkspace ? workspaceId : undefined,
           role: workspaceRole ?? undefined,
           sequential: true,
+          userMessage: lastUserMessageRef.current,
+          conversationFocus: readConversationFocus(selectedId),
         })
         if (result?.success) {
           succeeded += 1
+          const entityTask = result.entities?.find((entity) => entity.type === 'task')
+          const taskIdFromAction =
+            typeof action.taskId === 'string' ? action.taskId : undefined
+          const taskId = entityTask?.id ?? taskIdFromAction
+          const titleFromAction =
+            typeof action.title === 'string' ? action.title : undefined
+          const titleFromData =
+            result.data &&
+            typeof result.data === 'object' &&
+            'title' in result.data &&
+            typeof (result.data as { title?: unknown }).title === 'string'
+              ? (result.data as { title: string }).title
+              : undefined
+          if (taskId && selectedId) {
+            const isCreate = String(action.type) === 'task.create'
+            writeConversationFocus(selectedId, {
+              ...(isCreate ? { lastCreatedTaskId: taskId } : {}),
+              lastModifiedTaskId: taskId,
+              lastTaskTitle: titleFromData ?? titleFromAction ?? undefined,
+              lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
+              lastReferencedProjectId:
+                result.data &&
+                typeof result.data === 'object' &&
+                'project_id' in result.data &&
+                typeof (result.data as { project_id?: unknown }).project_id === 'string'
+                  ? (result.data as { project_id: string }).project_id
+                  : undefined,
+            })
+          }
           setActionRun((prev) =>
             prev.map((item, i) =>
               i === index
@@ -697,11 +752,12 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           </Button>
         </div>
 
-        <CardContent className="flex flex-1 flex-col p-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
             ref={scrollRef}
             onScroll={handleScroll}
-            className="relative flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6"
+            onTouchStart={handleScrollTouchStart}
+            className="relative min-h-0 flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-y-contain p-4 sm:space-y-5 sm:p-6"
           >
             {isEmpty ? (
               <AiSuggestedPrompts

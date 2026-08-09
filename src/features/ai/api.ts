@@ -206,6 +206,13 @@ export async function* streamChat(input: {
   clientNow?: string
   clientLocalDate?: string
   idempotencyKey?: string
+  conversationFocus?: {
+    lastCreatedTaskId?: string | null
+    lastModifiedTaskId?: string | null
+    lastReferencedProjectId?: string | null
+    lastReferencedWorkspaceId?: string | null
+    lastTaskTitle?: string | null
+  }
 }): AsyncGenerator<ChatStreamEvent> {
   const {
     data: { session },

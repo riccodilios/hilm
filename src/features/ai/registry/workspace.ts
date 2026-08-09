@@ -152,14 +152,19 @@ export function registerWorkspaceActions() {
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
     execute: async (input, ctx) => {
       const dueAt = input.dueAt
-      await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
+      const updated = await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         due_date: dueAt === undefined ? undefined : dueAt ? dueAt.slice(0, 10) : null,
         due_at: dueAt,
       })
-      return { ok: true, summary: `Updated task ${input.taskId}` }
+      return {
+        ok: true,
+        summary: `Updated task ${input.title?.trim() || input.taskId}`,
+        entities: [{ type: 'task', id: input.taskId }],
+        data: updated,
+      }
     },
   })
 
