@@ -71,8 +71,8 @@ export async function getTask(id: string) {
 }
 
 /**
- * Resolve a task id for AI actions. Prefer exact id; fall back to latest open task
- * with a matching title so Apply still works when the model invents/stales an id.
+ * Resolve a task id for AI actions.
+ * Exact id first, then optional title hint (current title), then fuzzy contains match.
  */
 export async function resolveTaskIdForAction(taskId: string, titleHint?: string) {
   const { data: exact, error } = await supabase.from('tasks').select('id').eq('id', taskId).limit(1)
@@ -90,8 +90,32 @@ export async function resolveTaskIdForAction(taskId: string, titleHint?: string)
       .limit(1)
     if (titleError) throw titleError
     if (byTitle?.[0]?.id) return byTitle[0].id
+
+    const { data: fuzzy, error: fuzzyError } = await supabase
+      .from('tasks')
+      .select('id')
+      .ilike('title', `%${hint.replace(/[%_]/g, '')}%`)
+      .neq('status', 'archived')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    if (fuzzyError) throw fuzzyError
+    if (fuzzy?.[0]?.id) return fuzzy[0].id
   }
 
+  return null
+}
+
+/** Prefer a unique open task when the model invents an id with no title hint. */
+export async function resolveOpenTaskFallback() {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id')
+    .neq('status', 'archived')
+    .neq('status', 'done')
+    .order('updated_at', { ascending: false })
+    .limit(2)
+  if (error) throw error
+  if (data?.length === 1) return data[0].id
   return null
 }
 

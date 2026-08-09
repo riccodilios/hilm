@@ -30,6 +30,7 @@ import {
   deleteTask,
   listTasks,
   moveTask,
+  resolveOpenTaskFallback,
   resolveTaskIdForAction,
   updateTask,
 } from '@/features/tasks/api'
@@ -44,10 +45,27 @@ function tomorrowIso() {
   return d.toISOString()
 }
 
-async function requireResolvedTaskId(taskId: string, titleHint?: string) {
-  const resolved = await resolveTaskIdForAction(taskId, titleHint)
+async function requireResolvedTaskId(taskId: string, currentTitleHint?: string) {
+  const resolved =
+    (await resolveTaskIdForAction(taskId, currentTitleHint)) ?? (await resolveOpenTaskFallback())
   if (!resolved) throw new Error('Task not found or you do not have access to it')
   return resolved
+}
+
+async function ensurePersonalProjectId(preferred?: string) {
+  if (preferred) {
+    const projects = await listProjects()
+    if (projects.some((project) => project.id === preferred)) return preferred
+  }
+  const existing = (await listProjects())[0]?.id
+  if (existing) return existing
+  const created = await createProject({
+    name: 'Inbox',
+    description: 'Default project for uncategorized work',
+    icon: 'inbox',
+    color: '#a1a1aa',
+  })
+  return created.id
 }
 
 export function registerPersonalActions() {
@@ -65,7 +83,9 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?',
     execute: async (input) => {
-      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+      const taskId =
+        (await resolveTaskIdForAction(input.taskId, input.title)) ??
+        (await resolveOpenTaskFallback())
       if (!taskId) {
         return { ok: true, summary: 'No matching task to complete (already gone or unknown id)' }
       }
@@ -91,11 +111,7 @@ export function registerPersonalActions() {
     }),
     promptFields: 'title, description?, projectId?, priority?, status?, dueAt?',
     execute: async (input) => {
-      let projectId = input.projectId ?? (await listProjects())[0]?.id
-      if (!projectId) {
-        const created = await createProject({ name: 'Inbox', description: 'Default project for uncategorized work', icon: 'inbox', color: '#a1a1aa' })
-        projectId = created.id
-      }
+      const projectId = await ensurePersonalProjectId(input.projectId)
       const task = await createTask({
         title: input.title,
         description: input.description,
@@ -151,7 +167,27 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
     execute: async (input) => {
-      const taskId = await requireResolvedTaskId(input.taskId, input.title)
+      // Do NOT look up by input.title — that field is the NEW title when renaming.
+      let taskId =
+        (await resolveTaskIdForAction(input.taskId)) ?? (await resolveOpenTaskFallback())
+
+      if (!taskId) {
+        const projectId = await ensurePersonalProjectId()
+        const task = await createTask({
+          title: input.title?.trim() || 'Untitled task',
+          description: input.description,
+          projectId,
+          priority: input.priority as Priority | undefined,
+          dueAt: input.dueAt ?? undefined,
+        })
+        return {
+          ok: true,
+          summary: `Created task ${task.title} (original id was unknown)`,
+          entities: [{ type: 'task', id: task.id }],
+          data: task,
+        }
+      }
+
       await updateTask(taskId, {
         title: input.title,
         description: input.description,
