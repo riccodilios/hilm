@@ -59,7 +59,7 @@ export function MissionCalendar({
 
   const days = view === 'month' ? monthMatrix(anchor) : view === 'week' ? weekDays(anchor) : [anchor]
   const draggingTask = drag.activeTaskId
-    ? filtered.find((task) => task.id === drag.activeTaskId)
+    ? filtered.find((task) => task.id === drag.activeTaskId) ?? null
     : null
 
   return (
@@ -74,39 +74,58 @@ export function MissionCalendar({
 
       <div
         className={cn(
-          'mt-2 min-h-0 flex-1 gap-1 overflow-y-auto',
+          'mt-2 min-h-0 flex-1 gap-1 overflow-y-auto overscroll-contain',
           view === 'month' && 'grid grid-cols-7 auto-rows-[minmax(4.5rem,1fr)]',
           view === 'week' && 'grid grid-cols-7',
           view === 'day' && 'grid grid-cols-1',
-          drag.isDragging && 'touch-none',
+          drag.isDragging && 'touch-none select-none',
         )}
-        onDragOver={(event) => event.preventDefault()}
       >
         {days.map((day) => {
           const key = toLocalDateKey(day)!
-          const dayTasks = filtered
-            .filter((task) => taskDueDateKey(task) === key)
-            .slice(0, view === 'month' ? 3 : 12)
-          const hours = workloadForDay(filtered, key)
+          const limit = view === 'month' ? 3 : 12
+          let dayTasks = filtered.filter((task) => taskDueDateKey(task) === key)
+
+          // Live preview: pull dragged task out of its source day and into the hover day
+          if (drag.activeTaskId && draggingTask) {
+            dayTasks = dayTasks.filter((task) => task.id !== drag.activeTaskId)
+            if (drag.hoverKey === key) {
+              dayTasks = [draggingTask, ...dayTasks]
+            }
+          }
+
+          const visible = dayTasks.slice(0, limit)
+          const hours = workloadForDay(
+            drag.activeTaskId
+              ? filtered.map((task) =>
+                  task.id === drag.activeTaskId && drag.hoverKey
+                    ? { ...task, due_date: drag.hoverKey, due_at: `${drag.hoverKey}T09:00:00` }
+                    : task,
+                )
+              : filtered,
+            key,
+          )
           const selected = key === selectedDay
           const today = key === todayLocalISO()
           const outside = view === 'month' && !isSameMonth(day, anchor)
           const dropTarget = drag.isDragging && drag.hoverKey === key
+          const overflow = dayTasks.length - visible.length
 
           return (
-            <button
+            <div
               key={key}
-              type="button"
+              role="button"
+              tabIndex={0}
               data-mission-day={key}
               onClick={() => {
-                if (drag.isDragging) return
+                if (drag.isDragging || drag.suppressClick()) return
                 onSelectDay(key)
               }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault()
-                const taskId = event.dataTransfer.getData('text/task-id')
-                if (taskId) onDropTask(taskId, key)
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onSelectDay(key)
+                }
               }}
               className={cn(
                 'flex min-h-0 flex-col rounded-xl border p-1.5 text-start transition-colors',
@@ -115,7 +134,7 @@ export function MissionCalendar({
                   : 'border-border-subtle bg-surface/40 hover:border-border hover:bg-surface',
                 outside && 'opacity-40',
                 today && !selected && 'ring-1 ring-accent/30',
-                dropTarget && 'border-accent bg-accent/15 ring-1 ring-accent/40',
+                dropTarget && 'border-accent bg-accent/15 ring-2 ring-accent/40',
               )}
             >
               <div className="mb-1 flex items-center justify-between gap-1">
@@ -133,26 +152,24 @@ export function MissionCalendar({
                 ) : null}
               </div>
               <div className="min-h-0 flex-1 space-y-1 overflow-hidden">
-                {dayTasks.map((task) => {
+                {visible.map((task) => {
                   const binders = drag.bindTask(task.id)
+                  const isDragSource = drag.activeTaskId === task.id
                   return (
                     <div
                       key={task.id}
-                      draggable
                       {...binders}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData('text/task-id', task.id)
-                        event.dataTransfer.effectAllowed = 'move'
-                      }}
                       onClick={(event) => {
                         event.stopPropagation()
-                        if (drag.isDragging) return
+                        if (drag.isDragging || drag.suppressClick()) return
                         onOpenTask(task)
                       }}
                       className={cn(
-                        'truncate rounded-md px-1.5 py-0.5 text-[10px] leading-tight text-background touch-manipulation select-none',
+                        'truncate rounded-md px-1.5 py-0.5 text-[10px] leading-tight text-background select-none',
+                        'touch-manipulation cursor-grab active:cursor-grabbing',
                         task.status === 'done' && 'opacity-45 line-through',
-                        drag.activeTaskId === task.id && 'opacity-30',
+                        isDragSource && 'opacity-25 ring-1 ring-white/40',
+                        dropTarget && task.id === drag.activeTaskId && 'opacity-95',
                       )}
                       style={{ backgroundColor: task.projects?.color || '#71717a' }}
                       title={`${task.title} · ${taskDurationHours(task)}h`}
@@ -161,23 +178,21 @@ export function MissionCalendar({
                     </div>
                   )
                 })}
-                {filtered.filter((task) => taskDueDateKey(task) === key).length > dayTasks.length ? (
-                  <span className="px-1 text-[10px] text-muted">
-                    +{filtered.filter((task) => taskDueDateKey(task) === key).length - dayTasks.length}
-                  </span>
+                {overflow > 0 ? (
+                  <span className="px-1 text-[10px] text-muted">+{overflow}</span>
                 ) : null}
               </div>
-            </button>
+            </div>
           )
         })}
       </div>
 
       {draggingTask && drag.ghost ? (
         <div
-          className="pointer-events-none fixed z-50 max-w-[10rem] truncate rounded-md px-2 py-1 text-[11px] text-background shadow-lg"
+          className="pointer-events-none fixed z-[80] max-w-[11rem] truncate rounded-md px-2.5 py-1.5 text-[11px] font-medium text-background shadow-xl"
           style={{
-            left: drag.ghost.x + 12,
-            top: drag.ghost.y + 12,
+            left: drag.ghost.x + 14,
+            top: drag.ghost.y + 14,
             backgroundColor: draggingTask.projects?.color || '#71717a',
           }}
         >

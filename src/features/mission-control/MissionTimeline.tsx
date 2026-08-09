@@ -16,7 +16,7 @@ import {
   taskDurationHours,
 } from '@/features/mission-control/lib/schedule'
 import {
-  timelineHourAtPoint,
+  timelineMetricsAtPoint,
   useMissionPointerDrag,
 } from '@/features/mission-control/useMissionPointerDrag'
 import type { TaskWithProject } from '@/features/tasks/reminders'
@@ -97,6 +97,17 @@ export function MissionTimeline({
     [sourceTasks, projectFilter],
   )
 
+  function hourFromClientY(clientY: number) {
+    const root = scrollRef.current
+    if (!root) {
+      const hit = timelineMetricsAtPoint(0, clientY)
+      return hit ? hourFromTimelineY(hit.y) : 9
+    }
+    const rect = root.getBoundingClientRect()
+    const y = clientY - rect.top + root.scrollTop - 8
+    return hourFromTimelineY(y)
+  }
+
   async function applyReschedule(taskId: string, hour: number, durationHours?: number) {
     const prev = sourceTasks
     const next = prev.map((task) => {
@@ -122,19 +133,13 @@ export function MissionTimeline({
   }
 
   const drag = useMissionPointerDrag({
-    onDragMove: (_taskId, clientX, clientY) => {
-      const hit = timelineHourAtPoint(clientX, clientY)
-      if (!hit) {
-        setPreviewHour(null)
-        return
-      }
-      setPreviewHour(hourFromTimelineY(hit.y))
+    onDragMove: (_taskId, _clientX, clientY) => {
+      setPreviewHour(hourFromClientY(clientY))
     },
-    onDragEnd: (taskId, clientX, clientY) => {
-      const hit = timelineHourAtPoint(clientX, clientY)
+    onDragEnd: (taskId, _clientX, clientY) => {
+      const hour = hourFromClientY(clientY)
       setPreviewHour(null)
-      if (!hit) return
-      void applyReschedule(taskId, hourFromTimelineY(hit.y))
+      void applyReschedule(taskId, hour)
     },
   })
 
@@ -157,6 +162,9 @@ export function MissionTimeline({
 
   const showNow = isToday
   const nowTop = nowHour * HOUR_HEIGHT
+  const draggingTask = drag.activeTaskId
+    ? filtered.find((task) => task.id === drag.activeTaskId)
+    : null
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -174,27 +182,14 @@ export function MissionTimeline({
         ref={scrollRef}
         data-mission-timeline
         className={cn(
-          'relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40',
-          drag.isDragging && 'touch-none',
+          'relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-border-subtle bg-surface/40',
+          drag.isDragging && 'touch-none select-none',
         )}
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault()
-          const taskId = event.dataTransfer.getData('text/task-id')
-          if (!taskId) return
-          const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect()
-          const y =
-            event.clientY - rect.top + (event.currentTarget as HTMLDivElement).scrollTop - 8
-          void applyReschedule(taskId, hourFromTimelineY(y))
-        }}
         onClick={(event) => {
-          if (!onEmptySlotClick || drag.isDragging) return
+          if (!onEmptySlotClick || drag.isDragging || drag.suppressClick()) return
           const target = event.target as HTMLElement
           if (target.closest('[data-timeline-block]')) return
-          const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect()
-          const y =
-            event.clientY - rect.top + (event.currentTarget as HTMLDivElement).scrollTop - 8
-          onEmptySlotClick(dayKey, hourFromTimelineY(y))
+          onEmptySlotClick(dayKey, hourFromClientY(event.clientY))
         }}
       >
         <div className="relative" style={{ height: (DAY_END - DAY_START) * HOUR_HEIGHT + 16 }}>
@@ -229,32 +224,35 @@ export function MissionTimeline({
             const done = block.task.status === 'done'
             const widthPct = 100 / block.columnCount
             const leftPct = block.column * widthPct
-            const binders = drag.bindTask(block.task.id)
+            const binders = done ? {} : drag.bindTask(block.task.id)
+            const isDragging = drag.activeTaskId === block.task.id
             return (
-              <motion.button
+              <div
                 key={block.task.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 data-timeline-block
-                layout={!drag.isDragging}
-                draggable={!done}
-                {...(done ? {} : binders)}
-                onDragStart={(event) => {
-                  const dataTransfer = (event as unknown as DragEvent).dataTransfer
-                  dataTransfer?.setData('text/task-id', block.task.id)
-                }}
+                {...binders}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (drag.isDragging) return
+                  if (drag.isDragging || drag.suppressClick()) return
                   onOpenTask(block.task)
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation()
                   if (!done) onComplete(block.task.id)
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onOpenTask(block.task)
+                  }
+                }}
                 className={cn(
-                  'absolute z-10 overflow-hidden rounded-xl border px-2 py-1.5 text-start shadow-sm transition-shadow hover:shadow-md touch-manipulation select-none',
-                  done && 'opacity-45',
-                  drag.activeTaskId === block.task.id && 'ring-2 ring-accent/50 z-30',
+                  'absolute z-10 overflow-hidden rounded-xl border px-2 py-1.5 text-start shadow-sm transition-shadow',
+                  'touch-manipulation select-none cursor-grab active:cursor-grabbing',
+                  done && 'opacity-45 cursor-default',
+                  isDragging && 'opacity-40 ring-2 ring-accent/60 z-30',
                 )}
                 style={{
                   top: block.top + 8,
@@ -285,7 +283,7 @@ export function MissionTimeline({
                 </div>
                 {!done ? (
                   <span
-                    className="absolute inset-x-2 bottom-0 h-3 cursor-ns-resize touch-none"
+                    className="absolute inset-x-2 bottom-0 h-4 cursor-ns-resize touch-none"
                     onPointerDown={(e) => {
                       e.stopPropagation()
                       e.preventDefault()
@@ -295,10 +293,14 @@ export function MissionTimeline({
                       const startHour = block.startHour
                       ;(e.currentTarget as HTMLElement).setPointerCapture(pointerId)
 
+                      let last = startDuration
                       const onMove = (ev: PointerEvent) => {
                         if (ev.pointerId !== pointerId) return
+                        ev.preventDefault()
                         const deltaHours = (ev.clientY - startY) / HOUR_HEIGHT
                         const next = Math.max(0.5, Math.round((startDuration + deltaHours) * 4) / 4)
+                        if (next === last) return
+                        last = next
                         void applyReschedule(block.task.id, startHour, next)
                       }
                       const onUp = (ev: PointerEvent) => {
@@ -307,13 +309,13 @@ export function MissionTimeline({
                         window.removeEventListener('pointerup', onUp)
                         window.removeEventListener('pointercancel', onUp)
                       }
-                      window.addEventListener('pointermove', onMove)
+                      window.addEventListener('pointermove', onMove, { passive: false })
                       window.addEventListener('pointerup', onUp)
                       window.addEventListener('pointercancel', onUp)
                     }}
                   />
                 ) : null}
-              </motion.button>
+              </div>
             )
           })}
 
@@ -324,6 +326,22 @@ export function MissionTimeline({
           ) : null}
         </div>
       </div>
+
+      {draggingTask && drag.ghost ? (
+        <div
+          className="pointer-events-none fixed z-[80] max-w-[12rem] truncate rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium shadow-xl"
+          style={{
+            left: drag.ghost.x + 14,
+            top: drag.ghost.y + 14,
+            borderColor: `${draggingTask.projects?.color || '#71717a'}88`,
+          }}
+        >
+          {draggingTask.title}
+          {previewHour != null ? (
+            <span className="ms-2 text-[10px] text-muted">{formatHour(Math.floor(previewHour))}</span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
