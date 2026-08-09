@@ -22,54 +22,73 @@ function formatWhen(iso: string) {
   }
 }
 
+/** Hilm monochrome print palette (matches app zinc theme, no blue). */
+const HILM = {
+  ink: '#111113',
+  body: '#3f3f46',
+  muted: '#71717a',
+  mutedSoft: '#a1a1aa',
+  border: '#d4d4d8',
+  borderSubtle: '#e4e4e7',
+  surface: '#f7f7f8',
+  surface2: '#f1f1f3',
+  paper: '#ffffff',
+  cover: '#0a0a0b',
+  coverFg: '#f4f4f5',
+  coverMuted: '#a1a1aa',
+  accent: '#18181b',
+  accentOnCover: '#e4e4e7',
+} as const
+
 function stylesFor(accent: string) {
+  const accentInk = accent && accent !== '#2563eb' ? accent : HILM.accent
   return StyleSheet.create({
     page: {
       fontFamily: 'Helvetica',
       fontSize: 10,
-      color: '#1e293b',
+      color: HILM.ink,
       paddingTop: 56,
       paddingBottom: 56,
       paddingHorizontal: 48,
-      backgroundColor: '#ffffff',
+      backgroundColor: HILM.paper,
     },
     coverPage: {
       fontFamily: 'Helvetica',
       paddingTop: 72,
       paddingBottom: 56,
       paddingHorizontal: 56,
-      backgroundColor: '#0f172a',
-      color: '#f8fafc',
+      backgroundColor: HILM.cover,
+      color: HILM.coverFg,
     },
     brand: {
       fontSize: 28,
       fontFamily: 'Helvetica-Bold',
       letterSpacing: 4,
-      color: '#ffffff',
+      color: HILM.coverFg,
     },
     org: {
       marginTop: 10,
       fontSize: 14,
-      color: '#94a3b8',
+      color: HILM.coverMuted,
     },
     coverTitle: {
       marginTop: 72,
       fontSize: 24,
       fontFamily: 'Helvetica-Bold',
       lineHeight: 1.3,
-      color: '#ffffff',
+      color: HILM.coverFg,
     },
     coverMeta: {
       marginTop: 28,
       fontSize: 11,
-      color: '#cbd5e1',
+      color: HILM.coverMuted,
       lineHeight: 1.6,
     },
     coverAccentBar: {
       marginTop: 40,
       height: 4,
       width: 96,
-      backgroundColor: accent,
+      backgroundColor: HILM.accentOnCover,
     },
     header: {
       position: 'absolute',
@@ -79,12 +98,12 @@ function stylesFor(accent: string) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       borderBottomWidth: 1,
-      borderBottomColor: '#e2e8f0',
+      borderBottomColor: HILM.borderSubtle,
       paddingBottom: 8,
     },
     headerText: {
       fontSize: 8,
-      color: '#64748b',
+      color: HILM.muted,
     },
     footer: {
       position: 'absolute',
@@ -94,30 +113,30 @@ function stylesFor(accent: string) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       borderTopWidth: 1,
-      borderTopColor: '#e2e8f0',
+      borderTopColor: HILM.borderSubtle,
       paddingTop: 8,
     },
     footerText: {
       fontSize: 8,
-      color: '#94a3b8',
+      color: HILM.mutedSoft,
     },
     h1: {
       fontSize: 16,
       fontFamily: 'Helvetica-Bold',
       marginBottom: 10,
-      color: '#0f172a',
+      color: HILM.ink,
     },
     h2: {
       fontSize: 12,
       fontFamily: 'Helvetica-Bold',
       marginTop: 16,
       marginBottom: 8,
-      color: '#0f172a',
+      color: HILM.ink,
     },
     body: {
       fontSize: 10,
       lineHeight: 1.55,
-      color: '#334155',
+      color: HILM.body,
       marginBottom: 8,
     },
     metricsGrid: {
@@ -129,15 +148,15 @@ function stylesFor(accent: string) {
       width: '31%',
       marginRight: '2%',
       borderWidth: 1,
-      borderColor: '#e2e8f0',
+      borderColor: HILM.border,
       borderRadius: 6,
       padding: 10,
       marginBottom: 8,
-      backgroundColor: '#f8fafc',
+      backgroundColor: HILM.surface,
     },
     metricLabel: {
       fontSize: 8,
-      color: '#64748b',
+      color: HILM.muted,
       textTransform: 'uppercase',
       letterSpacing: 0.4,
       marginBottom: 4,
@@ -145,17 +164,17 @@ function stylesFor(accent: string) {
     metricValue: {
       fontSize: 16,
       fontFamily: 'Helvetica-Bold',
-      color: accent,
+      color: accentInk,
     },
     metricHint: {
       marginTop: 3,
       fontSize: 7,
-      color: '#94a3b8',
+      color: HILM.mutedSoft,
     },
     bullet: {
       fontSize: 10,
       lineHeight: 1.5,
-      color: '#334155',
+      color: HILM.body,
       marginBottom: 4,
       paddingLeft: 4,
     },
@@ -163,43 +182,43 @@ function stylesFor(accent: string) {
       marginTop: 6,
       marginBottom: 12,
       borderWidth: 1,
-      borderColor: '#e2e8f0',
+      borderColor: HILM.border,
     },
     tableHeader: {
       flexDirection: 'row',
-      backgroundColor: '#f1f5f9',
+      backgroundColor: HILM.surface2,
       borderBottomWidth: 1,
-      borderBottomColor: '#e2e8f0',
+      borderBottomColor: HILM.border,
       paddingVertical: 6,
       paddingHorizontal: 6,
     },
     tableRow: {
       flexDirection: 'row',
       borderBottomWidth: 1,
-      borderBottomColor: '#f1f5f9',
+      borderBottomColor: HILM.borderSubtle,
       paddingVertical: 5,
       paddingHorizontal: 6,
     },
     th: {
       fontSize: 8,
       fontFamily: 'Helvetica-Bold',
-      color: '#475569',
+      color: HILM.body,
     },
     td: {
       fontSize: 8,
-      color: '#334155',
+      color: HILM.body,
     },
     chartBlock: {
       marginBottom: 16,
       padding: 10,
       borderWidth: 1,
-      borderColor: '#e2e8f0',
+      borderColor: HILM.border,
     },
     chartTitle: {
       fontSize: 10,
       fontFamily: 'Helvetica-Bold',
       marginBottom: 8,
-      color: '#0f172a',
+      color: HILM.ink,
     },
     barRow: {
       flexDirection: 'row',
@@ -209,18 +228,18 @@ function stylesFor(accent: string) {
     barLabel: {
       width: 90,
       fontSize: 8,
-      color: '#64748b',
+      color: HILM.muted,
     },
     barTrack: {
       flexGrow: 1,
       height: 10,
-      backgroundColor: '#e2e8f0',
+      backgroundColor: HILM.surface2,
     },
     barValue: {
       width: 36,
       textAlign: 'right',
       fontSize: 8,
-      color: '#475569',
+      color: HILM.body,
       marginLeft: 6,
     },
     pieRow: {
@@ -237,13 +256,13 @@ function stylesFor(accent: string) {
       marginTop: 4,
       marginBottom: 16,
       padding: 12,
-      backgroundColor: '#f8fafc',
+      backgroundColor: HILM.surface,
       borderWidth: 1,
-      borderColor: '#e2e8f0',
+      borderColor: HILM.border,
     },
     metaLine: {
       fontSize: 9,
-      color: '#475569',
+      color: HILM.body,
       marginBottom: 3,
     },
     logo: {
@@ -317,8 +336,8 @@ function PieLegend({ data, styles }: { data: ChartDatum[]; styles: ReturnType<ty
     <View>
       {data.map((row) => (
         <View key={row.label} style={styles.pieRow} wrap={false}>
-          <View style={[styles.pieSwatch, { backgroundColor: row.color ?? '#64748b' }]} />
-          <Text style={{ fontSize: 8, color: '#334155' }}>
+          <View style={[styles.pieSwatch, { backgroundColor: row.color ?? HILM.muted }]} />
+          <Text style={{ fontSize: 8, color: HILM.body }}>
             {row.label}: {row.value} ({Math.round((row.value / total) * 100)}%)
           </Text>
         </View>
@@ -360,7 +379,7 @@ function DataTable({
 }
 
 export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
-  const accent = snapshot.branding.accent || '#2563eb'
+  const accent = snapshot.branding.accent || HILM.accent
   const styles = stylesFor(accent)
   const sections = new Set(snapshot.sections)
 

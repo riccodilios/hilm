@@ -327,7 +327,7 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
     workspaceId: input.workspaceId ?? null,
     branding: {
       productName: 'HILM',
-      accent: '#2563eb',
+      accent: '#18181b',
       logoUrl: input.logoUrl ?? null,
     },
     executiveSummary: buildExecutiveSummary({
@@ -350,7 +350,7 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   }
 }
 
-const PIE_COLORS = ['#2563eb', '#0d9488', '#ca8a04', '#dc2626', '#7c3aed', '#64748b']
+const PIE_COLORS = ['#18181b', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8']
 
 function insightsFromData(overdue: number, completionRate: number, open: number) {
   const lines: string[] = []
