@@ -467,7 +467,8 @@ export async function createWorkspaceTask(
   },
 ) {
   const userId = await requireUserId()
-  const dueDate = input.dueDate?.trim() || null
+  const dueDateRaw = input.dueDate?.trim() || null
+  const dueDate = dueDateRaw ? dueDateRaw.slice(0, 10) : null
   const dueAt = input.dueAt ?? combineDueAt(dueDate)
   const reminderType = input.reminderType ?? '1h'
   const reminderAt = computeRemindAt(dueAt, reminderType)

@@ -87,13 +87,16 @@ export function registerWorkspaceActions() {
       const projectId =
         input.projectId ?? (await listWorkspaceProjects(ctx.workspaceId!))[0]?.id
       if (!projectId) throw new Error('Create a workspace project before creating a task')
+      const dueAt = input.dueAt?.trim() || null
       const task = await createWorkspaceTask(ctx.workspaceId!, {
         projectId,
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         status: input.status as TaskStatus | undefined,
-        dueDate: input.dueAt ?? null,
+        // due_date is a date column — never pass a full ISO timestamp here
+        dueDate: dueAt ? dueAt.slice(0, 10) : null,
+        dueAt,
         assigneeId: input.assigneeId ?? null,
         departmentId: input.departmentId ?? null,
         teamId: input.teamId ?? null,
@@ -146,12 +149,13 @@ export function registerWorkspaceActions() {
     }),
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
     execute: async (input, ctx) => {
+      const dueAt = input.dueAt
       await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
-        due_date: input.dueAt,
-        due_at: input.dueAt,
+        due_date: dueAt === undefined ? undefined : dueAt ? dueAt.slice(0, 10) : null,
+        due_at: dueAt,
       })
       return { ok: true, summary: `Updated task ${input.taskId}` }
     },
@@ -728,9 +732,10 @@ export function registerWorkspaceActions() {
     promptFields: 'assignments[{taskId, dueAt, assigneeId?}]',
     execute: async (input, ctx) => {
       for (const row of input.assignments) {
+        const dueAt = row.dueAt
         await updateWorkspaceTask(ctx.workspaceId!, row.taskId, {
-          due_at: row.dueAt,
-          due_date: row.dueAt,
+          due_at: dueAt,
+          due_date: dueAt ? dueAt.slice(0, 10) : dueAt,
           assignee_id: row.assigneeId,
         })
       }

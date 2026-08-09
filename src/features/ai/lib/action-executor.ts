@@ -4,8 +4,10 @@ import {
   getRegisteredAction,
   maxRisk,
   parseRegistryActions,
+  coerceActionsList,
 } from '@/features/ai/registry'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
+import { normalizeAiAction } from '@/features/ai/registry/schemas'
 import type { ActionContext, ActionRisk, ParsedRegistryAction } from '@/features/ai/registry/types'
 
 export type ActionExecutionResult = {
@@ -24,6 +26,50 @@ export type ExecuteAiActionsOptions = {
 }
 
 ensureAiRegistry()
+
+/** Pull a human-readable message from Error, Postgrest plain objects, Zod, strings, etc. */
+export function formatActionError(error: unknown, fallback = 'Failed to execute action'): string {
+  if (error == null) return fallback
+  if (typeof error === 'string') {
+    const trimmed = error.trim()
+    return trimmed || fallback
+  }
+  if (error instanceof Error) {
+    const message = error.message?.trim()
+    if (message) return message
+  }
+  if (typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    for (const key of ['message', 'error', 'details', 'hint'] as const) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim()) return value.trim()
+    }
+    // ZodError-like
+    if (Array.isArray(record.issues) && record.issues.length) {
+      const issue = record.issues[0] as { message?: unknown; path?: unknown }
+      const path = Array.isArray(issue.path) ? issue.path.join('.') : ''
+      const msg = typeof issue.message === 'string' ? issue.message : 'Invalid input'
+      return path ? `${path}: ${msg}` : msg
+    }
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return fallback
+  }
+}
+
+function formatZodIssues(error: { issues?: Array<{ path: PropertyKey[]; message: string }> }) {
+  const issues = error.issues ?? []
+  if (!issues.length) return 'Action payload was invalid'
+  return issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = issue.path.filter((part) => part !== undefined && part !== '').join('.')
+      return path ? `${path}: ${issue.message}` : issue.message
+    })
+    .join(' · ')
+}
 
 export function getActionRisk(actions: ParsedRegistryAction[], os?: ActionContext['os']): ActionRisk {
   return maxRisk(actions, os)
@@ -79,22 +125,32 @@ export async function executeAiActions(
     role: options?.role,
   }
 
-  const actions = parseRegistryActions(input, os, ctx)
-  if (!actions.length) {
-    return input.map((action) => ({
+  const sequential = options?.sequential ?? true
+  const results: ActionExecutionResult[] = []
+  const list = coerceActionsList(input)
+
+  if (!list.length) {
+    return (input?.length ? input : [{ type: 'unknown' }]).map((action) => ({
       action,
       success: false,
       error: 'Action payload was invalid or not permitted',
     }))
   }
 
-  const sequential = options?.sequential ?? true
-  const results: ActionExecutionResult[] = []
+  for (const raw of list) {
+    const normalized = normalizeAiAction(raw) as ParsedRegistryAction
+    const type = typeof normalized.type === 'string' ? normalized.type.trim() : ''
+    const action = { ...normalized, type }
 
-  for (const action of actions) {
-    const def = getRegisteredAction(action.type, os)
+    if (!type) {
+      results.push({ action, success: false, error: 'Action is missing a type' })
+      if (sequential) break
+      continue
+    }
+
+    const def = getRegisteredAction(type, os)
     if (!def) {
-      results.push({ action, success: false, error: `Unknown action ${action.type}` })
+      results.push({ action, success: false, error: `Unknown action ${type}` })
       if (sequential) break
       continue
     }
@@ -109,21 +165,33 @@ export async function executeAiActions(
       continue
     }
 
-    try {
-      const outcome = await def.execute(action, ctx)
-      results.push({
-        action,
-        success: outcome.ok,
-        data: outcome.data,
-        summary: outcome.summary,
-        error: outcome.ok ? undefined : outcome.summary,
-      })
-      if (!outcome.ok && sequential) break
-    } catch (error) {
+    const parsed = def.inputSchema.safeParse(action)
+    if (!parsed.success) {
       results.push({
         action,
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to execute action',
+        error: formatZodIssues(parsed.error),
+      })
+      if (sequential) break
+      continue
+    }
+
+    try {
+      const outcome = await def.execute(parsed.data, ctx)
+      results.push({
+        action: parsed.data as ParsedRegistryAction,
+        success: outcome.ok,
+        data: outcome.data,
+        summary: outcome.summary,
+        error: outcome.ok ? undefined : outcome.summary || 'Action did not complete',
+      })
+      if (!outcome.ok && sequential) break
+    } catch (error) {
+      console.error('[hilm] AI action failed', type, error)
+      results.push({
+        action: parsed.data as ParsedRegistryAction,
+        success: false,
+        error: formatActionError(error),
       })
       if (sequential) break
     }

@@ -62,12 +62,73 @@ export const snakeToCamel: Record<string, string> = {
   lead_user_id: 'leadUserId',
 }
 
+function unwrapId(value: unknown): unknown {
+  if (value && typeof value === 'object' && !Array.isArray(value) && 'id' in value) {
+    return (value as { id: unknown }).id
+  }
+  return value
+}
+
 export function normalizeAiAction(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
   const input = raw as Record<string, unknown>
   const out: Record<string, unknown> = { ...input }
+
+  // Common LLM shapes: { action: "task.create" } or nested { taskId: { id: "..." } }
+  if (typeof out.type !== 'string' && typeof out.action === 'string') {
+    out.type = out.action
+  }
+  if (typeof out.type === 'string') out.type = out.type.trim()
+
   for (const [snake, camel] of Object.entries(snakeToCamel)) {
     if (snake in out && !(camel in out)) out[camel] = out[snake]
   }
+
+  for (const key of [
+    'taskId',
+    'projectId',
+    'subtaskId',
+    'labelId',
+    'assigneeId',
+    'departmentId',
+    'teamId',
+    'entityId',
+    'parentId',
+    'leadUserId',
+  ] as const) {
+    if (key in out) out[key] = unwrapId(out[key])
+  }
+
+  if (typeof out.labelIds === 'string') {
+    out.labelIds = out.labelIds
+      .split(/[\s,]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+  } else if (Array.isArray(out.labelIds)) {
+    out.labelIds = out.labelIds.map((item) => unwrapId(item))
+  }
+
+  // title/name swaps the models often confuse
+  if (typeof out.type === 'string') {
+    if (
+      (out.type === 'task.create' ||
+        out.type === 'subtask.create' ||
+        out.type === 'note.create' ||
+        out.type === 'idea.create' ||
+        out.type === 'roadmap.create') &&
+      typeof out.title !== 'string' &&
+      typeof out.name === 'string'
+    ) {
+      out.title = out.name
+    }
+    if (
+      (out.type === 'project.create' || out.type === 'label.create' || out.type === 'label.apply_named') &&
+      typeof out.name !== 'string' &&
+      typeof out.title === 'string'
+    ) {
+      out.name = out.title
+    }
+  }
+
   return out
 }

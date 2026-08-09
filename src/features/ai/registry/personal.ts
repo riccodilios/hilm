@@ -183,7 +183,11 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, dueAt',
     execute: async (input) => {
-      await updateTask(input.taskId, { due_at: input.dueAt })
+      const dueAt = input.dueAt
+      await updateTask(input.taskId, {
+        due_at: dueAt,
+        due_date: dueAt ? dueAt.slice(0, 10) : null,
+      })
       return { ok: true, summary: `Scheduled task ${input.taskId}` }
     },
   })
@@ -640,7 +644,11 @@ export function registerPersonalActions() {
     promptFields: 'assignments[{taskId, dueAt}]',
     execute: async (input) => {
       for (const row of input.assignments) {
-        await updateTask(row.taskId, { due_at: row.dueAt })
+        const dueAt = row.dueAt
+        await updateTask(row.taskId, {
+          due_at: dueAt,
+          due_date: dueAt ? dueAt.slice(0, 10) : null,
+        })
       }
       return {
         ok: true,

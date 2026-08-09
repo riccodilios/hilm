@@ -231,6 +231,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           workspaceId: isWorkspace ? workspaceId : undefined,
           role: workspaceRole ?? undefined,
         })
+        // Prefer validated actions; keep raw only so Apply can surface schema errors.
         setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
       } else if (event.type === 'done') {
         const incoming = event.actions ?? []
