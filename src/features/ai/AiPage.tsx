@@ -42,6 +42,11 @@ import { PageHeader } from '@/components/ui/page'
 import { Textarea } from '@/components/ui/textarea'
 import { AiMarkdown } from '@/features/ai/AiMarkdown'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
+import {
+  mergeVoiceTranscript,
+  speechLocaleFromI18n,
+  type SpeechLocale,
+} from '@/lib/voice-transcript'
 import { cn } from '@/lib/utils'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiMessage } from '@/features/ai/api'
@@ -50,19 +55,6 @@ import type { AiAction } from '@/types/ai-actions'
 ensureAiRegistry()
 
 type DraftMessage = AiMessage & { pending?: boolean }
-
-function speechLangFromI18n(lng: string) {
-  return lng.startsWith('ar') ? 'ar-SA' : 'en-US'
-}
-
-function appendVoiceText(current: string, addition: string) {
-  const next = addition.trim()
-  if (!next) return current
-  const base = current.trimEnd()
-  if (!base) return next
-  const needsSpace = !/[\s\n]$/.test(base)
-  return `${base}${needsSpace ? ' ' : ''}${next}`
-}
 
 function actionLabel(action: AiAction, os?: 'personal' | 'workspace') {
   const def = getRegisteredAction(String(action.type), os)
@@ -98,6 +90,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const [proposedActions, setProposedActions] = useState<AiAction[]>([])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(false)
+  const [voiceLang, setVoiceLang] = useState<SpeechLocale>(() => speechLocaleFromI18n(i18n.language))
   const [historyOpen, setHistoryOpen] = useState(false)
   const streamingRef = useRef(false)
   const voiceModeRef = useRef(false)
@@ -269,12 +262,23 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
 
   sendMessageRef.current = sendMessage
 
+  useEffect(() => {
+    if (voiceMode) return
+    setVoiceLang(speechLocaleFromI18n(i18n.language))
+  }, [i18n.language, voiceMode])
+
   const dictation = useSpeechDictation({
-    lang: speechLangFromI18n(i18n.language),
+    lang: voiceLang,
     keepAlive: voiceMode && !streaming,
-    onFinal: (transcript) => {
+    onFinal: (transcript, meta) => {
       if (streamingRef.current) return
-      setInput((prev) => appendVoiceText(prev, transcript))
+      setInput((prev) =>
+        mergeVoiceTranscript(prev, transcript, {
+          lang: voiceLang,
+          gapMs: meta.gapMs,
+          confidence: meta.confidence,
+        }),
+      )
     },
     onError: (code) => {
       setVoiceMode(false)
@@ -610,15 +614,45 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
             }}
           >
             {voiceMode ? (
-              <p className="mb-2 px-1 text-xs text-muted">
-                {dictation.listening
-                  ? dictation.interim
-                    ? t('ai.voiceHearing', { text: dictation.interim })
-                    : t('ai.voiceListening')
-                  : streaming
-                    ? t('ai.voiceWaiting')
-                    : t('ai.voiceHint')}
-              </p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p className="min-w-0 flex-1 text-xs text-muted">
+                  {dictation.listening
+                    ? dictation.interim
+                      ? t('ai.voiceHearing', { text: dictation.interim })
+                      : t('ai.voiceListening')
+                    : streaming
+                      ? t('ai.voiceWaiting')
+                      : t('ai.voiceHint')}
+                </p>
+                <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border-subtle bg-surface/60 p-0.5">
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors',
+                      voiceLang === 'en-US'
+                        ? 'bg-accent text-background'
+                        : 'text-muted hover:text-foreground',
+                    )}
+                    onClick={() => setVoiceLang('en-US')}
+                    aria-pressed={voiceLang === 'en-US'}
+                  >
+                    {t('ai.voiceLangEn')}
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors',
+                      voiceLang === 'ar-SA'
+                        ? 'bg-accent text-background'
+                        : 'text-muted hover:text-foreground',
+                    )}
+                    onClick={() => setVoiceLang('ar-SA')}
+                    aria-pressed={voiceLang === 'ar-SA'}
+                  >
+                    {t('ai.voiceLangAr')}
+                  </button>
+                </div>
+              </div>
             ) : null}
             <div
               className={cn(

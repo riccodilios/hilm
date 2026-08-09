@@ -1,9 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  bestTranscriptAlternative,
+  type SpeechLocale,
+} from '@/lib/voice-transcript'
+
+type SpeechRecognitionAlternativeLike = {
+  transcript: string
+  confidence: number
+}
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean
+  length: number
+  [index: number]: SpeechRecognitionAlternativeLike
+}
 
 type SpeechRecognitionLike = {
   lang: string
   continuous: boolean
   interimResults: boolean
+  maxAlternatives: number
   start: () => void
   stop: () => void
   abort: () => void
@@ -14,13 +30,17 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionEventLike = {
   resultIndex: number
-  results: ArrayLike<{
-    isFinal: boolean
-    0: { transcript: string }
-  }>
+  results: ArrayLike<SpeechRecognitionResultLike>
 }
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+
+export type SpeechFinalPayload = {
+  transcript: string
+  confidence: number
+  /** Ms since the previous final chunk (0 if first). */
+  gapMs: number
+}
 
 function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null
@@ -36,10 +56,10 @@ export function isSpeechDictationSupported() {
 }
 
 export function useSpeechDictation(opts: {
-  lang?: string
+  lang?: SpeechLocale | string
   /** When true, recognition restarts after silence / browser pause so the user can keep talking. */
   keepAlive?: boolean
-  onFinal: (transcript: string) => void
+  onFinal: (transcript: string, meta: SpeechFinalPayload) => void
   onError?: (message: string) => void
 }) {
   const [listening, setListening] = useState(false)
@@ -50,6 +70,9 @@ export function useSpeechDictation(opts: {
   const keepAliveRef = useRef(Boolean(opts.keepAlive))
   const intentionalStopRef = useRef(false)
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastFinalAtRef = useRef(0)
+  const lastFinalNormRef = useRef('')
+  const sessionIdRef = useRef(0)
   const supported = isSpeechDictationSupported()
 
   useEffect(() => {
@@ -98,27 +121,59 @@ export function useSpeechDictation(opts: {
     intentionalStopRef.current = false
     clearRestartTimer()
     recognitionRef.current?.abort()
+    sessionIdRef.current += 1
+    const sessionId = sessionIdRef.current
 
     const recognition = new Ctor()
     recognition.lang = opts.lang || 'en-US'
-    recognition.continuous = true
+    // continuous=false reduces duplicate finals; keepAlive restarts after pauses.
+    recognition.continuous = false
     recognition.interimResults = true
+    recognition.maxAlternatives = 3
 
     recognition.onresult = (event) => {
+      if (sessionId !== sessionIdRef.current) return
+
       let interimText = ''
-      let finalText = ''
+      const finals: Array<{ text: string; confidence: number }> = []
+
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i]
-        const piece = result[0]?.transcript?.trim() ?? ''
-        if (!piece) continue
-        if (result.isFinal) finalText = finalText ? `${finalText} ${piece}` : piece
-        else interimText = interimText ? `${interimText} ${piece}` : piece
+        const { text, confidence } = bestTranscriptAlternative(result)
+        if (!text) continue
+        if (result.isFinal) finals.push({ text, confidence })
+        else interimText = interimText ? `${interimText} ${text}` : text
       }
-      setInterim(interimText)
-      if (finalText) onFinalRef.current(finalText)
+
+      setInterim(interimText.replace(/\s+/g, ' ').trim())
+
+      for (const piece of finals) {
+        const norm = piece.text.replace(/\s+/g, ' ').trim().toLowerCase()
+        if (!norm) continue
+        // Drop immediate duplicate finals (common on restart / Chrome quirks).
+        if (norm === lastFinalNormRef.current) continue
+        if (
+          lastFinalNormRef.current &&
+          (lastFinalNormRef.current.endsWith(norm) || norm.endsWith(lastFinalNormRef.current))
+        ) {
+          // Prefer the longer form once; skip the shorter echo.
+          if (norm.length <= lastFinalNormRef.current.length) continue
+        }
+
+        const now = Date.now()
+        const gapMs = lastFinalAtRef.current ? now - lastFinalAtRef.current : 0
+        lastFinalAtRef.current = now
+        lastFinalNormRef.current = norm
+        onFinalRef.current(piece.text.replace(/\s+/g, ' ').trim(), {
+          transcript: piece.text.replace(/\s+/g, ' ').trim(),
+          confidence: piece.confidence,
+          gapMs,
+        })
+      }
     }
 
     recognition.onerror = (event) => {
+      if (sessionId !== sessionIdRef.current) return
       // Silence / aborted are normal while keep-alive dictation is running.
       if (event.error === 'aborted' || event.error === 'no-speech') return
       if (keepAliveRef.current && event.error === 'network') return
@@ -129,27 +184,28 @@ export function useSpeechDictation(opts: {
     }
 
     recognition.onend = () => {
+      if (sessionId !== sessionIdRef.current) return
       setInterim('')
       if (intentionalStopRef.current || !keepAliveRef.current) {
         setListening(false)
         return
       }
-      // Browsers end recognition after pauses even with continuous=true — restart quietly.
+      // Browsers end recognition after pauses — restart with a short delay.
       clearRestartTimer()
       restartTimerRef.current = setTimeout(() => {
         if (intentionalStopRef.current || !keepAliveRef.current) {
           setListening(false)
           return
         }
+        if (sessionId !== sessionIdRef.current) return
         try {
           recognition.start()
           setListening(true)
         } catch {
-          // Some browsers require a fresh instance after onend.
           recognitionRef.current = null
           start()
         }
-      }, 180)
+      }, 280)
     }
 
     recognitionRef.current = recognition
@@ -162,6 +218,16 @@ export function useSpeechDictation(opts: {
       setListening(false)
     }
   }, [clearRestartTimer, opts.lang])
+
+  // If the speech language changes while listening, restart with the new locale.
+  useEffect(() => {
+    if (!listening) return
+    const current = recognitionRef.current
+    if (!current) return
+    if (current.lang === (opts.lang || 'en-US')) return
+    intentionalStopRef.current = false
+    start()
+  }, [opts.lang, listening, start])
 
   const toggle = useCallback(() => {
     if (listening) stop()

@@ -10,6 +10,7 @@ import { activityKeys } from '@/features/activity/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
+import { mergeVoiceTranscript, speechLocaleFromI18n } from '@/lib/voice-transcript'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -30,16 +31,7 @@ import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
 import type { Priority, TaskStatus } from '@/types/domain'
 
 function speechLangFromI18n(lng: string) {
-  return lng.startsWith('ar') ? 'ar-SA' : 'en-US'
-}
-
-function appendVoiceText(current: string, addition: string) {
-  const next = addition.trim()
-  if (!next) return current
-  const base = current.trimEnd()
-  if (!base) return next
-  const needsSpace = !/[\s\n]$/.test(base)
-  return `${base}${needsSpace ? ' ' : ''}${next}`
+  return speechLocaleFromI18n(lng)
 }
 
 export function TaskDetailPage() {
@@ -92,9 +84,13 @@ export function TaskDetailPage() {
 
   const dictation = useSpeechDictation({
     lang: speechLangFromI18n(i18n.language),
-    onFinal: (transcript) => {
+    onFinal: (transcript, meta) => {
       setDescription((prev) => {
-        const next = appendVoiceText(prev, transcript)
+        const next = mergeVoiceTranscript(prev, transcript, {
+          lang: speechLangFromI18n(i18n.language),
+          gapMs: meta.gapMs,
+          confidence: meta.confidence,
+        })
         persistDescription(next)
         return next
       })
