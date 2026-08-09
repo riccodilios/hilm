@@ -10,6 +10,23 @@
   node_bundler = "esbuild"
   directory = "netlify/functions"
 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.openrouter.ai; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Cache-Control = "no-store"
+
 [[redirects]]
   from = "/api/notify-test"
   to = "/.netlify/functions/notify-test"
@@ -25,12 +42,7 @@
   to = "/.netlify/functions/ai-daily-log"
   status = 200
 
-# Keep API/functions ahead of the SPA fallback
-[[redirects]]
-  from = "/api/send-task-reminders"
-  to = "/.netlify/functions/send-task-reminders"
-  status = 200
-
+# Reminder job is intentionally not publicly aliased — invoke /.netlify/functions/send-task-reminders with CRON_SECRET
 [[redirects]]
   from = "/*"
   to = "/index.html"

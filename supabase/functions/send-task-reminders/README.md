@@ -27,12 +27,14 @@ Notes:
 
 Supabase Dashboard → Edge Functions → `send-task-reminders` → Schedules → cron `* * * * *`
 
-Or HTTP cron:
+Or HTTP cron (Netlify function — requires CRON_SECRET; no public /api alias):
 
 ```bash
-curl -X POST "https://lrvmlayzmvswfqsqroni.supabase.co/functions/v1/send-task-reminders" \
+curl -X POST "https://hillm.netlify.app/.netlify/functions/send-task-reminders" \
   -H "x-cron-secret: $CRON_SECRET"
 ```
+
+Netlify's built-in schedule still runs this function every minute when `CRON_SECRET` is configured in Netlify env (and/or `private.server_secrets`).
 
 ## Netlify client env
 

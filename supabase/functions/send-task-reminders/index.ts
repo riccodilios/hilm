@@ -137,10 +137,15 @@ Deno.serve(async (request) => {
 
   try {
     const cronSecret = Deno.env.get('CRON_SECRET')
+    if (!cronSecret?.trim()) {
+      return Response.json({ error: 'CRON_SECRET not configured' }, { status: 500, headers: corsHeaders })
+    }
     const provided =
       request.headers.get('x-cron-secret') ||
-      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-    if (cronSecret && provided !== cronSecret) {
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+      new URL(request.url).searchParams.get('cron_secret') ||
+      ''
+    if (provided !== cronSecret) {
       return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
     }
 

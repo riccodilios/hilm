@@ -3,16 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
 import webpush from 'web-push'
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    },
-  })
+function json(data: unknown, status = 200, request?: Request) {
+  const origin = request?.headers.get('origin') || ''
+  const allowed = new Set([
+    'https://hillm.netlify.app',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    (process.env.APP_URL || process.env.VITE_APP_URL || '').replace(/\/$/, ''),
+  ].filter(Boolean))
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+  if (origin && allowed.has(origin)) headers['Access-Control-Allow-Origin'] = origin
+  return new Response(JSON.stringify(data), { status, headers })
 }
 
 async function loadSecrets() {
@@ -44,19 +50,15 @@ async function loadSecrets() {
 }
 
 export default async (request: Request) => {
+  const respond = (data: unknown, status = 200) => json(data, status, request)
+
   if (request.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
-    })
+    return new Response('ok', { headers: json({}, 200, request).headers })
   }
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  if (request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
 
   const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-  if (!token) return json({ error: 'Unauthorized' }, 401)
+  if (!token) return respond({ error: 'Unauthorized' }, 401)
 
   const supabaseUrl =
     process.env.VITE_SUPABASE_URL ||
@@ -66,7 +68,7 @@ export default async (request: Request) => {
     process.env.VITE_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY
-  if (!supabaseUrl || !anonKey) return json({ error: 'Supabase not configured' }, 500)
+  if (!supabaseUrl || !anonKey) return respond({ error: 'Supabase not configured' }, 500)
 
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -75,11 +77,11 @@ export default async (request: Request) => {
     data: { user },
     error: authError,
   } = await userClient.auth.getUser(token)
-  if (authError || !user) return json({ error: 'Unauthorized' }, 401)
+  if (authError || !user) return respond({ error: 'Unauthorized' }, 401)
 
   const secrets = await loadSecrets()
   if (!secrets.VAPID_PUBLIC_KEY || !secrets.VAPID_PRIVATE_KEY) {
-    return json({ error: 'VAPID keys missing' }, 500)
+    return respond({ error: 'VAPID keys missing' }, 500)
   }
   webpush.setVapidDetails(
     secrets.VAPID_SUBJECT || 'mailto:noreply@hillm.netlify.app',
@@ -88,7 +90,7 @@ export default async (request: Request) => {
   )
 
   const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return json({ error: 'DATABASE_URL missing' }, 500)
+  if (!databaseUrl) return respond({ error: 'DATABASE_URL missing' }, 500)
 
   const client = new pg.Client({
     connectionString: databaseUrl,
@@ -147,7 +149,7 @@ export default async (request: Request) => {
       }
     }
 
-    return json({
+    return respond({
       ok: true,
       pushed,
       subscriptions: subs.length,
@@ -157,7 +159,7 @@ export default async (request: Request) => {
           : undefined,
     })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Test failed' }, 500)
+    return respond({ error: error instanceof Error ? error.message : 'Test failed' }, 500)
   } finally {
     await client.end().catch(() => undefined)
   }

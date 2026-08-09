@@ -10,10 +10,7 @@ import {
   loadOpenRouterKey,
   tokensFromOpenRouterUsage,
 } from './_shared/ai-guard'
-
-function json(data: unknown, status = 200) {
-  return aiJson(data, status)
-}
+import { resolveAllowedAiModel } from './_shared/ai-limits'
 
 function extractJsonObject(text: string): Record<string, unknown> | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
@@ -62,14 +59,20 @@ function bucketEntity(entityType: string | null | undefined): EntityBucket {
 }
 
 export default async (request: Request) => {
+  const json = (data: unknown, status = 200) => aiJson(data, status, request)
+
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: aiCorsHeaders() })
+    return new Response('ok', { headers: aiCorsHeaders(request) })
   }
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   let usageEventId: string | null = null
   let userClient: ReturnType<typeof createClient> | null = null
-  let activeModel = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+  const defaultModel = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+  let activeModel = resolveAllowedAiModel({
+    defaultModel,
+    allowedEnv: process.env.OPENROUTER_ALLOWED_MODELS,
+  })
 
   try {
     const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
@@ -124,7 +127,10 @@ export default async (request: Request) => {
       null
     const fingerprint = body.fingerprint?.trim() || `daily_log:${logDate}`
 
-    activeModel = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+    activeModel = resolveAllowedAiModel({
+      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash',
+      allowedEnv: process.env.OPENROUTER_ALLOWED_MODELS,
+    })
     const guard = await beginAiRequest(userClient, {
       requestKind: 'daily_log',
       model: activeModel,

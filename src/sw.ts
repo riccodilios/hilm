@@ -2,8 +2,7 @@
 import { clientsClaim } from 'workbox-core'
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { NetworkFirst } from 'workbox-strategies'
-import { ExpirationPlugin } from 'workbox-expiration'
+import { NetworkOnly } from 'workbox-strategies'
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -20,11 +19,7 @@ registerRoute(
 
 registerRoute(
   ({ url }) => url.hostname.endsWith('.supabase.co') && url.pathname.startsWith('/rest/v1/'),
-  new NetworkFirst({
-    cacheName: 'supabase-api',
-    networkTimeoutSeconds: 8,
-    plugins: [new ExpirationPlugin({ maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 })],
-  }),
+  new NetworkOnly(),
 )
 
 self.addEventListener('push', (event) => {
@@ -44,7 +39,17 @@ self.addEventListener('push', (event) => {
 
   const title = payload.title || 'Hilm'
   const body = payload.body || 'You have a reminder'
-  const href = payload.href || payload.url || '/personal'
+  const rawHref = payload.href || payload.url || '/personal'
+  const href = (() => {
+    try {
+      const url = new URL(String(rawHref), self.location.origin)
+      if (url.origin !== self.location.origin) return '/personal'
+      const path = `${url.pathname}${url.search}${url.hash}`
+      return path.startsWith('/') && !path.startsWith('//') ? path : '/personal'
+    } catch {
+      return '/personal'
+    }
+  })()
   const tag = payload.tag || 'hilm-reminder'
 
   event.waitUntil(
@@ -60,9 +65,20 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const href =
+  const raw =
     (event.notification.data && (event.notification.data as { href?: string }).href) || '/personal'
-  const targetUrl = new URL(href, self.location.origin).href
+  let targetUrl = `${self.location.origin}/personal`
+  try {
+    const url = new URL(String(raw), self.location.origin)
+    if (url.origin === self.location.origin) {
+      const path = `${url.pathname}${url.search}${url.hash}`
+      if (path.startsWith('/') && !path.startsWith('//')) {
+        targetUrl = url.href
+      }
+    }
+  } catch {
+    /* keep fallback */
+  }
 
   event.waitUntil(
     (async () => {

@@ -21,22 +21,48 @@ export type AiUsageTokens = {
 }
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, apikey, content-type, idempotency-key, x-idempotency-key',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true',
+  Vary: 'Origin',
 }
 
-export function aiCorsHeaders() {
-  return { ...CORS_HEADERS }
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://hillm.netlify.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+]
+
+function allowedOrigins() {
+  const fromEnv = (process.env.APP_URL || process.env.VITE_APP_URL || '')
+    .split(',')
+    .map((item) => item.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...fromEnv])
 }
 
-export function aiJson(data: unknown, status = 200) {
+export function aiCorsHeaders(request?: Request) {
+  const origin = request?.headers.get('origin') || ''
+  const allowed = allowedOrigins()
+  const headers: Record<string, string> = { ...CORS_HEADERS }
+  if (origin && allowed.has(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+  } else if (!origin) {
+    // Same-origin / non-browser clients
+    headers['Access-Control-Allow-Origin'] = allowed.values().next().value || 'https://hillm.netlify.app'
+  }
+  return headers
+}
+
+export function aiJson(data: unknown, status = 200, request?: Request) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      ...CORS_HEADERS,
+      ...aiCorsHeaders(request),
     },
   })
 }

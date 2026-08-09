@@ -1,8 +1,11 @@
+import { assertSafeAttachment, sanitizeAttachmentFilename } from '@/lib/safe-attachment'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import type { Tables } from '@/types/database'
 
 export type WorkspaceAttachment = Tables<'workspace_attachments'> & { url?: string | null }
+
+const SIGNED_URL_TTL_SEC = 15 * 60
 
 export async function listWorkspaceTaskAttachments(workspaceId: string, taskId: string) {
   const { data, error } = await supabase
@@ -18,7 +21,7 @@ export async function listWorkspaceTaskAttachments(workspaceId: string, taskId: 
     rows.map(async (row) => {
       const { data: signed } = await supabase.storage
         .from('attachments')
-        .createSignedUrl(row.storage_path, 3600)
+        .createSignedUrl(row.storage_path, SIGNED_URL_TTL_SEC)
       return { ...row, url: signed?.signedUrl ?? null } as WorkspaceAttachment
     }),
   )
@@ -29,8 +32,9 @@ export async function uploadWorkspaceTaskAttachment(
   taskId: string,
   file: File,
 ) {
+  assertSafeAttachment(file)
   const userId = await requireUserId()
-  const safeName = file.name.replace(/[^\w.\-]+/g, '_')
+  const safeName = sanitizeAttachmentFilename(file.name)
   const storage_path = `workspace/${workspaceId}/tasks/${taskId}/${Date.now()}_${safeName}`
   const { error: upError } = await supabase.storage.from('attachments').upload(storage_path, file, {
     contentType: file.type || undefined,

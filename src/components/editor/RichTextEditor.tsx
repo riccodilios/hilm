@@ -69,12 +69,13 @@ export function RichTextEditor({
       }),
       Underline,
       Link.configure({
-        openOnClick: true,
+        openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        validate: (href) => /^https?:\/\//i.test(href),
         HTMLAttributes: {
           class: 'rte-link',
-          rel: 'noopener noreferrer',
+          rel: 'noopener noreferrer nofollow',
           target: '_blank',
         },
       }),

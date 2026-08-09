@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { isSafeHref } from '@/lib/safe-url'
 import { cn } from '@/lib/utils'
 
 /** Hide trailing ```actions blocks from chat display (still applied via action chips). */
@@ -55,11 +56,21 @@ export function AiMarkdown({
           li: ({ children }) => <li className="leading-6">{children}</li>,
           strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            if (!isSafeHref(href)) {
+              return <span className="underline underline-offset-2">{children}</span>
+            }
+            const external = /^https?:\/\//i.test(href!)
+            return (
+              <a
+                href={href}
+                {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                className="underline underline-offset-2"
+              >
+                {children}
+              </a>
+            )
+          },
           blockquote: ({ children }) => (
             <blockquote className="mb-2.5 border-s-2 border-current/30 ps-3 opacity-90 last:mb-0">
               {children}

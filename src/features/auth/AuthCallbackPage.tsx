@@ -13,6 +13,19 @@ import { normalizeEmail } from '@/lib/auth'
 
 type Phase = 'working' | 'success' | 'error'
 
+/** Prevent open redirects via ?next= — only same-app absolute paths. */
+function isSafeAuthNext(next: string) {
+  if (!next.startsWith('/') || next.startsWith('//') || next.includes('://') || next.includes('\\')) {
+    return false
+  }
+  return (
+    next === '/personal' ||
+    next.startsWith('/personal/') ||
+    next.startsWith('/workspace') ||
+    next.startsWith('/auth/')
+  )
+}
+
 /**
  * Handles Supabase auth redirects: email verify, password recovery, magic links.
  * Site URL + Redirect URLs must be set in Supabase Dashboard to the deployed domain
@@ -78,7 +91,7 @@ export function AuthCallbackPage() {
         }
 
         let dest: string = await resolvePostAuthDestination()
-        if (nextParam?.startsWith('/personal/') || nextParam?.startsWith('/workspace')) {
+        if (nextParam && isSafeAuthNext(nextParam)) {
           dest = nextParam
         }
         setDestination(dest)

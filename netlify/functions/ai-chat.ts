@@ -11,6 +11,10 @@ import {
   tokensFromOpenRouterUsage,
 } from './_shared/ai-guard'
 import {
+  assertAiMessageLength,
+  resolveAllowedAiModel,
+} from './_shared/ai-limits'
+import {
   personalActionCatalog,
   personalActionInstruction,
   workspaceActionCatalog,
@@ -56,17 +60,20 @@ function sse(payload: Record<string, unknown>) {
 }
 
 export default async (request: Request) => {
+  const json = (data: unknown, status = 200) => aiJson(data, status, request)
+  const cors = () => aiCorsHeaders(request)
+
   if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: aiCorsHeaders() })
+    return new Response('ok', { headers: cors() })
   }
-  if (request.method !== 'POST') return aiJson({ error: 'Method not allowed' }, 405)
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   let usageEventId: string | null = null
   let userClient: ReturnType<typeof createClient> | null = null
 
   try {
     const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-    if (!token) return aiJson({ error: 'Missing authorization token' }, 401)
+    if (!token) return json({ error: 'Missing authorization token' }, 401)
 
     const supabaseUrl =
       process.env.VITE_SUPABASE_URL ||
@@ -77,12 +84,12 @@ export default async (request: Request) => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       process.env.SUPABASE_ANON_KEY
     if (!supabaseUrl || !anonKey) {
-      return aiJson({ error: 'Supabase URL/anon key missing on Netlify' }, 500)
+      return json({ error: 'Supabase URL/anon key missing on Netlify' }, 500)
     }
 
     const apiKey = await loadOpenRouterKey()
     if (!apiKey) {
-      return aiJson({ error: 'Hilm OpenRouter key is not configured on the server' }, 500)
+      return json({ error: 'Hilm OpenRouter key is not configured on the server' }, 500)
     }
 
     userClient = createClient(supabaseUrl, anonKey, {
@@ -92,7 +99,7 @@ export default async (request: Request) => {
       data: { user },
       error: authError,
     } = await userClient.auth.getUser(token)
-    if (authError || !user) return aiJson({ error: 'Unauthorized' }, 401)
+    if (authError || !user) return json({ error: 'Unauthorized' }, 401)
 
     const body = (await request.json()) as {
       conversationId?: string
@@ -109,8 +116,12 @@ export default async (request: Request) => {
       fingerprint?: string
     }
     if (!body.conversationId || !body.message?.trim()) {
-      return aiJson({ error: 'conversationId and message are required' }, 400)
+      return json({ error: 'conversationId and message are required' }, 400)
     }
+    const messageTooLong = assertAiMessageLength(body.message.trim())
+    if (messageTooLong) return json({ error: messageTooLong }, 400)
+    const messageError = assertAiMessageLength(body.message.trim())
+    if (messageError) return json({ error: messageError }, 400)
 
     const idempotencyKey =
       body.idempotencyKey?.trim() ||
@@ -127,11 +138,16 @@ export default async (request: Request) => {
       .eq('id', body.conversationId)
       .eq('user_id', user.id)
       .single()
-    if (conversationError || !conversation) return aiJson({ error: 'Conversation not found' }, 404)
+    if (conversationError || !conversation) return json({ error: 'Conversation not found' }, 404)
 
     const defaultModel =
       process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
-    const activeModel = body.model ?? conversation.model ?? defaultModel
+    const activeModel = resolveAllowedAiModel({
+      requested: body.model,
+      conversationModel: conversation.model,
+      defaultModel,
+      allowedEnv: process.env.OPENROUTER_ALLOWED_MODELS,
+    })
     const activeWorkspaceId = body.workspaceId ?? conversation.workspace_id ?? null
     const activeProjectId = body.projectId ?? conversation.project_id
 
@@ -142,12 +158,12 @@ export default async (request: Request) => {
         .eq('workspace_id', activeWorkspaceId)
         .eq('user_id', user.id)
         .maybeSingle()
-      if (!membership) return aiJson({ error: 'Not a member of this workspace' }, 403)
+      if (!membership) return json({ error: 'Not a member of this workspace' }, 403)
       if (conversation.workspace_id && conversation.workspace_id !== activeWorkspaceId) {
-        return aiJson({ error: 'Conversation does not belong to this workspace' }, 403)
+        return json({ error: 'Conversation does not belong to this workspace' }, 403)
       }
     } else if (conversation.workspace_id) {
-      return aiJson({ error: 'Workspace conversation requires workspaceId' }, 400)
+      return json({ error: 'Workspace conversation requires workspaceId' }, 400)
     }
 
     const guard = await beginAiRequest(userClient, {
@@ -159,7 +175,7 @@ export default async (request: Request) => {
       fingerprint,
     })
     if (!guard.ok) {
-      return aiJson(friendlyAiLimitPayload(guard), aiLimitStatus(guard.code))
+      return json(friendlyAiLimitPayload(guard), aiLimitStatus(guard.code))
     }
     usageEventId = guard.event_id ?? null
 
@@ -336,7 +352,7 @@ ${contextPack}`
           model: activeModel,
         })
       }
-      return aiJson({ error: detail }, 502)
+      return json({ error: detail }, 502)
     }
 
     const streamUserClient = userClient
@@ -460,6 +476,6 @@ ${contextPack}`
         errorMessage: error instanceof Error ? error.message : 'AI request failed',
       })
     }
-    return aiJson({ error: error instanceof Error ? error.message : 'AI request failed' }, 400)
+    return json({ error: error instanceof Error ? error.message : 'AI request failed' }, 400)
   }
 }

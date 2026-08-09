@@ -18,6 +18,7 @@ import {
   buildAiTimeContextPrompt,
   resolveAiClock,
 } from '../_shared/ai-time-context.ts'
+import { assertAiMessageLength, resolveAllowedAiModel } from '../_shared/ai-limits.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,6 +94,8 @@ Deno.serve(async (request) => {
       fingerprint?: string
     }
     if (!body.conversationId || !body.message?.trim()) throw new Error('conversationId and message are required')
+    const messageTooLong = assertAiMessageLength(body.message.trim())
+    if (messageTooLong) throw new Error(messageTooLong)
 
     admin = createClient(url, serviceKey)
     const { data: conversation, error: conversationError } = await admin
@@ -110,7 +113,12 @@ Deno.serve(async (request) => {
 
     const defaultModel =
       Deno.env.get('OPENROUTER_DEFAULT_MODEL') ?? 'google/gemini-2.5-flash'
-    activeModel = body.model ?? conversation.model ?? defaultModel
+    activeModel = resolveAllowedAiModel({
+      requested: body.model,
+      conversationModel: conversation.model,
+      defaultModel,
+      allowedEnv: Deno.env.get('OPENROUTER_ALLOWED_MODELS'),
+    })
     const activeWorkspaceId = body.workspaceId ?? conversation.workspace_id ?? null
     const activeProjectId = body.projectId ?? conversation.project_id
 

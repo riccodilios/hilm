@@ -1,6 +1,7 @@
 import type { Config } from '@netlify/functions'
 import pg from 'pg'
 import webpush from 'web-push'
+import { authorizeCronRequest } from './_shared/cron-auth'
 
 type ReminderRow = {
   id: string
@@ -75,13 +76,8 @@ export default async (request: Request) => {
     const secrets = await loadSecrets(client)
 
     const cronSecret = process.env.CRON_SECRET || secrets.CRON_SECRET
-    const isScheduled = request.headers.get('x-netlify-event') === 'schedule'
-    if (!isScheduled && cronSecret) {
-      const provided =
-        request.headers.get('x-cron-secret') ||
-        request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-      if (provided !== cronSecret) return json({ error: 'Unauthorized' }, 401)
-    }
+    const auth = authorizeCronRequest(request, cronSecret)
+    if (!auth.ok) return json({ error: auth.error }, auth.status)
 
     const vapidPublic = process.env.VAPID_PUBLIC_KEY || secrets.VAPID_PUBLIC_KEY
     const vapidPrivate = process.env.VAPID_PRIVATE_KEY || secrets.VAPID_PRIVATE_KEY
