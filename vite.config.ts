@@ -28,7 +28,6 @@ export default defineConfig({
         description:
           'Hilm is an AI Personal Operating System and Workspace OS with an AI Chief of Staff for projects, tasks, Mission Control, and automation.',
         lang: 'en',
-        dir: 'auto',
         theme_color: '#0a0a0b',
         background_color: '#0a0a0b',
         display: 'standalone',
