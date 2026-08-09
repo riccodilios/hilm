@@ -32,14 +32,19 @@ export function formatActionError(error: unknown, fallback = 'Failed to execute 
   if (error == null) return fallback
   if (typeof error === 'string') {
     const trimmed = error.trim()
-    return trimmed || fallback
+    return mapCoerceError(trimmed) || fallback
   }
   if (error instanceof Error) {
     const message = error.message?.trim()
-    if (message) return message
+    if (message) return mapCoerceError(message)
   }
   if (typeof error === 'object') {
     const record = error as Record<string, unknown>
+    const code = typeof record.code === 'string' ? record.code : ''
+    const message = typeof record.message === 'string' ? record.message.trim() : ''
+    if (code === 'PGRST116' || /coerce the result to a single json object/i.test(message)) {
+      return 'Record not found or you do not have access to it'
+    }
     for (const key of ['message', 'error', 'details', 'hint'] as const) {
       const value = record[key]
       if (typeof value === 'string' && value.trim()) return value.trim()
@@ -57,6 +62,13 @@ export function formatActionError(error: unknown, fallback = 'Failed to execute 
   } catch {
     return fallback
   }
+}
+
+function mapCoerceError(message: string) {
+  if (/coerce the result to a single json object/i.test(message)) {
+    return 'Record not found or you do not have access to it'
+  }
+  return message
 }
 
 function formatZodIssues(error: { issues?: Array<{ path: PropertyKey[]; message: string }> }) {

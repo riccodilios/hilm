@@ -246,12 +246,13 @@ export function registerPersonalActions() {
           position,
         })
         .select('id')
-        .single()
+        .maybeSingle()
       if (error) throw error
+      if (!data?.id) throw new Error('Could not create subtask — check the task id')
       return {
         ok: true,
         summary: `Created subtask ${input.title}`,
-        entities: data?.id ? [{ type: 'subtask', id: data.id }] : undefined,
+        entities: [{ type: 'subtask', id: data.id }],
       }
     },
   })

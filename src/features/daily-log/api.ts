@@ -187,8 +187,9 @@ export async function upsertDailyLog(input: {
     .from('daily_logs')
     .upsert(payload, { onConflict: 'user_id,log_date' })
     .select('*')
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Could not save daily log')
   await recordActivity({
     userId,
     entityType: 'daily_log',

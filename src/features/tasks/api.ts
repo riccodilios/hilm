@@ -19,6 +19,17 @@ export const tasksKeys = {
 
 const taskSelect = '*, projects(id, name, color, icon)'
 
+function isNoRowsError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false
+  if (error.code === 'PGRST116') return true
+  return /coerce the result to a single json object/i.test(error.message ?? '')
+}
+
+function throwTaskNotFound(error?: { code?: string; message?: string } | null): never {
+  if (error && !isNoRowsError(error)) throw error
+  throw new Error('Task not found or you do not have access to it')
+}
+
 export async function listTasks(opts?: {
   projectId?: string
   status?: TaskStatus | TaskStatus[]
@@ -49,26 +60,30 @@ export async function getTask(id: string) {
     .from('tasks')
     .select(taskSelect)
     .eq('id', id)
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throwTaskNotFound()
   return data as TaskWithProject
 }
 
 async function upsertPrimaryReminder(input: {
   userId: string
   taskId: string
-  projectId: string
+  projectId: string | null
   remindAt: string | null
   reminderType: ReminderType
 }) {
   // Replace unsent primary reminders for this task
-  await supabase
+  const { error: deleteError } = await supabase
     .from('task_reminders')
     .delete()
     .eq('task_id', input.taskId)
     .eq('notification_sent', false)
+  if (deleteError) {
+    console.error('Failed to clear old reminders', deleteError)
+  }
 
-  if (!input.remindAt) return null
+  if (!input.remindAt || !input.projectId) return null
 
   const { data: settings } = await supabase
     .from('user_settings')
@@ -80,20 +95,20 @@ async function upsertPrimaryReminder(input: {
   if (settings?.email_reminders_enabled !== false) channels.push('email')
   if (settings?.push_notifications_enabled) channels.push('push')
 
-  const { data, error } = await supabase
-    .from('task_reminders')
-    .insert({
-      user_id: input.userId,
-      task_id: input.taskId,
-      project_id: input.projectId,
-      remind_at: input.remindAt,
-      reminder_type: input.reminderType,
-      channels,
-    })
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
+  // Avoid .single() — a missing RETURNING row must not fail the parent task action.
+  const { error } = await supabase.from('task_reminders').insert({
+    user_id: input.userId,
+    task_id: input.taskId,
+    project_id: input.projectId,
+    remind_at: input.remindAt,
+    reminder_type: input.reminderType,
+    channels,
+  })
+  if (error) {
+    console.error('Failed to create task reminder', error)
+    return null
+  }
+  return true
 }
 
 export async function createTask(input: {
@@ -136,8 +151,9 @@ export async function createTask(input: {
     .from('tasks')
     .insert(payload)
     .select(taskSelect)
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Could not create task')
 
   await upsertPrimaryReminder({
     userId,
@@ -155,7 +171,13 @@ export async function createTask(input: {
     action: 'created',
     summary: `Created task ${data.title}`,
   })
-  await refreshProjectCompletion(data.project_id)
+  if (data.project_id) {
+    try {
+      await refreshProjectCompletion(data.project_id)
+    } catch (error) {
+      console.error('Failed to refresh project completion', error)
+    }
+  }
   return data as TaskWithProject
 }
 
@@ -168,8 +190,10 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
   delete (next as { reminderType?: ReminderType }).reminderType
   delete (next as { customReminderAt?: string | null }).customReminderAt
 
+  // Load once — avoids repeated .single() failures with opaque PostgREST errors.
+  const current = await getTask(id)
+
   if (patch.due_date !== undefined || patch.due_time !== undefined) {
-    const current = await getTask(id)
     const dueDate = patch.due_date !== undefined ? patch.due_date : current.due_date
     next.due_time = null
     // Keep an explicit due_at (timed schedule) when Mission Control provides one.
@@ -187,7 +211,6 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
 
   const reminderType = patch.reminderType
   if (reminderType || patch.reminder_datetime !== undefined || next.due_at !== undefined) {
-    const current = await getTask(id)
     const dueAt = (next.due_at !== undefined ? next.due_at : current.due_at) ?? null
     const type = (reminderType ?? (current.reminder_type as ReminderType | null) ?? '1h') as ReminderType
     const remindAt =
@@ -212,8 +235,9 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
     .update(next)
     .eq('id', id)
     .select(taskSelect)
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throwTaskNotFound(error)
 
   await recordActivity({
     userId,
@@ -227,7 +251,13 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
         : `Updated task ${data.title}`,
     metadata: patch as import('@/types/database').Json,
   })
-  await refreshProjectCompletion(data.project_id)
+  if (data.project_id) {
+    try {
+      await refreshProjectCompletion(data.project_id)
+    } catch (refreshError) {
+      console.error('Failed to refresh project completion', refreshError)
+    }
+  }
   return data as TaskWithProject
 }
 
@@ -255,7 +285,13 @@ export async function deleteTask(id: string) {
     action: 'deleted',
     summary: `Deleted task ${current.title}`,
   })
-  await refreshProjectCompletion(current.project_id)
+  if (current.project_id) {
+    try {
+      await refreshProjectCompletion(current.project_id)
+    } catch (refreshError) {
+      console.error('Failed to refresh project completion', refreshError)
+    }
+  }
 }
 
 export async function listSubtasks(taskId: string) {

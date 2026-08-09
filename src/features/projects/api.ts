@@ -26,8 +26,9 @@ export async function listProjects() {
 }
 
 export async function getProject(id: string) {
-  const { data, error } = await supabase.from('projects').select('*').eq('id', id).single()
+  const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Project not found or you do not have access to it')
   return data as Tables<'projects'>
 }
 
@@ -49,8 +50,9 @@ export async function createProject(input: {
     priority: input.priority ?? 'medium',
     status: input.status ?? 'active',
   }
-  const { data, error } = await supabase.from('projects').insert(payload).select('*').single()
+  const { data, error } = await supabase.from('projects').insert(payload).select('*').maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Could not create project')
   await recordActivity({
     userId,
     entityType: 'project',
@@ -69,8 +71,9 @@ export async function updateProject(id: string, patch: Updates<'projects'>) {
     .update(patch)
     .eq('id', id)
     .select('*')
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Project not found or you do not have access to it')
   await recordActivity({
     userId,
     entityType: 'project',
@@ -90,8 +93,9 @@ export async function deleteProject(id: string) {
     .update({ status: 'archived' })
     .eq('id', id)
     .select('*')
-    .single()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Project not found or you do not have access to it')
   await recordActivity({
     userId,
     entityType: 'project',
@@ -104,6 +108,7 @@ export async function deleteProject(id: string) {
 }
 
 export async function refreshProjectCompletion(projectId: string) {
+  if (!projectId) return null
   const now = new Date()
   const todayKey = todayLocalISO()
   const weekAgo = addDays(now, -7).toISOString()
@@ -177,7 +182,7 @@ export async function refreshProjectCompletion(projectId: string) {
     })
     .eq('id', projectId)
     .select('*')
-    .single()
+    .maybeSingle()
   if (updateError) throw updateError
-  return data as Tables<'projects'>
+  return (data as Tables<'projects'> | null) ?? null
 }
