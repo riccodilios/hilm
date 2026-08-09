@@ -183,7 +183,7 @@ export function MissionTimeline({
         data-mission-timeline
         className={cn(
           'relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-border-subtle bg-surface/40',
-          drag.isDragging && 'touch-none select-none',
+          drag.isDragging ? 'touch-none select-none' : 'touch-pan-y',
         )}
         onClick={(event) => {
           if (!onEmptySlotClick || drag.isDragging || drag.suppressClick()) return
@@ -250,7 +250,7 @@ export function MissionTimeline({
                 }}
                 className={cn(
                   'absolute z-10 overflow-hidden rounded-xl border px-2 py-1.5 text-start shadow-sm transition-shadow',
-                  'touch-manipulation select-none cursor-grab active:cursor-grabbing',
+                  'touch-pan-y select-none cursor-grab active:cursor-grabbing',
                   done && 'opacity-45 cursor-default',
                   isDragging && 'opacity-40 ring-2 ring-accent/60 z-30',
                 )}

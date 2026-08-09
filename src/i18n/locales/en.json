@@ -906,7 +906,7 @@
     "started": "Started",
     "active": "Active",
     "healthy": "Healthy",
-    "near_completion": "Near completion",
+    "near_completion": "Current tasks completed",
     "blocked": "Blocked",
     "stalled": "Stalled",
     "warning": "Needs attention",

@@ -12,9 +12,26 @@ type DragOpts = {
   activateDelayMs?: number
 }
 
+type Session = {
+  taskId: string
+  pointerId: number
+  startX: number
+  startY: number
+  pointerType: string
+  activated: boolean
+  timer: number | null
+  target: HTMLElement | null
+}
+
+type WindowListeners = {
+  onMove: (ev: PointerEvent) => void
+  onUp: (ev: PointerEvent) => void
+  onTouchMove?: (ev: TouchEvent) => void
+}
+
 /**
  * Hold-to-drag for Mission Control (calendar + timeline).
- * Uses pointer capture + non-passive move listeners so mobile scroll does not steal the gesture.
+ * Pre-activation stays passive so the timeline can scroll; scroll is only locked after drag starts.
  */
 export function useMissionPointerDrag(opts: DragOpts) {
   const optsRef = useRef(opts)
@@ -24,21 +41,27 @@ export function useMissionPointerDrag(opts: DragOpts) {
   const [ghost, setGhost] = useState<GhostPos | null>(null)
   const [hoverKey, setHoverKey] = useState<string | null>(null)
   const didDragRef = useRef(false)
-  const sessionRef = useRef<{
-    taskId: string
-    pointerId: number
-    startX: number
-    startY: number
-    pointerType: string
-    activated: boolean
-    timer: number | null
-    target: HTMLElement | null
-  } | null>(null)
+  const sessionRef = useRef<Session | null>(null)
+  const pendingListenersRef = useRef<WindowListeners | null>(null)
+  const activeListenersRef = useRef<WindowListeners | null>(null)
 
   const clearBodyLock = useCallback(() => {
     document.body.style.userSelect = ''
     document.body.style.touchAction = ''
     document.documentElement.style.overflow = ''
+  }, [])
+
+  const detachListeners = useCallback((bucket: 'pending' | 'active') => {
+    const ref = bucket === 'pending' ? pendingListenersRef : activeListenersRef
+    const listeners = ref.current
+    if (!listeners) return
+    window.removeEventListener('pointermove', listeners.onMove)
+    window.removeEventListener('pointerup', listeners.onUp)
+    window.removeEventListener('pointercancel', listeners.onUp)
+    if (listeners.onTouchMove) {
+      window.removeEventListener('touchmove', listeners.onTouchMove)
+    }
+    ref.current = null
   }, [])
 
   const cleanup = useCallback(() => {
@@ -53,47 +76,96 @@ export function useMissionPointerDrag(opts: DragOpts) {
         /* ignore */
       }
       session.target.style.pointerEvents = ''
+      session.target.style.touchAction = ''
     }
     sessionRef.current = null
+    detachListeners('pending')
+    detachListeners('active')
     setActiveTaskId(null)
     setGhost(null)
     setHoverKey(null)
     clearBodyLock()
-  }, [clearBodyLock])
+  }, [clearBodyLock, detachListeners])
 
-  const activate = useCallback((taskId: string, clientX: number, clientY: number) => {
-    const session = sessionRef.current
-    if (!session || session.activated) return
-    session.activated = true
-    if (session.timer != null) {
-      window.clearTimeout(session.timer)
-      session.timer = null
+  const attachActiveListeners = useCallback(() => {
+    if (activeListenersRef.current) return
+
+    const listeners: WindowListeners = {
+      onMove: (ev: PointerEvent) => {
+        const session = sessionRef.current
+        if (!session?.activated || ev.pointerId !== session.pointerId) return
+        ev.preventDefault()
+        setGhost({ x: ev.clientX, y: ev.clientY })
+        const resolve = optsRef.current.resolveHoverKey
+        if (resolve) setHoverKey(resolve(ev.clientX, ev.clientY))
+        optsRef.current.onDragMove?.(session.taskId, ev.clientX, ev.clientY)
+      },
+      onTouchMove: (ev: TouchEvent) => {
+        const session = sessionRef.current
+        if (!session?.activated) return
+        if (ev.cancelable) ev.preventDefault()
+      },
+      onUp: (ev: PointerEvent) => {
+        const session = sessionRef.current
+        if (!session || ev.pointerId !== session.pointerId) return
+        const activated = session.activated
+        const id = session.taskId
+        const x = ev.clientX
+        const y = ev.clientY
+        cleanup()
+        if (activated) {
+          optsRef.current.onDragEnd(id, x, y)
+        }
+      },
     }
-    didDragRef.current = true
-    setActiveTaskId(taskId)
-    setGhost({ x: clientX, y: clientY })
-    document.body.style.userSelect = 'none'
-    document.body.style.touchAction = 'none'
-    document.documentElement.style.overflow = 'hidden'
-    if (session.target) {
-      session.target.style.pointerEvents = 'none'
-      try {
-        session.target.setPointerCapture(session.pointerId)
-      } catch {
-        /* ignore */
+
+    activeListenersRef.current = listeners
+    window.addEventListener('pointermove', listeners.onMove, { passive: false })
+    window.addEventListener('pointerup', listeners.onUp)
+    window.addEventListener('pointercancel', listeners.onUp)
+    window.addEventListener('touchmove', listeners.onTouchMove!, { passive: false })
+  }, [cleanup])
+
+  const activate = useCallback(
+    (taskId: string, clientX: number, clientY: number) => {
+      const session = sessionRef.current
+      if (!session || session.activated) return
+      session.activated = true
+      if (session.timer != null) {
+        window.clearTimeout(session.timer)
+        session.timer = null
       }
-    }
-    const resolve = optsRef.current.resolveHoverKey
-    if (resolve) setHoverKey(resolve(clientX, clientY))
-    optsRef.current.onDragMove?.(taskId, clientX, clientY)
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(14)
-      } catch {
-        /* ignore */
+      // Drop passive watchers; active drag owns the gesture from here.
+      detachListeners('pending')
+      didDragRef.current = true
+      setActiveTaskId(taskId)
+      setGhost({ x: clientX, y: clientY })
+      document.body.style.userSelect = 'none'
+      document.body.style.touchAction = 'none'
+      document.documentElement.style.overflow = 'hidden'
+      if (session.target) {
+        session.target.style.pointerEvents = 'none'
+        session.target.style.touchAction = 'none'
+        try {
+          session.target.setPointerCapture(session.pointerId)
+        } catch {
+          /* ignore */
+        }
       }
-    }
-  }, [])
+      attachActiveListeners()
+      const resolve = optsRef.current.resolveHoverKey
+      if (resolve) setHoverKey(resolve(clientX, clientY))
+      optsRef.current.onDragMove?.(taskId, clientX, clientY)
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(14)
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [attachActiveListeners, detachListeners],
+  )
 
   const bindTask = useCallback(
     (taskId: string) => ({
@@ -109,6 +181,9 @@ export function useMissionPointerDrag(opts: DragOpts) {
         const startY = event.clientY
         const delay = optsRef.current.activateDelayMs ?? (isTouch ? 280 : 0)
         const target = event.currentTarget
+
+        // Allow vertical timeline/page scroll until a real drag starts.
+        target.style.touchAction = 'pan-y'
 
         const timer =
           delay > 0
@@ -126,74 +201,31 @@ export function useMissionPointerDrag(opts: DragOpts) {
           target,
         }
 
-        const listeners: {
-          onMove: (ev: PointerEvent) => void
-          onUp: (ev: PointerEvent) => void
-          onTouchMove: (ev: TouchEvent) => void
-        } = {
-          onMove: () => undefined,
-          onUp: () => undefined,
-          onTouchMove: () => undefined,
+        if (delay === 0) {
+          activate(taskId, startX, startY)
+          return
         }
 
-        listeners.onMove = (ev: PointerEvent) => {
-          const session = sessionRef.current
-          if (!session || ev.pointerId !== session.pointerId) return
-          const dx = Math.abs(ev.clientX - session.startX)
-          const dy = Math.abs(ev.clientY - session.startY)
-
-          if (!session.activated) {
-            if (isTouch) {
-              if (dx > 14 || dy > 14) {
-                window.removeEventListener('pointermove', listeners.onMove)
-                window.removeEventListener('pointerup', listeners.onUp)
-                window.removeEventListener('pointercancel', listeners.onUp)
-                window.removeEventListener('touchmove', listeners.onTouchMove)
-                cleanup()
-              }
-              return
-            }
-            // Mouse: small movement starts drag (no hold required)
-            if (dx > 5 || dy > 5) {
-              activate(taskId, ev.clientX, ev.clientY)
-            }
-            return
-          }
-
-          ev.preventDefault()
-          setGhost({ x: ev.clientX, y: ev.clientY })
-          const resolve = optsRef.current.resolveHoverKey
-          if (resolve) setHoverKey(resolve(ev.clientX, ev.clientY))
-          optsRef.current.onDragMove?.(taskId, ev.clientX, ev.clientY)
+        // Passive pre-activation watchers only — non-passive touchmove would block scroll.
+        const listeners: WindowListeners = {
+          onMove: (ev: PointerEvent) => {
+            const session = sessionRef.current
+            if (!session || ev.pointerId !== session.pointerId || session.activated) return
+            const dx = Math.abs(ev.clientX - session.startX)
+            const dy = Math.abs(ev.clientY - session.startY)
+            if (dx > 14 || dy > 14) cleanup()
+          },
+          onUp: (ev: PointerEvent) => {
+            const session = sessionRef.current
+            if (!session || ev.pointerId !== session.pointerId || session.activated) return
+            cleanup()
+          },
         }
 
-        listeners.onTouchMove = (ev: TouchEvent) => {
-          const session = sessionRef.current
-          if (!session?.activated) return
-          if (ev.cancelable) ev.preventDefault()
-        }
-
-        listeners.onUp = (ev: PointerEvent) => {
-          const session = sessionRef.current
-          if (!session || ev.pointerId !== session.pointerId) return
-          const activated = session.activated
-          const id = session.taskId
-          const x = ev.clientX
-          const y = ev.clientY
-          window.removeEventListener('pointermove', listeners.onMove)
-          window.removeEventListener('pointerup', listeners.onUp)
-          window.removeEventListener('pointercancel', listeners.onUp)
-          window.removeEventListener('touchmove', listeners.onTouchMove)
-          cleanup()
-          if (activated) {
-            optsRef.current.onDragEnd(id, x, y)
-          }
-        }
-
-        window.addEventListener('pointermove', listeners.onMove, { passive: false })
+        pendingListenersRef.current = listeners
+        window.addEventListener('pointermove', listeners.onMove, { passive: true })
         window.addEventListener('pointerup', listeners.onUp)
         window.addEventListener('pointercancel', listeners.onUp)
-        window.addEventListener('touchmove', listeners.onTouchMove, { passive: false })
       },
       onClickCapture: (event: React.MouseEvent) => {
         if (!didDragRef.current) return

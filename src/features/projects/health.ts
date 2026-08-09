@@ -92,11 +92,22 @@ export function computeProjectHealth(input: ProjectHealthInput): ProjectHealthRe
     }
   }
 
+  if (hasWork && input.openTasks === 0 && input.doneTasks > 0) {
+    return {
+      health: 'near_completion',
+      momentum,
+      explanation: 'All current tasks are completed',
+    }
+  }
+
   if (pct >= 90 || (milestoneShare != null && milestoneShare >= 0.9)) {
     return {
       health: 'near_completion',
       momentum,
-      explanation: 'Most work and milestones are complete',
+      explanation:
+        input.openTasks === 0
+          ? 'All current tasks are completed'
+          : 'Most work and milestones are complete',
     }
   }
 

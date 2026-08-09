@@ -368,7 +368,7 @@ export function WorkspaceMissionControlPage() {
 
         <section
           className={cn(
-            'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
+            'flex min-h-0 min-h-[420px] max-h-[calc(100dvh-12rem)] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
             mobilePane === 'timeline' ? 'flex' : 'hidden lg:flex',
           )}
         >
