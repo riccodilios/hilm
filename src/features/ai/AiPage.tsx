@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS } from 'date-fns/locale'
-import { Bot, Check, History, LoaderCircle, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowDown, Check, History, LoaderCircle, Plus, Send, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { agents, defaultAgentId } from '@/features/ai/agents'
 import {
@@ -34,6 +34,13 @@ import { notesKeys } from '@/features/notes/api'
 import { projectsKeys } from '@/features/projects/api'
 import { tasksKeys } from '@/features/tasks/api'
 import { workspaceKeys } from '@/features/workspace-os/api'
+import {
+  AiActionProgress,
+  humanActionLabel,
+  type ActionRunItem,
+} from '@/features/ai/components/AiActionProgress'
+import { AiSuggestedPrompts } from '@/features/ai/components/AiSuggestedPrompts'
+import { AiThinkingIndicator } from '@/features/ai/components/AiThinkingIndicator'
 import { VoiceAddButton } from '@/components/VoiceAddButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -54,19 +61,22 @@ import type { AiAction } from '@/types/ai-actions'
 
 ensureAiRegistry()
 
-type DraftMessage = AiMessage & { pending?: boolean }
-
-function actionLabel(action: AiAction, os?: 'personal' | 'workspace') {
-  const def = getRegisteredAction(String(action.type), os)
-  const title = typeof action.title === 'string' ? action.title : undefined
-  const name = typeof action.name === 'string' ? action.name : undefined
-  const summary = typeof action.summary === 'string' ? action.summary : undefined
-  return title || name || summary || def?.title || String(action.type).replace(/\./g, ' ')
-}
+type DraftMessage = AiMessage & { pending?: boolean; local?: boolean }
 
 function riskNeedsConfirm(actions: ParsedRegistryAction[], os?: 'personal' | 'workspace') {
   const risk = getActionRisk(actions, os)
   return risk === 'confirm' || risk === 'destructive'
+}
+
+function friendlyAiError(raw: string | undefined, fallback: string) {
+  if (!raw) return fallback
+  const text = raw.trim()
+  if (!text) return fallback
+  if (/stack|exception|postgres|pgrst|zod|uuid|sql|fetch failed|networkerror/i.test(text)) {
+    return fallback
+  }
+  if (text.length > 160) return fallback
+  return text
 }
 
 export type AiPageProps = {
@@ -86,15 +96,25 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const [agentId, setAgentId] = useState<AgentId>(defaultAgentId)
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [optimisticUser, setOptimisticUser] = useState<DraftMessage | null>(null)
   const [draft, setDraft] = useState<DraftMessage | null>(null)
   const [proposedActions, setProposedActions] = useState<AiAction[]>([])
+  const [actionRun, setActionRun] = useState<ActionRunItem[]>([])
+  const [actionSummary, setActionSummary] = useState<string | null>(null)
+  const [applying, setApplying] = useState(false)
+  const [streamError, setStreamError] = useState<string | null>(null)
+  const [retryMessage, setRetryMessage] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(false)
   const [voiceLang, setVoiceLang] = useState<SpeechLocale>(() => speechLocaleFromI18n(i18n.language))
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [stickToBottom, setStickToBottom] = useState(true)
+  const [showJump, setShowJump] = useState(false)
   const streamingRef = useRef(false)
   const voiceModeRef = useRef(false)
   const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {})
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
   const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
 
   const conversations = useQuery({
@@ -114,7 +134,11 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   useEffect(() => {
     setSelectedId(undefined)
     setProposedActions([])
+    setOptimisticUser(null)
     setDraft(null)
+    setActionRun([])
+    setActionSummary(null)
+    setStreamError(null)
   }, [mode, workspaceId])
 
   useEffect(() => {
@@ -145,11 +169,16 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     onSuccess: async (conversation) => {
       setSelectedId(conversation.id)
       setProposedActions([])
+      setOptimisticUser(null)
       setDraft(null)
+      setActionRun([])
+      setActionSummary(null)
+      setStreamError(null)
       setHistoryOpen(false)
       await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: () =>
+      toast.error(t('ai.somethingWrong', { defaultValue: 'Something went wrong' })),
   })
 
   const removeConversation = useMutation({
@@ -158,24 +187,91 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
       if (selectedId === id) {
         setSelectedId(undefined)
         setProposedActions([])
+        setOptimisticUser(null)
         setDraft(null)
       }
       await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
       toast.success(t('ai.historyDeleted'))
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: () =>
+      toast.error(t('ai.somethingWrong', { defaultValue: 'Something went wrong' })),
   })
 
   function selectConversation(id: string) {
     setSelectedId(id)
     setProposedActions([])
+    setOptimisticUser(null)
     setDraft(null)
+    setActionRun([])
+    setActionSummary(null)
+    setStreamError(null)
     setHistoryOpen(false)
+    setStickToBottom(true)
   }
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' })
+    setShowJump(false)
+    setStickToBottom(true)
+  }, [])
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    const nearBottom = distance < 80
+    setStickToBottom(nearBottom)
+    if (nearBottom) setShowJump(false)
+  }
+
+  useEffect(() => {
+    if (!stickToBottom) {
+      if (streaming || draft || optimisticUser) setShowJump(true)
+      return
+    }
+    scrollToBottom(Boolean(draft?.content))
+  }, [messages.data, draft, optimisticUser, streaming, stickToBottom, scrollToBottom])
 
   async function sendMessage(overrideText?: string) {
     const message = (overrideText ?? input).trim()
     if (!message || streamingRef.current) return
+
+    const now = new Date().toISOString()
+    const userLocal: DraftMessage = {
+      id: `local-user-${Date.now()}`,
+      conversation_id: selectedId ?? 'pending',
+      user_id: '',
+      role: 'user',
+      content: message,
+      actions: [],
+      model: null,
+      created_at: now,
+      local: true,
+    }
+    const pending: DraftMessage = {
+      id: `local-assistant-${Date.now()}`,
+      conversation_id: selectedId ?? 'pending',
+      user_id: '',
+      role: 'assistant',
+      content: '',
+      actions: [],
+      model: null,
+      created_at: now,
+      pending: true,
+      local: true,
+    }
+
+    setInput('')
+    setStreamError(null)
+    setRetryMessage(null)
+    setProposedActions([])
+    setActionRun([])
+    setActionSummary(null)
+    setOptimisticUser(userLocal)
+    setDraft(pending)
+    setStreaming(true)
+    streamingRef.current = true
+    setStickToBottom(true)
 
     let conversationId = selectedId
     if (!conversationId) {
@@ -189,29 +285,19 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         conversationId = conversation.id
         setSelectedId(conversation.id)
         await queryClient.invalidateQueries({ queryKey: conversationScopeKey })
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('ai.empty'))
+      } catch {
+        setOptimisticUser(null)
+        setDraft(null)
+        setStreaming(false)
+        streamingRef.current = false
+        setRetryMessage(message)
+        setStreamError(t('ai.couldNotSend', { defaultValue: 'I couldn’t send that message.' }))
         return
       }
     }
 
-    setInput('')
-    setStreaming(true)
-    streamingRef.current = true
-    setProposedActions([])
-    const pending: DraftMessage = {
-      id: 'pending',
-      conversation_id: conversationId,
-      user_id: '',
-      role: 'assistant',
-      content: '',
-      actions: [],
-      model: null,
-      created_at: new Date().toISOString(),
-      pending: true,
-    }
-    setDraft(pending)
     let content = ''
+    let hadError = false
 
     for await (const event of streamChat({
       conversationId,
@@ -223,7 +309,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     })) {
       if (event.type === 'token') {
         content += event.token
-        setDraft({ ...pending, content })
+        setDraft({ ...pending, conversation_id: conversationId, content, pending: false })
       } else if (event.type === 'actions') {
         const incoming = event.actions ?? []
         if (!incoming.length) continue
@@ -231,7 +317,6 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           workspaceId: isWorkspace ? workspaceId : undefined,
           role: workspaceRole ?? undefined,
         })
-        // Prefer validated actions; keep raw only so Apply can surface schema errors.
         setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
       } else if (event.type === 'done') {
         const incoming = event.actions ?? []
@@ -243,18 +328,47 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           setProposedActions(parsed.length ? parsed : (incoming as AiAction[]))
         }
       } else if (event.type === 'error') {
-        toast.error(event.error)
+        hadError = true
+        setRetryMessage(message)
+        setStreamError(
+          friendlyAiError(
+            event.error,
+            t('ai.couldNotComplete', { defaultValue: 'I couldn’t complete that action.' }),
+          ),
+        )
       }
     }
 
     setDraft(null)
+    if (!hadError) setOptimisticUser(null)
     setStreaming(false)
     streamingRef.current = false
-    const fromContent = extractActionsFromContent(content, {
-      workspaceId: isWorkspace ? workspaceId : undefined,
-      role: workspaceRole ?? undefined,
-    })
-    if (fromContent.length) setProposedActions(fromContent)
+
+    if (!hadError) {
+      const fromContent = extractActionsFromContent(content, {
+        workspaceId: isWorkspace ? workspaceId : undefined,
+        role: workspaceRole ?? undefined,
+      })
+      if (fromContent.length) setProposedActions(fromContent)
+    } else {
+      // Keep the optimistic user bubble visible after a failed reply.
+      setOptimisticUser((prev) =>
+        prev
+          ? prev
+          : {
+              id: `local-user-retry-${Date.now()}`,
+              conversation_id: conversationId,
+              user_id: '',
+              role: 'user',
+              content: message,
+              actions: [],
+              model: null,
+              created_at: now,
+              local: true,
+            },
+      )
+    }
+
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: aiKeys.messages(conversationId) }),
       queryClient.invalidateQueries({ queryKey: conversationScopeKey }),
@@ -307,58 +421,105 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     dictation.start()
   }
 
+  async function invalidateAfterActions() {
+    if (isWorkspace && workspaceId) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) }),
+      ])
+    } else {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: tasksKeys.all }),
+        queryClient.invalidateQueries({ queryKey: projectsKeys.all }),
+        queryClient.invalidateQueries({ queryKey: homeKeys.all }),
+        queryClient.invalidateQueries({ queryKey: activityKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
+        queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+        queryClient.invalidateQueries({ queryKey: labelKeys.all }),
+      ])
+    }
+  }
+
   async function runActions() {
-    if (!proposedActions.length) return
+    if (!proposedActions.length || applying) return
+    setApplying(true)
+    setActionSummary(null)
+    const initial: ActionRunItem[] = proposedActions.map((action, index) => ({
+      key: `${action.type}-${index}`,
+      label: humanActionLabel(action, osMode),
+      status: 'pending',
+    }))
+    setActionRun(initial)
+
+    const remaining: AiAction[] = []
+    let succeeded = 0
+    let failed = 0
+
     try {
-      const results = await executeAiActions(proposedActions, {
-        workspaceId: isWorkspace ? workspaceId : undefined,
-        role: workspaceRole ?? undefined,
-        sequential: true,
-      })
-      const succeeded = results.filter((result) => result.success)
-      const failed = results.filter((result) => !result.success)
-      if (succeeded.length) {
-        toast.success(
-          succeeded.length === 1
+      for (let index = 0; index < proposedActions.length; index++) {
+        const action = proposedActions[index]!
+        setActionRun((prev) =>
+          prev.map((item, i) =>
+            i === index ? { ...item, status: 'running' } : item,
+          ),
+        )
+        const [result] = await executeAiActions([action as ParsedRegistryAction], {
+          workspaceId: isWorkspace ? workspaceId : undefined,
+          role: workspaceRole ?? undefined,
+          sequential: true,
+        })
+        if (result?.success) {
+          succeeded += 1
+          setActionRun((prev) =>
+            prev.map((item, i) =>
+              i === index
+                ? {
+                    ...item,
+                    status: 'done',
+                    label: result.summary || item.label,
+                  }
+                : item,
+            ),
+          )
+        } else {
+          failed += 1
+          remaining.push(action)
+          setActionRun((prev) =>
+            prev.map((item, i) =>
+              i === index
+                ? {
+                    ...item,
+                    status: 'error',
+                    error: result?.error,
+                    label: item.label,
+                  }
+                : item,
+            ),
+          )
+        }
+      }
+
+      if (succeeded && !failed) {
+        setActionSummary(
+          succeeded === 1
             ? t('ai.appliedOne')
-            : t('ai.appliedMany', { count: succeeded.length }),
+            : t('ai.appliedMany', { count: succeeded }),
         )
+        setProposedActions([])
+      } else if (failed) {
+        setProposedActions(remaining)
       }
-      if (failed.length) {
-        const detail = failed
-          .slice(0, 2)
-          .map((result) => result.error || result.action.type)
-          .join(' · ')
-        toast.error(
-          failed.length === 1
-            ? t('ai.failedOne', { detail })
-            : t('ai.failedMany', { count: failed.length, detail }),
-        )
-      }
-      if (succeeded.length) setProposedActions(failed.map((result) => result.action))
-      if (isWorkspace && workspaceId) {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) }),
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) }),
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) }),
-          queryClient.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) }),
-        ])
-      } else {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: tasksKeys.all }),
-          queryClient.invalidateQueries({ queryKey: projectsKeys.all }),
-          queryClient.invalidateQueries({ queryKey: homeKeys.all }),
-          queryClient.invalidateQueries({ queryKey: activityKeys.all }),
-          queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
-          queryClient.invalidateQueries({ queryKey: notesKeys.all }),
-          queryClient.invalidateQueries({ queryKey: labelKeys.all }),
-        ])
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('ai.applyFailed'))
+      if (succeeded) await invalidateAfterActions()
+    } catch {
+      setStreamError(
+        t('ai.couldNotComplete', { defaultValue: 'I couldn’t complete that action.' }),
+      )
     } finally {
+      setApplying(false)
       setConfirmOpen(false)
     }
   }
@@ -372,11 +533,28 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     await runActions()
   }
 
-  const displayedMessages: DraftMessage[] = [...(messages.data ?? []), ...(draft ? [draft] : [])]
+  const serverMessages = messages.data ?? []
+  const serverHasOptimisticUser =
+    optimisticUser &&
+    serverMessages.some(
+      (message) =>
+        message.role === 'user' &&
+        message.content.trim() === optimisticUser.content.trim() &&
+        Math.abs(new Date(message.created_at).getTime() - new Date(optimisticUser.created_at).getTime()) <
+          120_000,
+    )
+
+  const displayedMessages: DraftMessage[] = [
+    ...serverMessages,
+    ...(optimisticUser && !serverHasOptimisticUser ? [optimisticUser] : []),
+    ...(draft ? [draft] : []),
+  ]
+
   const chatTitle = selectedConversation?.title || t('ai.newChat')
+  const isEmpty = !displayedMessages.length
 
   return (
-    <div>
+    <div className="pb-[env(safe-area-inset-bottom)]">
       <PageHeader
         title={isWorkspace ? t('ai.workspaceTitle') : t('ai.title')}
         description={isWorkspace ? t('ai.workspaceEmpty') : t('ai.empty')}
@@ -481,7 +659,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         </DialogContent>
       </Dialog>
 
-      <Card className="flex min-h-[calc(100dvh-15rem)] flex-col overflow-hidden">
+      <Card className="relative flex min-h-[calc(100dvh-15rem)] flex-col overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
@@ -520,55 +698,124 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         </div>
 
         <CardContent className="flex flex-1 flex-col p-0">
-          <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
-            {!displayedMessages.length ? (
-              <div className="mx-auto flex max-w-md flex-col items-center py-20 text-center">
-                <Bot className="mb-4 size-10 text-muted" />
-                <h2 className="font-medium">{isWorkspace ? t('ai.workspaceTitle') : t('ai.title')}</h2>
-                <p className="mt-2 text-sm text-muted">
-                  {isWorkspace ? t('ai.workspaceEmpty') : t('ai.empty')}
-                </p>
-              </div>
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="relative flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6"
+          >
+            {isEmpty ? (
+              <AiSuggestedPrompts
+                os={osMode}
+                disabled={streaming}
+                onSelect={(prompt) => void sendMessage(prompt)}
+              />
             ) : (
-              displayedMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
-                >
+              displayedMessages.map((message) => {
+                const isUser = message.role === 'user'
+                const thinking = Boolean(message.pending && !message.content)
+                return (
                   <div
+                    key={message.id}
                     className={cn(
-                      'max-w-[min(88%,42rem)] rounded-2xl px-4 py-3',
-                      message.role === 'user'
-                        ? 'bg-accent text-accent-fg'
-                        : 'border border-border-subtle bg-surface-2 text-foreground',
+                      'ai-message-enter flex',
+                      isUser ? 'justify-end' : 'justify-start',
                     )}
                   >
-                    {message.content ? (
-                      <AiMarkdown content={message.content} inverse={message.role === 'user'} />
-                    ) : message.pending ? (
-                      <LoaderCircle className="size-4 animate-spin opacity-70" />
-                    ) : null}
+                    <div
+                      className={cn(
+                        'max-w-[min(92%,42rem)] rounded-2xl px-4 py-3 transition-shadow',
+                        isUser
+                          ? 'bg-accent text-accent-fg shadow-sm'
+                          : 'border border-border-subtle bg-surface-2 text-foreground',
+                      )}
+                    >
+                      {thinking ? (
+                        <AiThinkingIndicator
+                          label={t('ai.thinking', { defaultValue: 'Thinking' })}
+                        />
+                      ) : message.content ? (
+                        <div className="relative">
+                          <AiMarkdown content={message.content} inverse={isUser} />
+                          {draft?.id === message.id && streaming ? (
+                            <span
+                              className="ms-0.5 inline-block h-3.5 w-0.5 translate-y-0.5 animate-pulse rounded-full bg-current/70 align-middle"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
+
+            {streamError ? (
+              <div className="ai-message-enter mx-auto w-full max-w-md rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 text-center">
+                <p className="text-sm font-medium">
+                  {t('ai.somethingWrong', { defaultValue: 'Something went wrong' })}
+                </p>
+                <p className="mt-1 text-xs text-muted">{streamError}</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => {
+                    const again = retryMessage
+                    setStreamError(null)
+                    setRetryMessage(null)
+                    if (again) void sendMessage(again)
+                  }}
+                >
+                  {t('ai.tryAgain', { defaultValue: 'Try again' })}
+                </Button>
+              </div>
+            ) : null}
+
+            {actionRun.length ? (
+              <div className="ai-message-enter mx-auto w-full max-w-lg">
+                <AiActionProgress items={actionRun} collapsedSummary={actionSummary} />
+              </div>
+            ) : null}
+
+            <div ref={bottomRef} className="h-px w-full" />
           </div>
+
+          {showJump ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center sm:bottom-32">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="pointer-events-auto shadow-md"
+                onClick={() => scrollToBottom(true)}
+              >
+                <ArrowDown className="size-3.5" />
+                {t('ai.newResponse', { defaultValue: 'New response' })}
+              </Button>
+            </div>
+          ) : null}
 
           {proposedActions.length ? (
             <div className="border-t border-border-subtle bg-surface/50 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-sm font-medium">{t('ai.actions')}</p>
-                <Button size="sm" onClick={() => void executeActions()}>
-                  <Check className="size-4" /> {t('ai.apply')}
+                <Button size="sm" disabled={applying} onClick={() => void executeActions()}>
+                  {applying ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}{' '}
+                  {t('ai.apply')}
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {proposedActions.map((action, index) => (
                   <span
                     key={`${action.type}-${index}`}
-                    className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
+                    className="rounded-lg border border-border-subtle bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
                   >
-                    {actionLabel(action, osMode)}
+                    {humanActionLabel(action, osMode)}
                     {getRegisteredAction(String(action.type), osMode)?.risk !== 'safe' ? (
                       <span className="ms-1 text-[10px] uppercase text-warning">
                         {getRegisteredAction(String(action.type), osMode)?.risk}
@@ -583,15 +830,18 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Confirm actions</DialogTitle>
+                <DialogTitle>{t('ai.confirmTitle', { defaultValue: 'Confirm actions' })}</DialogTitle>
                 <DialogDescription>
-                  These actions include confirm or destructive steps. Review before applying.
+                  {t('ai.confirmDesc', {
+                    defaultValue:
+                      'These actions include confirm or destructive steps. Review before applying.',
+                  })}
                 </DialogDescription>
               </DialogHeader>
               <ul className="max-h-48 space-y-2 overflow-auto text-sm">
                 {proposedActions.map((action, index) => (
                   <li key={`${action.type}-confirm-${index}`} className="rounded-lg bg-surface-2 px-3 py-2">
-                    <span className="font-medium">{actionLabel(action, osMode)}</span>
+                    <span className="font-medium">{humanActionLabel(action, osMode)}</span>
                     <span className="ms-2 text-xs text-muted">
                       {getRegisteredAction(String(action.type), osMode)?.risk}
                     </span>
@@ -600,31 +850,39 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
               </ul>
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
-                  Cancel
+                  {t('common.cancel', { defaultValue: 'Cancel' })}
                 </Button>
-                <Button onClick={() => void runActions()}>Confirm & apply</Button>
+                <Button onClick={() => void runActions()}>
+                  {t('ai.confirmApply', { defaultValue: 'Confirm & apply' })}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
 
           <form
-            className="border-t border-border-subtle p-3"
+            className="sticky bottom-0 border-t border-border-subtle bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
             onSubmit={(event) => {
               event.preventDefault()
               void sendMessage()
             }}
           >
             {voiceMode ? (
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                <p className="min-w-0 flex-1 text-xs text-muted">
-                  {dictation.listening
-                    ? dictation.interim
-                      ? t('ai.voiceHearing', { text: dictation.interim })
-                      : t('ai.voiceListening')
-                    : streaming
-                      ? t('ai.voiceWaiting')
-                      : t('ai.voiceHint')}
-                </p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/25 bg-accent/5 px-2.5 py-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="relative flex size-2.5 shrink-0">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-accent/50" />
+                    <span className="relative inline-flex size-2.5 rounded-full bg-accent" />
+                  </span>
+                  <p className="min-w-0 flex-1 truncate text-xs text-muted">
+                    {dictation.listening
+                      ? dictation.interim
+                        ? t('ai.voiceHearing', { text: dictation.interim })
+                        : t('ai.voiceListening')
+                      : streaming
+                        ? t('ai.voiceWaiting')
+                        : t('ai.voiceHint')}
+                  </p>
+                </div>
                 <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border-subtle bg-surface/60 p-0.5">
                   <button
                     type="button"
@@ -657,8 +915,10 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
             ) : null}
             <div
               className={cn(
-                'flex items-end gap-2 rounded-xl border bg-surface-2/50 p-2 focus-within:border-accent/50',
+                'flex items-end gap-2 rounded-2xl border bg-surface-2/60 p-2 shadow-sm transition-colors',
+                'focus-within:border-accent/45 focus-within:bg-surface-2/80 focus-within:shadow-md',
                 voiceMode ? 'border-accent/40' : 'border-border',
+                streaming && 'opacity-95',
               )}
             >
               <VoiceAddButton
@@ -670,22 +930,31 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                 listeningKey="ai.voiceListening"
                 stopKey="ai.voiceStop"
                 unsupportedKey="ai.voiceUnsupported"
-                className="shrink-0"
+                className={cn(
+                  'shrink-0',
+                  voiceMode && 'ring-2 ring-accent/30 ring-offset-1 ring-offset-background',
+                )}
               />
-                <Textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      void sendMessage()
-                    }
-                  }}
-                  placeholder={voiceMode ? t('ai.voicePlaceholder') : t('ai.placeholder')}
-                  className="min-h-10 resize-none border-0 bg-transparent px-2 py-1 shadow-none focus-visible:ring-0"
-                  rows={1}
-                />
-              <Button type="submit" size="icon" disabled={!input.trim() || streaming} aria-label={t('ai.send')}>
+              <Textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    void sendMessage()
+                  }
+                }}
+                placeholder={voiceMode ? t('ai.voicePlaceholder') : t('ai.placeholder')}
+                className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+                rows={1}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!input.trim() || streaming}
+                aria-label={t('ai.send')}
+                className="shrink-0 transition-transform active:scale-95"
+              >
                 {streaming ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
               </Button>
             </div>

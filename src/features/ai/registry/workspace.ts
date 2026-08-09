@@ -40,6 +40,8 @@ import {
   updateTeam,
 } from '@/features/workspace-os/org-api'
 import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
+import { requireUserId } from '@/lib/supabase/activity'
+import { supabase } from '@/lib/supabase/client'
 import type { Priority, TaskStatus } from '@/types/domain'
 
 export function registerWorkspaceActions() {
@@ -690,7 +692,7 @@ export function registerWorkspaceActions() {
     type: 'report.generate',
     os: 'workspace',
     title: 'Generate report',
-    description: 'Generate a workspace status/progress report',
+    description: 'Generate a branded workspace report and store it in report history',
     risk: 'safe',
     permission: editOk,
     inputSchema: z.object({
@@ -701,14 +703,70 @@ export function registerWorkspaceActions() {
     }),
     promptFields: 'title, body, projectId?',
     execute: async (input, ctx) => {
-      await recordWorkspaceActivityNote(ctx.workspaceId!, {
-        summary: `Report: ${input.title}`,
-        entityType: 'report',
-        entityId: input.projectId,
-        projectId: input.projectId,
-        payload: { title: input.title, body: input.body },
+      const workspaceId = ctx.workspaceId!
+      const userId = await requireUserId()
+      const [{ data: profile }, { data: workspace }, projects, tasks, members] = await Promise.all([
+        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+        supabase.from('workspaces').select('id, name, logo_url').eq('id', workspaceId).maybeSingle(),
+        listWorkspaceProjects(workspaceId),
+        listWorkspaceTasks(workspaceId),
+        listWorkspaceMembers(workspaceId),
+      ])
+      const generatedBy = profile?.display_name?.trim() || 'Hilm user'
+      const { customizeReportFromPrompt } = await import('@/features/reports/engine/aiCustomize')
+      const { buildReportSnapshot } = await import('@/features/reports/engine/buildSnapshot')
+      const { saveWorkspaceReport } = await import('@/features/reports/api')
+      const { resolveMemberDisplayName } = await import('@/features/workspace-os/lib/member-display')
+      const customized = customizeReportFromPrompt('workspace', `${input.title}. ${input.body}`, {
+        title: input.title,
+        projectIds: input.projectId ? [input.projectId] : 'all',
+        datePreset: 'this_week',
+        metrics: [],
       })
-      return { ok: true, summary: `Generated report ${input.title}` }
+      const snapshot = buildReportSnapshot({
+        os: 'workspace',
+        config: customized.config,
+        generatedBy,
+        workspaceName: workspace?.name ?? null,
+        workspaceId,
+        logoUrl: workspace?.logo_url ?? null,
+        projects: projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          health: project.health,
+          completion_pct: project.completion_pct,
+          status: project.status,
+        })),
+        tasks: tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          project_id: task.project_id,
+          due_date: task.due_date,
+          due_at: task.due_at,
+          completed_at: task.completed_at,
+          created_at: task.created_at,
+          estimated_hours: task.estimated_hours,
+          assignee_id: task.assignee_id,
+          department_id: task.department_id,
+          team_id: task.team_id,
+        })),
+        members: members.map((member) => ({
+          id: member.user_id,
+          name: resolveMemberDisplayName({
+            displayNameOverride: member.display_name_override,
+            displayName: member.profiles?.display_name,
+          }),
+        })),
+        aiPromptNotes: customized.notes,
+      })
+      const saved = await saveWorkspaceReport(workspaceId, snapshot)
+      return {
+        ok: true,
+        summary: `Generated report ${snapshot.title}`,
+        data: { reportId: saved.id, title: snapshot.title },
+      }
     },
   })
 

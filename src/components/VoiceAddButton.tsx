@@ -54,7 +54,11 @@ export function VoiceAddButton({
       size={iconOnly ? 'icon' : 'sm'}
       variant={listening ? 'default' : 'secondary'}
       onClick={onToggle}
-      className={cn(!iconOnly && 'gap-1.5', listening && 'animate-pulse', className)}
+      className={cn(
+        !iconOnly && 'gap-1.5',
+        listening && 'relative animate-pulse shadow-[0_0_0_3px_rgba(228,228,231,0.12)]',
+        className,
+      )}
       aria-pressed={listening}
       aria-label={title}
       title={title}

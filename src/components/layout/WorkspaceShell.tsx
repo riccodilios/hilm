@@ -6,6 +6,7 @@ import {
   Building2,
   CheckSquare,
   ChevronDown,
+  FileBarChart,
   FolderKanban,
   Home,
   LayoutGrid,
@@ -139,6 +140,7 @@ function WorkspaceShellInner() {
     { to: `${base}/org`, label: t('nav.org'), icon: Network },
     { to: `${base}/crm`, label: t('nav.crm'), icon: Building2 },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
+    { to: `${base}/reports`, label: t('nav.reports'), icon: FileBarChart },
     ...(!hidePersonal
       ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
       : []),
@@ -150,7 +152,7 @@ function WorkspaceShellInner() {
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
     { to: `${base}/org`, label: t('nav.org'), icon: Network },
-    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
+    { to: `${base}/reports`, label: t('nav.reports'), icon: FileBarChart },
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
   ]
 

@@ -48,12 +48,44 @@ export function AiMarkdown({
           ),
           p: ({ children }) => <p className="mb-2.5 last:mb-0">{children}</p>,
           ul: ({ children }) => (
-            <ul className="mb-2.5 list-disc space-y-1 ps-5 last:mb-0">{children}</ul>
+            <ul className="mb-2.5 list-disc space-y-1.5 ps-5 last:mb-0">{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="mb-2.5 list-decimal space-y-1 ps-5 last:mb-0">{children}</ol>
+            <ol className="mb-2.5 list-decimal space-y-1.5 ps-5 last:mb-0">{children}</ol>
           ),
-          li: ({ children }) => <li className="leading-6">{children}</li>,
+          li: ({ children, className: liClass, checked, ...props }) => {
+            const isTask = typeof checked === 'boolean' || liClass?.includes('task-list-item')
+            if (isTask) {
+              return (
+                <li className={cn('list-none leading-6', liClass)} {...props}>
+                  <span className="inline-flex items-start gap-2">
+                    <span
+                      className={cn(
+                        'mt-1 size-3.5 shrink-0 rounded border border-current/40',
+                        checked ? 'bg-current/80' : 'bg-transparent',
+                      )}
+                      aria-hidden
+                    />
+                    <span>{children}</span>
+                  </span>
+                </li>
+              )
+            }
+            return (
+              <li className={cn('leading-6', liClass)} {...props}>
+                {children}
+              </li>
+            )
+          },
+          input: ({ checked, ...props }) => (
+            <input
+              type="checkbox"
+              checked={Boolean(checked)}
+              readOnly
+              className="me-2 mt-1 align-middle accent-current"
+              {...props}
+            />
+          ),
           strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           a: ({ href, children }) => {
@@ -88,14 +120,14 @@ export function AiMarkdown({
             )
           },
           pre: ({ children }) => (
-            <pre className="mb-2.5 overflow-x-auto rounded-xl p-3 font-mono text-[0.8rem] leading-5 last:mb-0">
+            <pre className="mb-2.5 max-w-full overflow-x-auto rounded-xl p-3 font-mono text-[0.8rem] leading-5 last:mb-0">
               {children}
             </pre>
           ),
           hr: () => <hr className="my-3 border-current/20" />,
           table: ({ children }) => (
-            <div className="mb-2.5 overflow-x-auto last:mb-0">
-              <table className="w-full border-collapse text-sm">{children}</table>
+            <div className="mb-2.5 max-w-full overflow-x-auto last:mb-0">
+              <table className="w-full min-w-[16rem] border-collapse text-sm">{children}</table>
             </div>
           ),
           th: ({ children }) => (

@@ -1238,6 +1238,12 @@ export type Database = {
           content_html: string
           branding: Json
           created_at: string
+          period_start: string | null
+          period_end: string | null
+          generated_by_name: string | null
+          status: string
+          config: Json
+          snapshot: Json
         },
         {
           id?: string
@@ -1246,8 +1252,24 @@ export type Database = {
           title: string
           content_html?: string
           branding?: Json
+          period_start?: string | null
+          period_end?: string | null
+          generated_by_name?: string | null
+          status?: string
+          config?: Json
+          snapshot?: Json
         },
-        { title?: string; content_html?: string; branding?: Json }
+        {
+          title?: string
+          content_html?: string
+          branding?: Json
+          period_start?: string | null
+          period_end?: string | null
+          generated_by_name?: string | null
+          status?: string
+          config?: Json
+          snapshot?: Json
+        }
       >
       workspace_ai_reports: Table<
         {
@@ -1259,6 +1281,12 @@ export type Database = {
           content_html: string
           branding: Json
           created_at: string
+          period_start: string | null
+          period_end: string | null
+          generated_by_name: string | null
+          status: string
+          config: Json
+          snapshot: Json
         },
         {
           id?: string
@@ -1268,8 +1296,24 @@ export type Database = {
           title: string
           content_html?: string
           branding?: Json
+          period_start?: string | null
+          period_end?: string | null
+          generated_by_name?: string | null
+          status?: string
+          config?: Json
+          snapshot?: Json
         },
-        { title?: string; content_html?: string; branding?: Json }
+        {
+          title?: string
+          content_html?: string
+          branding?: Json
+          period_start?: string | null
+          period_end?: string | null
+          generated_by_name?: string | null
+          status?: string
+          config?: Json
+          snapshot?: Json
+        }
       >
     }
     Views: {
