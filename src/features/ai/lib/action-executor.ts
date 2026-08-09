@@ -32,6 +32,11 @@ export type ExecuteAiActionsOptions = {
 
 ensureAiRegistry()
 
+function actionTaskId(action: ParsedRegistryAction): string | null {
+  const value = action['taskId']
+  return typeof value === 'string' ? value : null
+}
+
 /** Pull a human-readable message from Error, Postgrest plain objects, Zod, strings, etc. */
 export function formatActionError(error: unknown, fallback = 'Failed to execute action'): string {
   if (error == null) return fallback
@@ -168,7 +173,7 @@ export async function executeAiActions(
       userRequest: options?.userMessage,
       intent: type.split('.')[1] ?? type,
       tool: type,
-      targetId: typeof action.taskId === 'string' ? action.taskId : null,
+      targetId: actionTaskId(action),
       params: action,
     })
 
@@ -219,7 +224,7 @@ export async function executeAiActions(
       auditAiAction({
         phase: 'result',
         tool: type,
-        targetId: typeof action.taskId === 'string' ? action.taskId : outcome.entities?.[0]?.id,
+        targetId: actionTaskId(action) ?? outcome.entities?.[0]?.id,
         result: { ok: outcome.ok, summary: outcome.summary, entities: outcome.entities },
         error: outcome.ok ? undefined : outcome.summary,
       })
@@ -234,7 +239,7 @@ export async function executeAiActions(
       auditAiAction({
         phase: 'error',
         tool: type,
-        targetId: typeof action.taskId === 'string' ? action.taskId : null,
+        targetId: actionTaskId(action),
         error,
       })
       if (sequential) break
