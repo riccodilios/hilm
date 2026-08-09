@@ -6,10 +6,151 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a0a0b" />
-    <meta name="description" content="Hilm — AI Personal Operating System / نظام تشغيل شخصي بالذكاء الاصطناعي" />
+    <meta name="color-scheme" content="dark light" />
+
+    <title>Hilm — AI Personal Operating System</title>
+    <meta
+      name="description"
+      content="Hilm is an AI Personal Operating System and Workspace OS. Your AI Chief of Staff manages projects, tasks, Mission Control, documentation, daily logs, and automation — so you ship faster with one system of record."
+    />
+    <meta
+      name="keywords"
+      content="Hilm, HILM, حلم, Hilm AI, AI personal operating system, personal OS, workspace OS, AI chief of staff, AI project management, AI task manager, Mission Control, productivity AI"
+    />
+    <meta name="author" content="Hilm" />
+    <meta name="application-name" content="Hilm" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://hillm.netlify.app/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Hilm" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ar_SA" />
+    <meta property="og:url" content="https://hillm.netlify.app/" />
+    <meta property="og:title" content="Hilm — AI Personal Operating System" />
+    <meta
+      property="og:description"
+      content="Hilm is your AI Chief of Staff: Personal OS + Workspace OS for projects, tasks, Mission Control, docs, and automation."
+    />
+    <meta property="og:image" content="https://hillm.netlify.app/og-image.png" />
+    <meta property="og:image:alt" content="Hilm — AI Personal Operating System" />
+    <meta property="og:image:width" content="1376" />
+    <meta property="og:image:height" content="768" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Hilm — AI Personal Operating System" />
+    <meta
+      name="twitter:description"
+      content="AI Personal Operating System with an AI Chief of Staff for projects, tasks, and automation."
+    />
+    <meta name="twitter:image" content="https://hillm.netlify.app/og-image.png" />
+
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Hilm" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Hilm</title>
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="alternate" type="text/plain" href="https://hillm.netlify.app/llms.txt" title="llms.txt" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://hillm.netlify.app/#organization",
+            "name": "Hilm",
+            "alternateName": ["HILM", "Hilm AI", "حلم", "Hilm Personal OS", "Hilm Workspace OS"],
+            "url": "https://hillm.netlify.app/",
+            "logo": "https://hillm.netlify.app/pwa-512.png",
+            "email": "hello@hilm.app",
+            "sameAs": ["https://github.com/riccodilios/hilm"],
+            "description": "Hilm is an AI Personal Operating System and Workspace OS with an AI Chief of Staff for projects, tasks, Mission Control, documentation, and automation."
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://hillm.netlify.app/#website",
+            "name": "Hilm",
+            "alternateName": ["HILM", "Hilm AI", "حلم"],
+            "url": "https://hillm.netlify.app/",
+            "description": "Hilm — AI Personal Operating System. Manage projects, tasks, and work with an AI Chief of Staff.",
+            "inLanguage": ["en", "ar"],
+            "publisher": { "@id": "https://hillm.netlify.app/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://hillm.netlify.app/personal/search?q={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://hillm.netlify.app/#app",
+            "name": "Hilm",
+            "alternateName": ["HILM", "Hilm AI", "حلم", "AI Personal Operating System"],
+            "applicationCategory": "BusinessApplication",
+            "applicationSubCategory": "Personal productivity and project management",
+            "operatingSystem": "Web, Progressive Web App",
+            "url": "https://hillm.netlify.app/",
+            "image": "https://hillm.netlify.app/og-image.png",
+            "description": "Hilm is an AI Personal Operating System (Personal OS) and Workspace OS. It acts as an AI Chief of Staff that manages projects, tasks, Mission Control scheduling, documentation, daily logs, voice commands, and multi-step automation.",
+            "featureList": [
+              "AI Chief of Staff",
+              "Personal OS and Workspace OS",
+              "Projects and tasks with Mission Control",
+              "Voice commands and AI automation",
+              "Daily logs, documentation, and roadmaps",
+              "Offline-capable Progressive Web App"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "creator": { "@id": "https://hillm.netlify.app/#organization" },
+            "publisher": { "@id": "https://hillm.netlify.app/#organization" }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://hillm.netlify.app/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is Hilm?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Hilm (also written HILM or حلم) is an AI Personal Operating System and Workspace OS. It combines projects, tasks, Mission Control, documentation, daily logs, and an AI Chief of Staff that can propose and apply real changes in your workspace."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What does Hilm do?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Hilm helps individuals and teams run work in one system: track projects and tasks, schedule days in Mission Control, capture daily logs, write documentation, and use AI agents to automate multi-step workflows with confirm-then-apply actions."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is Hilm an AI project management tool?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Hilm is designed as an AI-native personal and workspace operating system for project and task management — not a standalone chatbot. The AI is grounded in your Hilm data and can create, update, and organize work inside the product."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Where can I use Hilm?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Hilm is a Progressive Web App available at https://hillm.netlify.app. You can use it in the browser or install it on desktop and mobile. It supports English and Arabic."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <script>
@@ -18,13 +159,30 @@
         if (lng.indexOf('ar') === 0) {
           document.documentElement.lang = 'ar'
           document.documentElement.dir = 'rtl'
-          document.title = 'حلم'
+          document.title = 'حلم — نظام تشغيل شخصي بالذكاء الاصطناعي'
         }
         var theme = localStorage.getItem('hilm-theme') || 'dark'
         document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark'
       } catch (e) {}
     </script>
     <div id="root"></div>
+    <noscript>
+      <main style="max-width:40rem;margin:2rem auto;padding:0 1rem;font-family:system-ui,sans-serif;line-height:1.5">
+        <h1>Hilm — AI Personal Operating System</h1>
+        <p>
+          Hilm (HILM / حلم) is an AI Personal Operating System and Workspace OS.
+          Your AI Chief of Staff manages projects, tasks, Mission Control, documentation,
+          daily logs, voice commands, and automation so you can ship faster.
+        </p>
+        <p>
+          <a href="https://hillm.netlify.app/signup">Get started</a>
+          ·
+          <a href="https://hillm.netlify.app/privacy">Privacy</a>
+          ·
+          <a href="https://github.com/riccodilios/hilm">GitHub</a>
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

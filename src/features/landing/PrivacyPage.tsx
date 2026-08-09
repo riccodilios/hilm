@@ -2,9 +2,15 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/ui/page'
 import { Button } from '@/components/ui/button'
+import { useDocumentSeo } from '@/hooks/useDocumentSeo'
 
 export function PrivacyPage() {
   const { t } = useTranslation()
+  useDocumentSeo({
+    title: t('privacy.title'),
+    description: t('privacy.description'),
+    path: '/privacy',
+  })
 
   return (
     <div className="mx-auto min-h-dvh max-w-2xl px-5 py-12">

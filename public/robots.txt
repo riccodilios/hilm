@@ -1,0 +1,18 @@
+# https://hillm.netlify.app/robots.txt
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /login
+Allow: /signup
+Allow: /llms.txt
+Allow: /sitemap.xml
+Allow: /og-image.png
+
+# Authenticated product surfaces — no value for search indexes
+Disallow: /personal/
+Disallow: /workspace/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /api/
+
+Sitemap: https://hillm.netlify.app/sitemap.xml

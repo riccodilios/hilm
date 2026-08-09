@@ -456,6 +456,27 @@
     },
     "ctaTitle": "Ready to build faster?",
     "ctaBody": "Install Hilm today and give every project a Chief of Staff.",
+    "faqEyebrow": "About Hilm",
+    "faqTitle": "What people ask when they search for Hilm.",
+    "faqDescription": "Clear answers for humans, search engines, and AI assistants.",
+    "faqItems": [
+      {
+        "q": "What is Hilm?",
+        "a": "Hilm (also HILM or حلم) is an AI Personal Operating System and Workspace OS. It combines projects, tasks, Mission Control, documentation, daily logs, and an AI Chief of Staff that can propose and apply real changes in your workspace."
+      },
+      {
+        "q": "What does Hilm do?",
+        "a": "Hilm helps you run work in one system: manage projects and tasks, schedule days in Mission Control, capture daily logs, write docs, and use AI agents for multi-step automation with confirm-then-apply actions."
+      },
+      {
+        "q": "Is Hilm an AI project management tool?",
+        "a": "Yes. Hilm is an AI-native personal and workspace operating system for project and task management — not a standalone chatbot. The AI is grounded in your Hilm data and can create, update, and organize work inside the product."
+      },
+      {
+        "q": "Where can I use Hilm?",
+        "a": "Hilm is a Progressive Web App at hillm.netlify.app. Use it in the browser or install it on desktop and mobile. It supports English and Arabic."
+      }
+    ],
     "footerPrivacy": "Privacy",
     "footerGithub": "GitHub",
     "footerDocs": "Documentation",
