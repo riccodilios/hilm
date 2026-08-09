@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EmptyState, PageHeader, Skeleton } from '@/components/ui/page'
-import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
+import { PRIORITIES, TASK_STATUSES, OPEN_TASK_STATUSES } from '@/types/domain'
 import type { Priority, TaskStatus } from '@/types/domain'
 
 export function TasksPage() {
@@ -44,8 +44,8 @@ export function TasksPage() {
   })
   const unreadCount = unread.data ?? 0
   const { data: tasks, isLoading } = useQuery({
-    queryKey: tasksKeys.list(status),
-    queryFn: () => listTasks(status ? { status } : undefined),
+    queryKey: tasksKeys.list(status ?? 'open'),
+    queryFn: () => listTasks(status ? { status } : { status: OPEN_TASK_STATUSES }),
   })
   const { data: projects } = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
   const create = useMutation({

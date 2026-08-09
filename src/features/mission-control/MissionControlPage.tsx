@@ -106,11 +106,35 @@ export function MissionControlPage() {
         estimated_hours: patch.estimated_hours,
       })
     },
-    onSuccess: async () => {
-      await invalidate()
-      toast.success(t('mission.moved'))
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: tasksKeys.all })
+      const hour = input.hour ?? 9
+      const patch = schedulePatchForDrop(input.dayKey, hour, input.durationHours)
+      const previousLists = qc.getQueriesData({ queryKey: [...tasksKeys.all, 'list'] })
+      qc.setQueriesData({ queryKey: [...tasksKeys.all, 'list'] }, (old) => {
+        if (!Array.isArray(old)) return old
+        return old.map((task: (typeof tasks)[number]) =>
+          task.id === input.taskId
+            ? {
+                ...task,
+                due_date: patch.due_date,
+                due_at: patch.due_at,
+                estimated_hours: patch.estimated_hours,
+              }
+            : task,
+        )
+      })
+      return { previousLists }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _input, ctx) => {
+      ctx?.previousLists?.forEach(([key, data]) => qc.setQueryData(key, data))
+      toast.error(error.message)
+    },
+    onSuccess: async (_data, input) => {
+      await invalidate()
+      // Duration resize fires many micro-updates; toast only for day/time moves.
+      if (input.durationHours == null) toast.success(t('mission.moved'))
+    },
   })
 
   const slotCreateMutation = useMutation({

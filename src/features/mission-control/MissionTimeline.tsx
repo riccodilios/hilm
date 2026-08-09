@@ -15,6 +15,10 @@ import {
   packDayTimeline,
   taskDurationHours,
 } from '@/features/mission-control/lib/schedule'
+import {
+  timelineHourAtPoint,
+  useMissionPointerDrag,
+} from '@/features/mission-control/useMissionPointerDrag'
 import type { TaskWithProject } from '@/features/tasks/reminders'
 
 const HOURS = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i)
@@ -59,6 +63,7 @@ export function MissionTimeline({
     return now.getHours() + now.getMinutes() / 60
   })
   const [localTasks, setLocalTasks] = useState<TaskWithProject[] | null>(null)
+  const [previewHour, setPreviewHour] = useState<number | null>(null)
 
   useEffect(() => {
     setLocalTasks(null)
@@ -92,17 +97,15 @@ export function MissionTimeline({
     [sourceTasks, projectFilter],
   )
 
-  const blocks = useMemo(() => packDayTimeline(filtered, dayKey), [filtered, dayKey])
-  const showNow = isToday
-  const nowTop = nowHour * HOUR_HEIGHT
-
   async function applyReschedule(taskId: string, hour: number, durationHours?: number) {
     const prev = sourceTasks
     const next = prev.map((task) => {
       if (task.id !== taskId) return task
       const whole = Math.floor(hour)
       const minutes = Math.round((hour - whole) * 60)
-      const due = new Date(`${dayKey}T${String(whole).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`)
+      const due = new Date(
+        `${dayKey}T${String(whole).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`,
+      )
       return {
         ...task,
         due_date: dayKey,
@@ -118,6 +121,43 @@ export function MissionTimeline({
     }
   }
 
+  const drag = useMissionPointerDrag({
+    onDragMove: (_taskId, clientX, clientY) => {
+      const hit = timelineHourAtPoint(clientX, clientY)
+      if (!hit) {
+        setPreviewHour(null)
+        return
+      }
+      setPreviewHour(hourFromTimelineY(hit.y))
+    },
+    onDragEnd: (taskId, clientX, clientY) => {
+      const hit = timelineHourAtPoint(clientX, clientY)
+      setPreviewHour(null)
+      if (!hit) return
+      void applyReschedule(taskId, hourFromTimelineY(hit.y))
+    },
+  })
+
+  const blocks = useMemo(() => {
+    const packed = packDayTimeline(filtered, dayKey)
+    if (!drag.activeTaskId || previewHour == null) return packed
+    return packed.map((block) => {
+      if (block.task.id !== drag.activeTaskId) return block
+      const duration = taskDurationHours(block.task)
+      const startHour = Math.max(DAY_START, Math.min(DAY_END - 0.25, previewHour))
+      return {
+        ...block,
+        startHour,
+        endHour: Math.min(DAY_END, startHour + duration),
+        top: startHour * HOUR_HEIGHT,
+        height: Math.max(28, duration * HOUR_HEIGHT - 4),
+      }
+    })
+  }, [filtered, dayKey, drag.activeTaskId, previewHour])
+
+  const showNow = isToday
+  const nowTop = nowHour * HOUR_HEIGHT
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-3 flex items-end justify-between gap-3">
@@ -132,7 +172,11 @@ export function MissionTimeline({
 
       <div
         ref={scrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40"
+        data-mission-timeline
+        className={cn(
+          'relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40',
+          drag.isDragging && 'touch-none',
+        )}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault()
@@ -144,7 +188,7 @@ export function MissionTimeline({
           void applyReschedule(taskId, hourFromTimelineY(y))
         }}
         onClick={(event) => {
-          if (!onEmptySlotClick) return
+          if (!onEmptySlotClick || drag.isDragging) return
           const target = event.target as HTMLElement
           if (target.closest('[data-timeline-block]')) return
           const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect()
@@ -185,19 +229,22 @@ export function MissionTimeline({
             const done = block.task.status === 'done'
             const widthPct = 100 / block.columnCount
             const leftPct = block.column * widthPct
+            const binders = drag.bindTask(block.task.id)
             return (
               <motion.button
                 key={block.task.id}
                 type="button"
                 data-timeline-block
-                layout
-                draggable
+                layout={!drag.isDragging}
+                draggable={!done}
+                {...(done ? {} : binders)}
                 onDragStart={(event) => {
                   const dataTransfer = (event as unknown as DragEvent).dataTransfer
                   dataTransfer?.setData('text/task-id', block.task.id)
                 }}
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (drag.isDragging) return
                   onOpenTask(block.task)
                 }}
                 onDoubleClick={(e) => {
@@ -205,8 +252,9 @@ export function MissionTimeline({
                   if (!done) onComplete(block.task.id)
                 }}
                 className={cn(
-                  'absolute z-10 overflow-hidden rounded-xl border px-2 py-1.5 text-start shadow-sm transition-shadow hover:shadow-md',
+                  'absolute z-10 overflow-hidden rounded-xl border px-2 py-1.5 text-start shadow-sm transition-shadow hover:shadow-md touch-manipulation select-none',
                   done && 'opacity-45',
+                  drag.activeTaskId === block.task.id && 'ring-2 ring-accent/50 z-30',
                 )}
                 style={{
                   top: block.top + 8,
@@ -237,23 +285,31 @@ export function MissionTimeline({
                 </div>
                 {!done ? (
                   <span
-                    className="absolute inset-x-2 bottom-0 h-2 cursor-ns-resize"
-                    onMouseDown={(e) => {
+                    className="absolute inset-x-2 bottom-0 h-3 cursor-ns-resize touch-none"
+                    onPointerDown={(e) => {
                       e.stopPropagation()
                       e.preventDefault()
+                      const pointerId = e.pointerId
                       const startY = e.clientY
                       const startDuration = taskDurationHours(block.task)
-                      const onMove = (ev: MouseEvent) => {
+                      const startHour = block.startHour
+                      ;(e.currentTarget as HTMLElement).setPointerCapture(pointerId)
+
+                      const onMove = (ev: PointerEvent) => {
+                        if (ev.pointerId !== pointerId) return
                         const deltaHours = (ev.clientY - startY) / HOUR_HEIGHT
                         const next = Math.max(0.5, Math.round((startDuration + deltaHours) * 4) / 4)
-                        void applyReschedule(block.task.id, block.startHour, next)
+                        void applyReschedule(block.task.id, startHour, next)
                       }
-                      const onUp = () => {
-                        window.removeEventListener('mousemove', onMove)
-                        window.removeEventListener('mouseup', onUp)
+                      const onUp = (ev: PointerEvent) => {
+                        if (ev.pointerId !== pointerId) return
+                        window.removeEventListener('pointermove', onMove)
+                        window.removeEventListener('pointerup', onUp)
+                        window.removeEventListener('pointercancel', onUp)
                       }
-                      window.addEventListener('mousemove', onMove)
-                      window.addEventListener('mouseup', onUp)
+                      window.addEventListener('pointermove', onMove)
+                      window.addEventListener('pointerup', onUp)
+                      window.addEventListener('pointercancel', onUp)
                     }}
                   />
                 ) : null}

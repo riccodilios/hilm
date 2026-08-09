@@ -32,6 +32,15 @@ export const TASK_STATUSES: TaskStatus[] = [
   'archived',
 ]
 
+/** Non-done, non-archived statuses — what the Tasks "Open" filter means. */
+export const OPEN_TASK_STATUSES: TaskStatus[] = [
+  'backlog',
+  'todo',
+  'in_progress',
+  'waiting',
+  'testing',
+]
+
 export const KANBAN_COLUMNS: TaskStatus[] = [
   'backlog',
   'todo',

@@ -119,11 +119,35 @@ export function WorkspaceMissionControlPage() {
         estimated_hours: patch.estimated_hours,
       })
     },
-    onSuccess: async () => {
-      await invalidate()
-      toast.success(t('mission.moved'))
+    onMutate: async (input) => {
+      const key = workspaceKeys.tasks(workspaceId)
+      await qc.cancelQueries({ queryKey: key })
+      const hour = input.hour ?? 9
+      const patch = schedulePatchForDrop(input.dayKey, hour, input.durationHours)
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => {
+        if (!Array.isArray(old)) return old
+        return old.map((task) =>
+          task.id === input.taskId
+            ? {
+                ...task,
+                due_date: patch.due_date,
+                due_at: patch.due_at,
+                estimated_hours: patch.estimated_hours,
+              }
+            : task,
+        )
+      })
+      return { previous, key }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _input, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(ctx.key, ctx.previous)
+      toast.error(error.message)
+    },
+    onSuccess: async (_data, input) => {
+      await invalidate()
+      if (input.durationHours == null) toast.success(t('mission.moved'))
+    },
   })
 
   const complete = useMutation({
