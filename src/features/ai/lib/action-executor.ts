@@ -55,6 +55,12 @@ export function formatActionError(error: unknown, fallback = 'Failed to execute 
     if (code === 'PGRST116' || /coerce the result to a single json object/i.test(message)) {
       return 'Record not found or you do not have access to it'
     }
+    if (
+      code === '23503' ||
+      /workspace_tasks_project_id_fkey|is not present in table \"workspace_projects\"/i.test(message)
+    ) {
+      return 'I couldn’t create the task because I couldn’t find that project in this workspace. Would you like me to create the project first?'
+    }
     for (const key of ['message', 'error', 'details', 'hint'] as const) {
       const value = record[key]
       if (typeof value === 'string' && value.trim()) return value.trim()
@@ -77,6 +83,16 @@ export function formatActionError(error: unknown, fallback = 'Failed to execute 
 function mapCoerceError(message: string) {
   if (/coerce the result to a single json object/i.test(message)) {
     return 'Record not found or you do not have access to it'
+  }
+  if (
+    /23503|foreign key|workspace_tasks_project_id_fkey|Key \(project_id\)|is not present in table \"workspace_projects\"/i.test(
+      message,
+    )
+  ) {
+    return 'I couldn’t create the task because I couldn’t find that project in this workspace. Would you like me to create the project first?'
+  }
+  if (/409|Conflict/i.test(message) && /workspace_tasks|project_id/i.test(message)) {
+    return 'I couldn’t create the task because I couldn’t find that project in this workspace.'
   }
   return message
 }
@@ -145,6 +161,7 @@ export async function executeAiActions(
     os,
     workspaceId,
     role: options?.role,
+    conversationFocus: options?.conversationFocus,
   }
 
   const sequential = options?.sequential ?? true

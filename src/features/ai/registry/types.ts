@@ -1,4 +1,5 @@
 import type { z } from 'zod'
+import type { ConversationEntityFocus } from '@/features/ai/lib/conversation-focus'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 
 export type AiOsMode = 'personal' | 'workspace'
@@ -17,6 +18,7 @@ export type ActionContext = {
   workspaceId?: string
   role?: WorkspaceRole | null
   userId?: string
+  conversationFocus?: ConversationEntityFocus | null
 }
 
 export type RegisteredAction<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {

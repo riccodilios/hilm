@@ -41,4 +41,33 @@ describe('rewriteActionsForConversationFocus', () => {
     )
     expect(next[0]?.taskId).toBe(focus.lastCreatedTaskId)
   })
+
+  it('reuses focused workspace project when adding another task for it', () => {
+    const projectFocus = {
+      ...focus,
+      lastReferencedProjectId: '22222222-2222-2222-2222-222222222222',
+      lastReferencedProjectName: 'Wasl',
+    }
+    const next = rewriteActionsForConversationFocus(
+      [{ type: 'task.create', title: 'Follow up' }],
+      { userMessage: 'Add another task for it called Follow up', focus: projectFocus },
+    )
+    expect(next[0]?.type).toBe('task.create')
+    expect(next[0]?.projectId).toBe(projectFocus.lastReferencedProjectId)
+    expect(next[0]?.projectName).toBe('Wasl')
+  })
+
+  it('does not override an explicit projectName with focus project', () => {
+    const projectFocus = {
+      ...focus,
+      lastReferencedProjectId: '22222222-2222-2222-2222-222222222222',
+      lastReferencedProjectName: 'Wasl',
+    }
+    const next = rewriteActionsForConversationFocus(
+      [{ type: 'task.create', title: 'Acme task', projectName: 'Acme' }],
+      { userMessage: 'Create a task for Acme', focus: projectFocus },
+    )
+    expect(next[0]?.projectName).toBe('Acme')
+    expect(next[0]?.projectId).toBeUndefined()
+  })
 })

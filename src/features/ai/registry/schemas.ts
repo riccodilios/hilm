@@ -45,6 +45,7 @@ export const healthEnum = z.enum([
 
 export const snakeToCamel: Record<string, string> = {
   project_id: 'projectId',
+  project_name: 'projectName',
   task_id: 'taskId',
   due_at: 'dueAt',
   completion_pct: 'completionPct',

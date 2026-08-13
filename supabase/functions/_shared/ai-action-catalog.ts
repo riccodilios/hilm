@@ -19,7 +19,11 @@ CRITICAL entity rules:
 - Only create when the user explicitly asks for a new task.
 - Never create an untitled task just to set a due date/time.
 - Resolve relative dates from the system temporal context into explicit ISO dueAt values.
-- Prefer Conversation focus IDs and context-pack IDs; never invent member/task UUIDs.`
+- Prefer Conversation focus IDs and context-pack IDs; never invent member/task/project UUIDs.
+- Workspace projects and Personal OS projects are completely separate. NEVER use Personal OS project IDs in workspace task.create.
+- For task.create under a named project (e.g. "for Wasl"), pass projectName with the exact name. Prefer projectId ONLY from Conversation focus (lastReferencedProjectId) or project.search / context-pack workspace project IDs.
+- If lastReferencedProjectId is set and the user says "another task for it" / "same project", reuse that projectId.
+- If the project is unknown, call project.search first or omit projectId and set projectName — never invent a UUID.`
 
 
 export const personalActionCatalog =
@@ -55,12 +59,13 @@ export const personalActionCatalog =
 export const workspaceActionCatalog =
   `Full Workspace OS action catalog (use exact type strings; multi-step arrays OK):
 - task.complete {taskId}
-- task.create {title, description?, projectId?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}
+- task.create {title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}  // projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
 - task.move {taskId, status}
 - task.update {taskId, title?, description?, priority?, dueAt?}
 - task.assign {taskId, assigneeId}
 - task.delete {taskId}
 - assignee.recommend {taskId}  // load balancer; does not assign until task.assign
+- project.search {query?}  // returns real workspace project id+name; use before task.create when unsure
 - project.create {name, description?, color?, icon?}
 - project.update {projectId, name?, description?, completionPct?, health?}
 - project.delete {projectId}

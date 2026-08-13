@@ -527,6 +527,13 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                 typeof (result.data as { project_id?: unknown }).project_id === 'string'
                   ? (result.data as { project_id: string }).project_id
                   : undefined,
+              lastReferencedProjectName:
+                result.data &&
+                typeof result.data === 'object' &&
+                'project_name' in result.data &&
+                typeof (result.data as { project_name?: unknown }).project_name === 'string'
+                  ? (result.data as { project_name: string }).project_name
+                  : undefined,
             })
           }
           setActionRun((prev) =>

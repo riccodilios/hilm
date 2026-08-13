@@ -40,6 +40,7 @@ import {
   updateTeam,
 } from '@/features/workspace-os/org-api'
 import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
+import { resolveWorkspaceProjectForAction } from '@/features/ai/lib/resolve-workspace-project'
 import { requireUserId } from '@/lib/supabase/activity'
 import { supabase } from '@/lib/supabase/client'
 import type { Priority, TaskStatus } from '@/types/domain'
@@ -69,7 +70,7 @@ export function registerWorkspaceActions() {
     type: 'task.create',
     os: 'workspace',
     title: 'Create task',
-    description: 'Create a workspace task',
+    description: 'Create a workspace task under a real workspace project',
     risk: 'safe',
     permission: editOk,
     inputSchema: z.object({
@@ -77,6 +78,7 @@ export function registerWorkspaceActions() {
       title: z.string().min(1),
       description: z.string().optional(),
       projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
       priority: priorityEnum.optional(),
       status: taskStatusEnum.optional(),
       dueAt: z.string().optional(),
@@ -84,29 +86,90 @@ export function registerWorkspaceActions() {
       departmentId: optionalUuid,
       teamId: optionalUuid,
     }),
-    promptFields: 'title, description?, projectId?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?',
+    promptFields:
+      'title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?',
     execute: async (input, ctx) => {
-      const projectId =
-        input.projectId ?? (await listWorkspaceProjects(ctx.workspaceId!))[0]?.id
-      if (!projectId) throw new Error('Create a workspace project before creating a task')
+      const workspaceId = ctx.workspaceId!
+      const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
+        projectId: input.projectId,
+        projectName: input.projectName,
+        preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+      })
+      if (!resolved.ok) {
+        const hint = resolved.candidates?.length
+          ? ` Available projects: ${resolved.candidates.map((row) => row.name).join(', ')}.`
+          : ''
+        return { ok: false, summary: `${resolved.reason}${hint}` }
+      }
+
+      let project = resolved.project
       const dueAt = input.dueAt?.trim() || null
-      const task = await createWorkspaceTask(ctx.workspaceId!, {
-        projectId,
+      const payload = {
+        projectId: project.id,
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         status: input.status as TaskStatus | undefined,
-        // due_date is a date column — never pass a full ISO timestamp here
         dueDate: dueAt ? dueAt.slice(0, 10) : null,
         dueAt,
         assigneeId: input.assigneeId ?? null,
         departmentId: input.departmentId ?? null,
         teamId: input.teamId ?? null,
-      })
+      }
+
+      let task
+      try {
+        task = await createWorkspaceTask(workspaceId, payload)
+      } catch (error) {
+        // Never retry the same invalid project_id. Re-resolve once, then fail clearly.
+        const message = error instanceof Error ? error.message : String(error)
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? String((error as { code?: unknown }).code ?? '')
+            : ''
+        const isFk =
+          code === '23503' ||
+          /workspace_tasks_project_id_fkey|is not present in table ["']workspace_projects["']/i.test(
+            message,
+          )
+        if (!isFk) throw error
+
+        const retry = await resolveWorkspaceProjectForAction(workspaceId, {
+          projectId: null,
+          projectName: input.projectName ?? project.name,
+          preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+        })
+        if (!retry.ok || retry.project.id === project.id) {
+          return {
+            ok: false,
+            summary:
+              'I couldn’t create the task because I couldn’t find that project in this workspace. Would you like me to create the project first?',
+          }
+        }
+        project = retry.project
+        task = await createWorkspaceTask(workspaceId, {
+          ...payload,
+          projectId: project.id,
+        })
+      }
+
       return {
         ok: true,
-        summary: `Created task ${input.title}`,
-        entities: [{ type: 'task', id: task.id }],
+        summary: `Created task “${input.title}” in ${project.name}`,
+        entities: [
+          { type: 'task', id: task.id },
+          { type: 'project', id: project.id },
+        ],
+        data: {
+          ...task,
+          id: task.id,
+          title: task.title ?? input.title,
+          project_id: project.id,
+          project_name: project.name,
+          workspace_id: workspaceId,
+          due_at: task.due_at ?? dueAt,
+          status: task.status ?? input.status ?? 'todo',
+        },
       }
     },
   })
@@ -250,6 +313,38 @@ export function registerWorkspaceActions() {
   })
 
   registerAction({
+    type: 'project.search',
+    os: 'workspace',
+    title: 'Search projects',
+    description: 'List or search workspace projects (returns real IDs)',
+    risk: 'safe',
+    permission: editOk,
+    inputSchema: z.object({
+      type: z.literal('project.search'),
+      query: z.string().optional(),
+    }),
+    promptFields: 'query?',
+    execute: async (input, ctx) => {
+      const projects = await listWorkspaceProjects(ctx.workspaceId!)
+      const q = input.query?.trim().toLowerCase()
+      const matched = q
+        ? projects.filter((project) => project.name.toLowerCase().includes(q))
+        : projects
+      const rows = matched.slice(0, 20).map((project) => ({
+        id: project.id,
+        name: project.name,
+      }))
+      return {
+        ok: true,
+        summary: rows.length
+          ? `Found ${rows.length} workspace project(s)`
+          : 'No matching workspace projects',
+        data: { projects: rows },
+      }
+    },
+  })
+
+  registerAction({
     type: 'project.create',
     os: 'workspace',
     title: 'Create project',
@@ -270,6 +365,7 @@ export function registerWorkspaceActions() {
         ok: true,
         summary: `Created project ${input.name}`,
         entities: [{ type: 'project', id: project.id }],
+        data: project,
       }
     },
   })

@@ -68,6 +68,41 @@ export function rewriteActionsForConversationFocus(
       }
     }
 
+    // Workspace: when creating another task "for it" / same project, prefer focus project IDs.
+    // Never invent IDs here — only reuse lastReferencedProjectId from prior successful actions.
+    // Do not override when the model already provided a projectName (name resolution wins).
+    if (type === 'task.create' && focus.lastReferencedProjectId) {
+      const projectId = typeof action.projectId === 'string' ? action.projectId : ''
+      const projectName =
+        typeof action.projectName === 'string'
+          ? action.projectName.trim()
+          : typeof action.project_name === 'string'
+            ? action.project_name.trim()
+            : ''
+      if (projectName) return action
+
+      const looksFakeProjectId =
+        !projectId ||
+        projectId === 'null' ||
+        projectId === 'undefined' ||
+        projectId.includes('example') ||
+        projectId.includes('TODO')
+      const referencesSameProject =
+        /\b(for it|for that|same project|that project|this project|another (one|task) (for|under|in)|add another)\b/i.test(
+          message,
+        )
+      if (!looksFakeProjectId && !referencesSameProject) return action
+
+      const next: ParsedRegistryAction = {
+        ...action,
+        projectId: focus.lastReferencedProjectId,
+      }
+      if (focus.lastReferencedProjectName) {
+        next.projectName = focus.lastReferencedProjectName
+      }
+      return next
+    }
+
     return action
   })
 }
