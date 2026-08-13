@@ -2,11 +2,12 @@ import { z } from 'zod'
 import { registerAction } from '@/features/ai/registry'
 import {
   healthEnum,
+  optionalPriority,
   optionalUuid,
-  priorityEnum,
+  requiredTaskStatus,
   requiredUuid,
+  taskCreateFieldsSchema,
   taskIdOrRef,
-  taskStatusEnum,
 } from '@/features/ai/registry/schemas'
 import {
   canEditContent,
@@ -108,19 +109,12 @@ export function registerWorkspaceActions() {
     permission: editOk,
     inputSchema: z.object({
       type: z.literal('task.create'),
-      title: z.string().min(1),
-      description: z.string().optional(),
       projectId: optionalUuid,
       projectName: z.string().min(1).optional(),
-      priority: priorityEnum.optional(),
-      status: taskStatusEnum.optional(),
-      dueAt: z.string().optional(),
-      assigneeId: optionalUuid,
-      departmentId: optionalUuid,
-      teamId: optionalUuid,
+      ...taskCreateFieldsSchema.shape,
     }),
     promptFields:
-      'title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?',
+      'title, description?, projectId?, projectName?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
       const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
@@ -225,25 +219,12 @@ export function registerWorkspaceActions() {
       type: z.literal('task.create_many'),
       projectId: optionalUuid,
       projectName: z.string().min(1).optional(),
-      items: z
-        .array(
-          z.object({
-            title: z.string().min(1),
-            description: z.string().optional(),
-            priority: priorityEnum.optional(),
-            status: taskStatusEnum.optional(),
-            dueAt: z.string().optional(),
-            assigneeId: optionalUuid,
-            departmentId: optionalUuid,
-            teamId: optionalUuid,
-            clientKey: z.string().optional(),
-          }),
-        )
-        .min(1)
-        .max(WORKSPACE_BATCH_MAX_ITEMS),
+      // Gate only: require a non-empty list. Each item is validated individually in execute
+      // so one bad status cannot reject the entire batch.
+      items: z.array(z.record(z.string(), z.unknown())).min(1).max(WORKSPACE_BATCH_MAX_ITEMS),
     }),
     promptFields:
-      'projectId?, projectName?, items:[{title, description?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}] (max 40)',
+      'projectId?, projectName?, items:[{title, description?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?}] (max 40)',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
       const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
@@ -261,47 +242,81 @@ export function registerWorkspaceActions() {
       const project = resolved.project
       const workspace = await getWorkspace(workspaceId)
       const seen = new Set<string>()
-      const items = input.items.filter((item) => {
-        const key = (item.clientKey || item.title).trim().toLowerCase()
-        if (!key || seen.has(key)) return false
+
+      type PreparedItem = {
+        index: number
+        fields: z.infer<typeof taskCreateFieldsSchema>
+        clientKey: string
+      }
+      const prepared: PreparedItem[] = []
+      const preFailures: BatchItemResult[] = []
+
+      input.items.forEach((raw, index) => {
+        const parsed = taskCreateFieldsSchema.safeParse(raw)
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0]
+          const path = issue?.path?.join('.') || 'item'
+          preFailures.push({
+            index,
+            title:
+              raw && typeof raw === 'object' && typeof (raw as { title?: unknown }).title === 'string'
+                ? String((raw as { title: string }).title)
+                : `Item ${index + 1}`,
+            ok: false,
+            summary: `${path}: ${issue?.message ?? 'Invalid item'}`,
+            error: `${path}: ${issue?.message ?? 'Invalid item'}`,
+          })
+          return
+        }
+        const key = (parsed.data.clientKey || parsed.data.title).trim().toLowerCase()
+        if (!key || seen.has(key)) {
+          preFailures.push({
+            index,
+            title: parsed.data.title,
+            ok: false,
+            summary: 'Duplicate title in batch — skipped',
+            error: 'Duplicate title in batch — skipped',
+          })
+          return
+        }
         seen.add(key)
-        return true
+        prepared.push({ index, fields: parsed.data, clientKey: key })
       })
 
-      const results = await mapPool(
-        items,
+      const createResults = await mapPool(
+        prepared,
         WORKSPACE_BATCH_DEFAULT_CONCURRENCY,
-        async (item, index): Promise<BatchItemResult> => {
-          const dueAt = item.dueAt?.trim() || null
+        async (item): Promise<BatchItemResult> => {
+          const dueAt = item.fields.dueAt?.trim() || null
           try {
             const task = await createWorkspaceTask(workspaceId, {
               projectId: project.id,
-              title: item.title,
-              description: item.description,
-              priority: item.priority as Priority | undefined,
-              status: item.status as TaskStatus | undefined,
+              title: item.fields.title,
+              description: item.fields.description,
+              priority: item.fields.priority as Priority | undefined,
+              status: item.fields.status as TaskStatus | undefined,
               dueDate: dueAt ? dueAt.slice(0, 10) : null,
               dueAt,
-              assigneeId: item.assigneeId ?? null,
-              departmentId: item.departmentId ?? null,
-              teamId: item.teamId ?? null,
+              assigneeId: item.fields.assigneeId ?? null,
+              departmentId: item.fields.departmentId ?? null,
+              teamId: item.fields.teamId ?? null,
               quiet: true,
               taskKey: workspace.task_key,
             })
             const taskRef = formatWorkspaceTaskRef(workspace.task_key, task.task_number)
             return {
-              index,
-              title: item.title,
+              index: item.index,
+              title: item.fields.title,
               ok: true,
-              summary: taskRef ? `Created ${taskRef}` : `Created “${item.title}”`,
+              summary: taskRef ? `Created ${taskRef}` : `Created “${item.fields.title}”`,
               taskId: task.id,
               taskRef: taskRef ?? undefined,
             }
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             return {
-              index,
-              title: item.title,
+              index: item.index,
+              title: item.fields.title,
               ok: false,
               summary: message,
               error: message,
@@ -310,13 +325,14 @@ export function registerWorkspaceActions() {
         },
       )
 
+      const results = [...preFailures, ...createResults].sort((a, b) => a.index - b.index)
       const succeeded = results.filter((row) => row.ok)
       const failed = results.filter((row) => !row.ok)
       const ok = succeeded.length > 0
       const summary =
         failed.length === 0
           ? `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
-          : `Created ${succeeded.length}/${items.length} tasks in ${project.name} (${failed.length} failed)`
+          : `Created ${succeeded.length}/${results.length} tasks in ${project.name} (${failed.length} failed)`
 
       return {
         ok,
@@ -332,7 +348,7 @@ export function registerWorkspaceActions() {
           items: results,
           succeeded: succeeded.length,
           failed: failed.length,
-          total: items.length,
+          total: results.length,
         },
       }
     },
@@ -438,7 +454,7 @@ export function registerWorkspaceActions() {
     inputSchema: z.object({
       type: z.literal('task.move'),
       taskId: taskIdOrRef,
-      status: taskStatusEnum,
+      status: requiredTaskStatus,
     }),
     promptFields: 'taskId (UUID, KEY-N, or exact title), status',
     execute: async (input, ctx) => {
@@ -472,7 +488,7 @@ export function registerWorkspaceActions() {
       taskId: taskIdOrRef,
       title: z.string().optional(),
       description: z.string().optional(),
-      priority: priorityEnum.optional(),
+      priority: optionalPriority,
       dueAt: z.string().nullable().optional(),
     }),
     promptFields: 'taskId (UUID, KEY-N, or exact title), title?, description?, priority?, dueAt?',

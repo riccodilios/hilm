@@ -63,8 +63,8 @@ export const personalActionCatalog =
 export const workspaceActionCatalog =
   `Full Workspace OS action catalog (use exact type strings; multi-step arrays OK):
 - task.complete {taskId}  // taskId = UUID, KEY-N (IMED-24), or exact title from Tasks context
-- task.create {title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}  // 1–3 tasks; projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
-- task.create_many {projectId?, projectName?, items:[{title, description?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}]}  // REQUIRED for 4+ tasks (max 40). One compact action — not N task.create rows.
+- task.create {title, description?, projectId?, projectName?, priority?, status? (backlog|todo|in_progress|waiting|testing|done — not "completed"), dueAt?, assigneeId?, departmentId?, teamId?}  // 1–3 tasks; projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
+- task.create_many {projectId?, projectName?, items:[{title, description?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?}]}  // REQUIRED for 4+ tasks (max 40). One compact action — not N task.create rows. Omit status to use default todo.
 - task.move {taskId, status}
 - task.update {taskId, title?, description?, priority?, dueAt?}
 - task.schedule {taskId, dueAt}  // dueAt ISO or null to clear

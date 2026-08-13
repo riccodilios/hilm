@@ -2,10 +2,11 @@ import { z } from 'zod'
 import { registerAction } from '@/features/ai/registry'
 import {
   healthEnum,
+  optionalPriority,
   optionalUuid,
-  priorityEnum,
+  requiredTaskStatus,
   requiredUuid,
-  taskStatusEnum,
+  taskCreateFieldsSchema,
 } from '@/features/ai/registry/schemas'
 import { createNote } from '@/features/notes/api'
 import { createIdea } from '@/features/ideas/api'
@@ -102,14 +103,11 @@ export function registerPersonalActions() {
     risk: 'safe',
     inputSchema: z.object({
       type: z.literal('task.create'),
-      title: z.string().min(1),
-      description: z.string().optional(),
       projectId: optionalUuid,
-      priority: priorityEnum.optional(),
-      status: taskStatusEnum.optional(),
-      dueAt: z.string().optional(),
+      ...taskCreateFieldsSchema.omit({ assigneeId: true, departmentId: true, teamId: true, clientKey: true })
+        .shape,
     }),
-    promptFields: 'title, description?, projectId?, priority?, status?, dueAt?',
+    promptFields: 'title, description?, projectId?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?',
     execute: async (input) => {
       const projectId = await ensurePersonalProjectId(input.projectId)
       const task = await createTask({
@@ -139,7 +137,7 @@ export function registerPersonalActions() {
     inputSchema: z.object({
       type: z.literal('task.move'),
       taskId: requiredUuid,
-      status: taskStatusEnum,
+      status: requiredTaskStatus,
       title: z.string().optional(),
     }),
     promptFields: 'taskId, status, title?',
@@ -162,7 +160,7 @@ export function registerPersonalActions() {
       taskId: requiredUuid,
       title: z.string().optional(),
       description: z.string().optional(),
-      priority: priorityEnum.optional(),
+      priority: optionalPriority,
       dueAt: z.string().nullable().optional(),
     }),
     promptFields: 'taskId, title?, description?, priority?, dueAt?',
