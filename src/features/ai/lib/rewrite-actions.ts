@@ -40,11 +40,12 @@ function withFocusedProject(
   if (type !== 'task.create' && type !== 'task.create_many') return action
 
   const projectName = actionProjectName(action)
+  const focusedProjectName = focus.lastReferencedProjectName?.trim() || ''
   // Explicit different project name wins over focus.
   if (
     projectName &&
-    focus.lastReferencedProjectName &&
-    projectName.toLowerCase() !== focus.lastReferencedProjectName.toLowerCase()
+    focusedProjectName &&
+    projectName.toLowerCase() !== focusedProjectName.toLowerCase()
   ) {
     return action
   }
@@ -57,8 +58,8 @@ function withFocusedProject(
     )
   const nameMatchesFocus =
     Boolean(projectName) &&
-    Boolean(focus.lastReferencedProjectName) &&
-    projectName.toLowerCase() === focus.lastReferencedProjectName.toLowerCase()
+    Boolean(focusedProjectName) &&
+    projectName.toLowerCase() === focusedProjectName.toLowerCase()
 
   // Inject focus project when id is missing/fake, user refers to "it", or name matches focus.
   if (!looksFakeProjectId && !referencesSameProject && !nameMatchesFocus) {
