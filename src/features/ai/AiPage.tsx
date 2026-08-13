@@ -32,7 +32,6 @@ import {
   expandCreateManyForDisplay,
 } from '@/features/ai/lib/batch-engine'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
-import { getRegisteredAction } from '@/features/ai/registry'
 import type { ParsedRegistryAction } from '@/features/ai/registry/types'
 import { labelKeys } from '@/features/projects/labels-api'
 import { workspaceLabelKeys } from '@/features/workspace-os/labels-api'
