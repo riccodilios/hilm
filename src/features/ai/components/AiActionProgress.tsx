@@ -27,6 +27,49 @@ export function humanActionLabel(
   return title || name || summary || def?.title || String(action.type).replace(/\./g, ' ')
 }
 
+/** Short label for accept/apply chips — prefer task title over batch count. */
+export function shortTaskTitle(title: string, max = 42) {
+  const trimmed = title.trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, Math.max(1, max - 1)).trimEnd()}…`
+}
+
+/**
+ * Flatten proposed actions for the Accept UI so create_many shows each task title
+ * instead of only "Create N tasks".
+ */
+export function flattenProposedActionLabels(
+  actions: AiAction[],
+  os?: 'personal' | 'workspace',
+): Array<{ key: string; label: string; risk?: string }> {
+  const rows: Array<{ key: string; label: string; risk?: string }> = []
+  for (let index = 0; index < actions.length; index++) {
+    const action = actions[index]!
+    const risk = getRegisteredAction(String(action.type), os)?.risk
+    if (action.type === 'task.create_many' && Array.isArray(action.items) && action.items.length) {
+      for (let itemIndex = 0; itemIndex < action.items.length; itemIndex++) {
+        const item = action.items[itemIndex]
+        const title =
+          item && typeof item === 'object' && typeof (item as { title?: unknown }).title === 'string'
+            ? (item as { title: string }).title
+            : `Task ${itemIndex + 1}`
+        rows.push({
+          key: `${index}-create-many-${itemIndex}`,
+          label: shortTaskTitle(title),
+          risk: risk !== 'safe' ? risk : undefined,
+        })
+      }
+      continue
+    }
+    rows.push({
+      key: `${action.type}-${index}`,
+      label: humanActionLabel(action, os),
+      risk: risk !== 'safe' ? risk : undefined,
+    })
+  }
+  return rows
+}
+
 export function resultsToRunItems(
   results: ActionExecutionResult[],
   os?: 'personal' | 'workspace',

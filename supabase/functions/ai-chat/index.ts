@@ -220,8 +220,17 @@ Deno.serve(async (request) => {
         .eq('workspace_id', activeWorkspaceId)
         .order('name')
         .limit(40)
-      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}" (task_key=${taskKey}). Never access or invent Personal OS data.
+      const workspaceName = (workspace as { name?: string } | null)?.name ?? activeWorkspaceId
+      contextPack = `You are operating strictly inside Workspace OS.
+Current workspace (authoritative — do not ask the user which workspace):
+- workspaceId: ${activeWorkspaceId}
+- workspaceName: ${JSON.stringify(workspaceName)}
+- task_key: ${taskKey}
+Never access or invent Personal OS data. Never invent or switch workspace IDs.
+ENTITY NAMESPACES: Workspace name and Project names are independent. A project MAY be named exactly "${workspaceName}" inside this workspace — that is valid. Never refuse project.create because the workspace has the same name. Only conflict when Projects already lists a project with that name.
+When the user says "create a project called X", emit project.create with name X immediately (current workspace). Do not ask for the name or whether they meant the workspace.
 When referencing an existing task, set taskId to the task's id UUID OR its ref (e.g. ${taskKey}-12) OR the exact title from Tasks. Never invent UUIDs.
+Project lookup is always scoped to this workspaceId.
 Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId, task_key: taskKey })}
 Members: ${JSON.stringify(memberContext)}
 Projects: ${JSON.stringify(projects ?? [])}
@@ -278,7 +287,17 @@ Create example (1–3 NEW tasks):
 [{"type":"task.create","title":"Prepare Wasl documentation","projectName":"Wasl","priority":"medium"}]
 \`\`\`
 
-${activeWorkspaceId ? `Batch create example (4+ NEW tasks — REQUIRED shape for large requests):
+${activeWorkspaceId ? `Project create example (name may equal the workspace name — that is fine; do not ask clarifying questions):
+\`\`\`actions
+[{"type":"project.create","name":"IMED"}]
+\`\`\`
+
+Project then tasks chain (use projectName after project.create; same name as workspace is OK):
+\`\`\`actions
+[{"type":"project.create","name":"IMED"},{"type":"task.create_many","projectName":"IMED","items":[{"title":"Kickoff"},{"title":"Requirements"},{"title":"Design"}]}]
+\`\`\`
+
+Batch create example (4+ NEW tasks — REQUIRED shape for large requests):
 \`\`\`actions
 [{"type":"task.create_many","projectName":"Finance","items":[{"title":"Reconcile invoices"},{"title":"Update forecast"},{"title":"Send vendor reminders"}]}]
 \`\`\`

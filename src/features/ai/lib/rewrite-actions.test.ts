@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
+import {
+  applyCreatedProjectToFollowingActions,
+  rewriteActionsForConversationFocus,
+} from '@/features/ai/lib/rewrite-actions'
 
 describe('rewriteActionsForConversationFocus', () => {
   const focus = {
@@ -69,5 +72,42 @@ describe('rewriteActionsForConversationFocus', () => {
     )
     expect(next[0]?.projectName).toBe('Acme')
     expect(next[0]?.projectId).toBeUndefined()
+  })
+
+  it('injects focus project into task.create_many when name matches', () => {
+    const projectFocus = {
+      lastReferencedProjectId: '22222222-2222-2222-2222-222222222222',
+      lastReferencedProjectName: 'IMED',
+    }
+    const next = rewriteActionsForConversationFocus(
+      [
+        {
+          type: 'task.create_many',
+          projectName: 'IMED',
+          items: [{ title: 'A' }, { title: 'B' }],
+        },
+      ],
+      { userMessage: 'Now add these tasks to it', focus: projectFocus },
+    )
+    expect(next[0]?.projectId).toBe(projectFocus.lastReferencedProjectId)
+    expect(next[0]?.projectName).toBe('IMED')
+  })
+
+  it('stamps created project id onto following task actions', () => {
+    const actions = [
+      { type: 'project.create', name: 'IMED' },
+      {
+        type: 'task.create_many',
+        projectName: 'IMED',
+        items: [{ title: 'Kickoff' }],
+      },
+    ]
+    applyCreatedProjectToFollowingActions(
+      actions,
+      { projectId: '33333333-3333-3333-3333-333333333333', projectName: 'IMED' },
+      0,
+    )
+    expect(actions[1]?.projectId).toBe('33333333-3333-3333-3333-333333333333')
+    expect(actions[1]?.projectName).toBe('IMED')
   })
 })

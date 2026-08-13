@@ -747,7 +747,8 @@ export function registerWorkspaceActions() {
     type: 'project.create',
     os: 'workspace',
     title: 'Create project',
-    description: 'Create a workspace project',
+    description:
+      'Create a project in the current workspace. Name may match the workspace name — that is valid. workspaceId is injected from trusted context.',
     risk: 'safe',
     permission: editOk,
     inputSchema: z.object({
@@ -759,12 +760,47 @@ export function registerWorkspaceActions() {
     }),
     promptFields: 'name, description?, color?, icon?',
     execute: async (input, ctx) => {
-      const project = await createWorkspaceProject(ctx.workspaceId!, input)
-      return {
-        ok: true,
-        summary: `Created project ${input.name}`,
-        entities: [{ type: 'project', id: project.id }],
-        data: project,
+      const name = input.name.trim()
+      if (!name) {
+        return { ok: false, summary: 'Project name is required' }
+      }
+      const projects = await listWorkspaceProjects(ctx.workspaceId!)
+      const existing = projects.find(
+        (project) => project.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+      if (existing) {
+        return {
+          ok: false,
+          summary: `A project named “${existing.name}” already exists in this workspace.`,
+          data: {
+            existing_project_id: existing.id,
+            existing_project_name: existing.name,
+          },
+        }
+      }
+      try {
+        const project = await createWorkspaceProject(ctx.workspaceId!, {
+          ...input,
+          name,
+        })
+        return {
+          ok: true,
+          summary: `Created project ${name}`,
+          entities: [{ type: 'project', id: project.id }],
+          data: {
+            ...project,
+            project_id: project.id,
+            project_name: project.name,
+          },
+        }
+      } catch (error) {
+        const message =
+          error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '23505'
+            ? `A project named “${name}” already exists in this workspace.`
+            : error instanceof Error
+              ? error.message
+              : 'Failed to create project'
+        return { ok: false, summary: message }
       }
     },
   })

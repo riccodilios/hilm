@@ -45,6 +45,7 @@ import { tasksKeys } from '@/features/tasks/api'
 import { workspaceKeys } from '@/features/workspace-os/api'
 import {
   AiActionProgress,
+  flattenProposedActionLabels,
   humanActionLabel,
   type ActionRunItem,
 } from '@/features/ai/components/AiActionProgress'
@@ -597,6 +598,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
             }
           } else if (result?.success) {
             succeeded += 1
+            const entityProject = result.entities?.find((entity) => entity.type === 'project')
             const entityTask = result.entities?.find((entity) => entity.type === 'task')
             const taskIdFromAction =
               typeof action.taskId === 'string' ? action.taskId : undefined
@@ -610,27 +612,41 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
               typeof (result.data as { title?: unknown }).title === 'string'
                 ? (result.data as { title: string }).title
                 : undefined
-            if (taskId && selectedId) {
+            const projectNameFromAction =
+              typeof action.name === 'string' ? action.name : undefined
+            const projectNameFromData =
+              result.data &&
+              typeof result.data === 'object' &&
+              'project_name' in result.data &&
+              typeof (result.data as { project_name?: unknown }).project_name === 'string'
+                ? (result.data as { project_name: string }).project_name
+                : result.data &&
+                    typeof result.data === 'object' &&
+                    'name' in result.data &&
+                    typeof (result.data as { name?: unknown }).name === 'string'
+                  ? (result.data as { name: string }).name
+                  : undefined
+            const projectIdFromData =
+              result.data &&
+              typeof result.data === 'object' &&
+              'project_id' in result.data &&
+              typeof (result.data as { project_id?: unknown }).project_id === 'string'
+                ? (result.data as { project_id: string }).project_id
+                : undefined
+
+            if (selectedId && (entityProject || taskId)) {
               const isCreate = String(action.type) === 'task.create'
               writeConversationFocus(selectedId, {
-                ...(isCreate ? { lastCreatedTaskId: taskId } : {}),
-                lastModifiedTaskId: taskId,
+                ...(taskId && isCreate ? { lastCreatedTaskId: taskId } : {}),
+                ...(taskId ? { lastModifiedTaskId: taskId } : {}),
                 lastTaskTitle: titleFromData ?? titleFromAction ?? undefined,
                 lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
                 lastReferencedProjectId:
-                  result.data &&
-                  typeof result.data === 'object' &&
-                  'project_id' in result.data &&
-                  typeof (result.data as { project_id?: unknown }).project_id === 'string'
-                    ? (result.data as { project_id: string }).project_id
-                    : undefined,
+                  entityProject?.id ?? projectIdFromData ?? undefined,
                 lastReferencedProjectName:
-                  result.data &&
-                  typeof result.data === 'object' &&
-                  'project_name' in result.data &&
-                  typeof (result.data as { project_name?: unknown }).project_name === 'string'
-                    ? (result.data as { project_name: string }).project_name
-                    : undefined,
+                  projectNameFromData ??
+                  projectNameFromAction ??
+                  (typeof action.projectName === 'string' ? action.projectName : undefined),
                 lastTaskRef:
                   result.data &&
                   typeof result.data === 'object' &&
@@ -991,17 +1007,15 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   {t('ai.apply')}
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {proposedActions.map((action, index) => (
+              <div className="flex max-h-40 flex-wrap gap-2 overflow-auto">
+                {flattenProposedActionLabels(proposedActions, osMode).map((row) => (
                   <span
-                    key={`${action.type}-${index}`}
+                    key={row.key}
                     className="rounded-lg border border-border-subtle bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
                   >
-                    {humanActionLabel(action, osMode)}
-                    {getRegisteredAction(String(action.type), osMode)?.risk !== 'safe' ? (
-                      <span className="ms-1 text-[10px] uppercase text-warning">
-                        {getRegisteredAction(String(action.type), osMode)?.risk}
-                      </span>
+                    {row.label}
+                    {row.risk ? (
+                      <span className="ms-1 text-[10px] uppercase text-warning">{row.risk}</span>
                     ) : null}
                   </span>
                 ))}
@@ -1021,12 +1035,12 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                 </DialogDescription>
               </DialogHeader>
               <ul className="max-h-48 space-y-2 overflow-auto text-sm">
-                {proposedActions.map((action, index) => (
-                  <li key={`${action.type}-confirm-${index}`} className="rounded-lg bg-surface-2 px-3 py-2">
-                    <span className="font-medium">{humanActionLabel(action, osMode)}</span>
-                    <span className="ms-2 text-xs text-muted">
-                      {getRegisteredAction(String(action.type), osMode)?.risk}
-                    </span>
+                {flattenProposedActionLabels(proposedActions, osMode).map((row) => (
+                  <li key={`${row.key}-confirm`} className="rounded-lg bg-surface-2 px-3 py-2">
+                    <span className="font-medium">{row.label}</span>
+                    {row.risk ? (
+                      <span className="ms-2 text-xs text-muted">{row.risk}</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

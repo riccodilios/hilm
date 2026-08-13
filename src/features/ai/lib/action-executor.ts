@@ -9,7 +9,10 @@ import {
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
 import { auditAiAction } from '@/features/ai/lib/conversation-focus'
-import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
+import {
+  applyCreatedProjectToFollowingActions,
+  rewriteActionsForConversationFocus,
+} from '@/features/ai/lib/rewrite-actions'
 import { coalesceWorkspaceTaskCreates } from '@/features/ai/lib/batch-engine'
 import type { ActionContext, ActionRisk, ParsedRegistryAction } from '@/features/ai/registry/types'
 
@@ -197,7 +200,8 @@ export async function executeAiActions(
     }))
   }
 
-  for (const raw of list) {
+  for (let listIndex = 0; listIndex < list.length; listIndex++) {
+    const raw = list[listIndex]!
     const normalized = normalizeAiAction(raw) as ParsedRegistryAction
     const type = typeof normalized.type === 'string' ? normalized.type.trim() : ''
     const action = { ...normalized, type }
@@ -267,6 +271,35 @@ export async function executeAiActions(
         entities: outcome.entities,
         error: outcome.ok ? undefined : outcome.summary || 'Action did not complete',
       })
+      if (
+        outcome.ok &&
+        type === 'project.create' &&
+        os === 'workspace'
+      ) {
+        const projectEntity = outcome.entities?.find((entity) => entity.type === 'project')
+        const projectName =
+          typeof (parsed.data as { name?: unknown }).name === 'string'
+            ? (parsed.data as { name: string }).name
+            : outcome.data &&
+                typeof outcome.data === 'object' &&
+                'name' in outcome.data &&
+                typeof (outcome.data as { name?: unknown }).name === 'string'
+              ? (outcome.data as { name: string }).name
+              : ''
+        if (projectEntity?.id && projectName) {
+          applyCreatedProjectToFollowingActions(
+            list,
+            { projectId: projectEntity.id, projectName },
+            listIndex,
+          )
+          ctx.conversationFocus = {
+            ...(ctx.conversationFocus ?? {}),
+            lastReferencedProjectId: projectEntity.id,
+            lastReferencedProjectName: projectName,
+            lastReferencedWorkspaceId: workspaceId,
+          }
+        }
+      }
       options?.onProgress?.({
         actionIndex: results.length - 1,
         action: parsed.data as ParsedRegistryAction,
