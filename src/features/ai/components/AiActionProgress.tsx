@@ -99,9 +99,7 @@ export function AiActionProgress({
                 </span>
                 {item.error ? (
                   <span className="mt-0.5 block text-xs text-muted">
-                    {t('ai.actionFailedShort', {
-                      defaultValue: 'Couldn’t complete this step.',
-                    })}
+                    {item.error}
                   </span>
                 ) : null}
               </span>

@@ -77,7 +77,7 @@ export function registerWorkspaceActions() {
     parallelSafe: true,
     permission: editOk,
     inputSchema: z.object({ type: z.literal('task.complete'), taskId: taskIdOrRef }),
-    promptFields: 'taskId (UUID or short id like IMED-24)',
+    promptFields: 'taskId (UUID, KEY-N, or exact title)',
     execute: async (input, ctx) => {
       const resolved = await resolveTaskOrFail(
         ctx.workspaceId!,
@@ -309,7 +309,7 @@ export function registerWorkspaceActions() {
       taskId: taskIdOrRef,
       status: taskStatusEnum,
     }),
-    promptFields: 'taskId (UUID or KEY-N), status',
+    promptFields: 'taskId (UUID, KEY-N, or exact title), status',
     execute: async (input, ctx) => {
       const resolved = await resolveTaskOrFail(
         ctx.workspaceId!,
@@ -344,7 +344,7 @@ export function registerWorkspaceActions() {
       priority: priorityEnum.optional(),
       dueAt: z.string().nullable().optional(),
     }),
-    promptFields: 'taskId (UUID or KEY-N), title?, description?, priority?, dueAt?',
+    promptFields: 'taskId (UUID, KEY-N, or exact title), title?, description?, priority?, dueAt?',
     execute: async (input, ctx) => {
       const resolved = await resolveTaskOrFail(
         ctx.workspaceId!,
@@ -373,6 +373,43 @@ export function registerWorkspaceActions() {
   })
 
   registerAction({
+    type: 'task.schedule',
+    os: 'workspace',
+    title: 'Schedule task',
+    description: 'Set or clear a workspace task due date/time',
+    risk: 'safe',
+    parallelSafe: true,
+    permission: editOk,
+    inputSchema: z.object({
+      type: z.literal('task.schedule'),
+      taskId: taskIdOrRef,
+      dueAt: z.string().nullable(),
+    }),
+    promptFields: 'taskId (UUID, KEY-N, or exact title), dueAt (ISO or null to clear)',
+    execute: async (input, ctx) => {
+      const resolved = await resolveTaskOrFail(
+        ctx.workspaceId!,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId ?? ctx.conversationFocus?.lastCreatedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+      const dueAt = input.dueAt
+      await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
+        due_at: dueAt,
+        due_date: dueAt ? dueAt.slice(0, 10) : null,
+      })
+      const ws = await getWorkspace(ctx.workspaceId!)
+      const ref =
+        formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
+      return {
+        ok: true,
+        summary: dueAt ? `Scheduled ${ref}` : `Cleared schedule on ${ref}`,
+        entities: [{ type: 'task', id: resolved.task.id }],
+      }
+    },
+  })
+
+  registerAction({
     type: 'task.assign',
     os: 'workspace',
     title: 'Assign task',
@@ -382,22 +419,83 @@ export function registerWorkspaceActions() {
     inputSchema: z.object({
       type: z.literal('task.assign'),
       taskId: taskIdOrRef,
-      assigneeId: requiredUuid,
+      assigneeId: optionalUuid,
+      assigneeName: z.string().min(1).optional(),
+      teamId: optionalUuid,
+      teamName: z.string().min(1).optional(),
     }),
-    promptFields: 'taskId (UUID or KEY-N), assigneeId',
+    promptFields:
+      'taskId (UUID, KEY-N, or title), assigneeId? or assigneeName?, teamId? or teamName?',
     execute: async (input, ctx) => {
+      const workspaceId = ctx.workspaceId!
       const resolved = await resolveTaskOrFail(
-        ctx.workspaceId!,
+        workspaceId,
         input.taskId,
         ctx.conversationFocus?.lastModifiedTaskId,
       )
       if (!resolved.ok) return { ok: false, summary: resolved.reason }
-      await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
-        assignee_id: input.assigneeId,
+
+      let assigneeId = input.assigneeId ?? null
+      let teamId = input.teamId ?? null
+
+      if (!assigneeId && input.assigneeName) {
+        const members = await listWorkspaceMembers(workspaceId)
+        const needle = input.assigneeName.trim().toLowerCase()
+        const matches = members.filter((row) => {
+          const label = (
+            row.display_name_override ||
+            row.profiles?.display_name ||
+            row.email ||
+            ''
+          ).toLowerCase()
+          return label === needle || label.includes(needle) || needle.includes(label)
+        })
+        if (matches.length === 1) assigneeId = matches[0]!.user_id
+        else if (matches.length > 1) {
+          return {
+            ok: false,
+            summary: `Multiple members match “${input.assigneeName}”. Which one?`,
+          }
+        } else {
+          return { ok: false, summary: `I couldn’t find member “${input.assigneeName}”.` }
+        }
+      }
+
+      if (!teamId && input.teamName) {
+        const { data: teams, error } = await supabase
+          .from('workspace_teams')
+          .select('id, name')
+          .eq('workspace_id', workspaceId)
+        if (error) throw error
+        const needle = input.teamName.trim().toLowerCase()
+        const matches = (teams ?? []).filter((team) => team.name.toLowerCase().includes(needle))
+        if (matches.length === 1) teamId = matches[0]!.id
+        else if (matches.length > 1) {
+          return { ok: false, summary: `Multiple teams match “${input.teamName}”. Which one?` }
+        } else {
+          return { ok: false, summary: `I couldn’t find team “${input.teamName}”.` }
+        }
+      }
+
+      if (!assigneeId && !teamId) {
+        return {
+          ok: false,
+          summary: 'Provide an assignee (name or id) or a team (name or id).',
+        }
+      }
+
+      await updateWorkspaceTask(workspaceId, resolved.task.id, {
+        assignee_id: assigneeId,
+        team_id: teamId,
       })
+      const ws = await getWorkspace(workspaceId)
+      const ref =
+        formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
       return {
         ok: true,
-        summary: `Assigned task to ${input.assigneeId}`,
+        summary: assigneeId
+          ? `Assigned ${ref}`
+          : `Assigned ${ref} to team`,
         entities: [{ type: 'task', id: resolved.task.id }],
       }
     },

@@ -222,7 +222,7 @@ export default async (request: Request) => {
           .limit(20),
         userClient
           .from('workspace_tasks')
-          .select('id, title, status, priority, due_date, due_at, project_id, assignee_id')
+          .select('id, title, status, priority, due_date, due_at, project_id, assignee_id, task_number')
           .eq('workspace_id', activeWorkspaceId)
           .neq('status', 'archived')
           .order('due_date', { ascending: true, nullsFirst: false })
@@ -239,7 +239,7 @@ export default async (request: Request) => {
           .limit(15),
         userClient
           .from('workspaces')
-          .select('id, name, description')
+          .select('id, name, description, task_key')
           .eq('id', activeWorkspaceId)
           .maybeSingle(),
       ])
@@ -255,12 +255,20 @@ export default async (request: Request) => {
         name: (profileMap.get(m.user_id) || '').trim() || 'Unnamed User',
       }))
 
+      const taskKey = (workspace as { task_key?: string } | null)?.task_key ?? 'TASK'
       const scopedTasks = annotateTasksForAi(
         activeProjectId
           ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
           : (tasks ?? []),
         clock,
-      )
+      ).map((task) => {
+        const number = (task as { task_number?: number }).task_number
+        return {
+          ...task,
+          ref:
+            typeof number === 'number' ? `${taskKey}-${number}` : undefined,
+        }
+      })
 
       actionCatalog = workspaceActionCatalog
       const [{ data: wsLabels }] = await Promise.all([
@@ -271,8 +279,9 @@ export default async (request: Request) => {
           .order('name')
           .limit(40),
       ])
-      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}". Never access or invent Personal OS data.
-Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId })}
+      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}" (task_key=${taskKey}). Never access or invent Personal OS data.
+When referencing an existing task, set taskId to the task's id UUID OR its ref (e.g. ${taskKey}-12) OR the exact title from Tasks. Never invent UUIDs.
+Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId, task_key: taskKey })}
 Members: ${JSON.stringify(memberContext)}
 Projects: ${JSON.stringify(projects ?? [])}
 Tasks: ${JSON.stringify(scopedTasks)}

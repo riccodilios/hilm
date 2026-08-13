@@ -20,17 +20,12 @@ export const requiredUuid = z.preprocess((value) => {
   return value.trim()
 }, uuidLoose)
 
-/** Workspace task UUID or short ref (e.g. IMED-24). */
+/** Workspace task UUID, short ref (IMED-24), or title used for resolution. */
 export const taskIdOrRef = z
   .string()
   .trim()
-  .min(1)
-  .refine(
-    (value) =>
-      uuidLoose.safeParse(value).success ||
-      /^[A-Za-z][A-Za-z0-9]{1,11}-\d+$/.test(value),
-    { message: 'Invalid task id' },
-  )
+  .min(1, { message: 'taskId is required' })
+  .max(500)
 
 export const priorityEnum = z.enum(['none', 'low', 'medium', 'high', 'urgent'])
 export const taskStatusEnum = z.enum([

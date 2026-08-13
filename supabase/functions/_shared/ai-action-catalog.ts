@@ -24,8 +24,9 @@ CRITICAL entity rules:
 - For task.create under a named project (e.g. "for Wasl"), pass projectName with the exact name. Prefer projectId ONLY from Conversation focus (lastReferencedProjectId) or project.search / context-pack workspace project IDs.
 - If lastReferencedProjectId is set and the user says "another task for it" / "same project", reuse that projectId.
 - If the project is unknown, call project.search first or omit projectId and set projectName — never invent a UUID.
-- Workspace tasks have short IDs like IMED-24. When the user says "Update IMED-24", pass taskId: "IMED-24" (not a title). Never treat KEY-N as a task title.
-- Use comment.create to add comments; pass mentionNames for @mentions.`
+- Workspace tasks have short IDs like IMED-24. When the user says "Update IMED-24", pass taskId: "IMED-24" (not a fabricated UUID). You may also pass the exact task title from the Tasks context pack as taskId — the runtime resolves it.
+- Use comment.create to add comments; pass mentionNames for @mentions.
+- Use task.schedule to set dueAt. Use task.assign with assigneeName or teamName when IDs are unknown.`
 
 
 export const personalActionCatalog =

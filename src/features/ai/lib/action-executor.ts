@@ -219,6 +219,13 @@ export async function executeAiActions(
 
     const parsed = def.inputSchema.safeParse(action)
     if (!parsed.success) {
+      console.error('[hilm] AI action schema rejected', {
+        os,
+        workspaceId,
+        type,
+        issues: parsed.error.issues,
+        action,
+      })
       results.push({
         action,
         success: false,
@@ -245,9 +252,26 @@ export async function executeAiActions(
         result: { ok: outcome.ok, summary: outcome.summary, entities: outcome.entities },
         error: outcome.ok ? undefined : outcome.summary,
       })
+      if (!outcome.ok) {
+        console.error('[hilm] AI action soft-failed', {
+          os,
+          workspaceId,
+          type,
+          taskId: actionTaskId(parsed.data as ParsedRegistryAction),
+          summary: outcome.summary,
+          action: parsed.data,
+        })
+      }
       if (!outcome.ok && sequential) break
     } catch (error) {
-      console.error('[hilm] AI action failed', type, error)
+      console.error('[hilm] AI action failed', {
+        os,
+        workspaceId,
+        type,
+        taskId: actionTaskId(parsed.data as ParsedRegistryAction),
+        action: parsed.data,
+        error,
+      })
       results.push({
         action: parsed.data as ParsedRegistryAction,
         success: false,

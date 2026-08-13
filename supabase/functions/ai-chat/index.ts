@@ -199,10 +199,10 @@ Deno.serve(async (request) => {
         { data: workspace },
       ] = await Promise.all([
         admin.from('workspace_projects').select('id, name, description, completion_pct, health, status').eq('workspace_id', activeWorkspaceId).neq('status', 'archived').limit(20),
-        admin.from('workspace_tasks').select('id, title, status, priority, due_date, due_at, project_id, assignee_id').eq('workspace_id', activeWorkspaceId).neq('status', 'archived').order('due_date', { ascending: true, nullsFirst: false }).limit(40),
+        admin.from('workspace_tasks').select('id, title, status, priority, due_date, due_at, project_id, assignee_id, task_number').eq('workspace_id', activeWorkspaceId).neq('status', 'archived').order('due_date', { ascending: true, nullsFirst: false }).limit(40),
         admin.from('workspace_members').select('user_id, role').eq('workspace_id', activeWorkspaceId),
         admin.from('workspace_activity_events').select('event_type, summary, created_at, entity_type').eq('workspace_id', activeWorkspaceId).order('created_at', { ascending: false }).limit(15),
-        admin.from('workspaces').select('id, name, description').eq('id', activeWorkspaceId).maybeSingle(),
+        admin.from('workspaces').select('id, name, description, task_key').eq('id', activeWorkspaceId).maybeSingle(),
       ])
       const memberIds = (members ?? []).map((m: { user_id: string }) => m.user_id)
       const { data: profiles } = memberIds.length
@@ -214,12 +214,19 @@ Deno.serve(async (request) => {
         role: m.role,
         name: (profileMap.get(m.user_id) || '').trim() || 'Unnamed User',
       }))
+      const taskKey = (workspace as { task_key?: string } | null)?.task_key ?? 'TASK'
       const scopedTasks = annotateTasksForAi(
         activeProjectId
           ? (tasks ?? []).filter((task: { project_id: string }) => task.project_id === activeProjectId)
           : (tasks ?? []),
         clock,
-      )
+      ).map((task: Record<string, unknown>) => {
+        const number = task.task_number
+        return {
+          ...task,
+          ref: typeof number === 'number' ? `${taskKey}-${number}` : undefined,
+        }
+      })
       actionCatalog = workspaceActionCatalog
       const { data: wsLabels } = await admin
         .from('workspace_labels')
@@ -227,8 +234,9 @@ Deno.serve(async (request) => {
         .eq('workspace_id', activeWorkspaceId)
         .order('name')
         .limit(40)
-      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}". Never access or invent Personal OS data.
-Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId })}
+      contextPack = `You are operating strictly inside Workspace OS for workspace "${workspace?.name ?? activeWorkspaceId}" (task_key=${taskKey}). Never access or invent Personal OS data.
+When referencing an existing task, set taskId to the task's id UUID OR its ref (e.g. ${taskKey}-12) OR the exact title from Tasks. Never invent UUIDs.
+Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId, task_key: taskKey })}
 Members: ${JSON.stringify(memberContext)}
 Projects: ${JSON.stringify(projects ?? [])}
 Tasks: ${JSON.stringify(scopedTasks)}
