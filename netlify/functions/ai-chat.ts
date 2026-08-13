@@ -20,6 +20,7 @@ import {
   workspaceActionCatalog,
   workspaceActionInstruction,
 } from './_shared/ai-action-catalog'
+import { actionsFromContent } from './_shared/actions-parse'
 import {
   annotateTasksForAi,
   buildAiTimeContextPrompt,
@@ -38,21 +39,6 @@ const agentPrompts: Record<string, string> = {
   architecture_advisor: `You are Hilm's Architecture Advisor. Explain technical trade-offs, constraints, and design options.`,
   meeting_summarizer: `You are Hilm's Meeting Summarizer. Summarize decisions, open questions, and follow-up items.`,
   qa_assistant: `You are Hilm's QA Assistant. Create focused test plans, edge cases, and release-risk assessments.`,
-}
-
-function actionsFromContent(content: string) {
-  const match = content.match(/```actions(?:\s+json)?\s*\n([\s\S]*?)```/i)
-  if (!match) return []
-  try {
-    const parsed = JSON.parse(match[1].trim())
-    if (Array.isArray(parsed)) return parsed
-    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { actions?: unknown }).actions)) {
-      return (parsed as { actions: unknown[] }).actions
-    }
-    return []
-  } catch {
-    return []
-  }
 }
 
 function sse(payload: Record<string, unknown>) {
@@ -345,12 +331,16 @@ ${timeContext}
 ${focusBlock}
 Respond in helpful, concise Markdown. When you propose executable changes, append exactly one fenced \`\`\`actions JSON block at the end.
 
-Create example (only when the user explicitly asks for a NEW task):
+Create example (1–3 NEW tasks):
 \`\`\`actions
-[{"type":"task.create","title":"Prepare Wasl documentation","priority":"medium"}]
+[{"type":"task.create","title":"Prepare Wasl documentation","projectName":"Wasl","priority":"medium"}]
 \`\`\`
 
-Update example (when refining an existing / focused task — preferred for follow-ups):
+${activeWorkspaceId ? `Batch create example (4+ NEW tasks — REQUIRED shape for large requests):
+\`\`\`actions
+[{"type":"task.create_many","projectName":"Finance","items":[{"title":"Reconcile invoices"},{"title":"Update forecast"},{"title":"Send vendor reminders"}]}]
+\`\`\`
+` : ''}Update example (when refining an existing / focused task — preferred for follow-ups):
 \`\`\`actions
 [{"type":"task.update","taskId":"<existing-task-uuid>","title":"Wasl docs","description":"Add more detail here"}]
 \`\`\`
@@ -376,6 +366,7 @@ ${contextPack}`
         model: activeModel,
         stream: true,
         stream_options: { include_usage: true },
+        max_tokens: activeWorkspaceId ? 8192 : 4096,
         messages: [
           { role: 'system', content: systemPrompt },
           ...(history ?? [])
@@ -409,6 +400,7 @@ ${contextPack}`
         const reader = openRouterResponse.body!.getReader()
         let buffer = ''
         let content = ''
+        let finishReason: string | null = null
         let usage = tokensFromOpenRouterUsage(null)
         try {
           while (true) {
@@ -423,7 +415,11 @@ ${contextPack}`
               try {
                 const chunk = JSON.parse(data)
                 if (chunk.usage) usage = tokensFromOpenRouterUsage(chunk.usage)
-                const next = chunk.choices?.[0]?.delta?.content
+                const choice = chunk.choices?.[0]
+                if (typeof choice?.finish_reason === 'string') {
+                  finishReason = choice.finish_reason
+                }
+                const next = choice?.delta?.content
                 if (typeof next === 'string') {
                   content += next
                   controller.enqueue(encoder.encode(sse({ type: 'token', token: next })))
@@ -445,7 +441,11 @@ ${contextPack}`
             }
           }
 
-          const actions = actionsFromContent(content)
+          const parsedActions = actionsFromContent(content)
+          const actions = parsedActions.actions
+          const truncated =
+            parsedActions.truncated || finishReason === 'length' || Boolean(parsedActions.parseError)
+
           await streamUserClient.from('ai_messages').insert([
             {
               user_id: user.id,
@@ -478,8 +478,43 @@ ${contextPack}`
             })
           }
 
-          if (actions.length) controller.enqueue(encoder.encode(sse({ type: 'actions', actions })))
-          controller.enqueue(encoder.encode(sse({ type: 'done', content, actions })))
+          if (truncated && !actions.length) {
+            controller.enqueue(
+              encoder.encode(
+                sse({
+                  type: 'error',
+                  error:
+                    'The action plan was truncated before it could be parsed. Ask me to continue the remaining tasks, or retry with task.create_many.',
+                  code: 'actions_truncated',
+                }),
+              ),
+            )
+          } else {
+            if (truncated && actions.length) {
+              controller.enqueue(
+                encoder.encode(
+                  sse({
+                    type: 'actions_warning',
+                    warning:
+                      'Action plan may be incomplete (truncated output). Review the proposed tasks before applying.',
+                    recovered: actions.length,
+                  }),
+                ),
+              )
+            }
+            if (actions.length) controller.enqueue(encoder.encode(sse({ type: 'actions', actions })))
+            controller.enqueue(
+              encoder.encode(
+                sse({
+                  type: 'done',
+                  content,
+                  actions,
+                  truncated,
+                  finishReason,
+                }),
+              ),
+            )
+          }
         } catch (error) {
           if (streamEventId) {
             await completeAiRequest(streamUserClient, {

@@ -7,6 +7,7 @@ import type {
   RegisteredAction,
 } from '@/features/ai/registry/types'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
+import { parseActionsFromAssistantContent } from '@/features/ai/lib/actions-parse'
 
 const registry = new Map<string, RegisteredAction>()
 
@@ -123,13 +124,7 @@ export function extractRegistryActionsFromContent(
   os: AiOsMode,
   ctx?: ActionContext,
 ) {
-  const match =
-    content.match(/```actions(?:\s+json)?\s*\n([\s\S]*?)```/i) ||
-    content.match(/```json\s*\n(\[[\s\S]*?\])\s*```/i)
-  if (!match) return []
-  try {
-    return parseRegistryActions(JSON.parse(match[1].trim()), os, ctx)
-  } catch {
-    return []
-  }
+  const parsed = parseActionsFromAssistantContent(content)
+  if (!parsed.actions.length) return []
+  return parseRegistryActions(parsed.actions, os, ctx)
 }

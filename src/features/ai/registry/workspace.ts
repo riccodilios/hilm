@@ -43,6 +43,12 @@ import {
   updateTeam,
 } from '@/features/workspace-os/org-api'
 import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
+import {
+  mapPool,
+  WORKSPACE_BATCH_DEFAULT_CONCURRENCY,
+  WORKSPACE_BATCH_MAX_ITEMS,
+  type BatchItemResult,
+} from '@/features/ai/lib/batch-engine'
 import { resolveWorkspaceProjectForAction } from '@/features/ai/lib/resolve-workspace-project'
 import { resolveWorkspaceTaskForAction } from '@/features/workspace-os/lib/resolve-workspace-task'
 import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
@@ -202,6 +208,131 @@ export function registerWorkspaceActions() {
           status: task.status ?? input.status ?? 'todo',
           task_number: task.task_number,
           task_ref: taskRef,
+        },
+      }
+    },
+  })
+
+  registerAction({
+    type: 'task.create_many',
+    os: 'workspace',
+    title: 'Create tasks (batch)',
+    description: 'Create many workspace tasks under one project in a recoverable batch',
+    risk: 'safe',
+    parallelSafe: true,
+    permission: editOk,
+    inputSchema: z.object({
+      type: z.literal('task.create_many'),
+      projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
+      items: z
+        .array(
+          z.object({
+            title: z.string().min(1),
+            description: z.string().optional(),
+            priority: priorityEnum.optional(),
+            status: taskStatusEnum.optional(),
+            dueAt: z.string().optional(),
+            assigneeId: optionalUuid,
+            departmentId: optionalUuid,
+            teamId: optionalUuid,
+            clientKey: z.string().optional(),
+          }),
+        )
+        .min(1)
+        .max(WORKSPACE_BATCH_MAX_ITEMS),
+    }),
+    promptFields:
+      'projectId?, projectName?, items:[{title, description?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}] (max 40)',
+    execute: async (input, ctx) => {
+      const workspaceId = ctx.workspaceId!
+      const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
+        projectId: input.projectId,
+        projectName: input.projectName,
+        preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+      })
+      if (!resolved.ok) {
+        const hint = resolved.candidates?.length
+          ? ` Available projects: ${resolved.candidates.map((row) => row.name).join(', ')}.`
+          : ''
+        return { ok: false, summary: `${resolved.reason}${hint}` }
+      }
+
+      const project = resolved.project
+      const workspace = await getWorkspace(workspaceId)
+      const seen = new Set<string>()
+      const items = input.items.filter((item) => {
+        const key = (item.clientKey || item.title).trim().toLowerCase()
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      const results = await mapPool(
+        items,
+        WORKSPACE_BATCH_DEFAULT_CONCURRENCY,
+        async (item, index): Promise<BatchItemResult> => {
+          const dueAt = item.dueAt?.trim() || null
+          try {
+            const task = await createWorkspaceTask(workspaceId, {
+              projectId: project.id,
+              title: item.title,
+              description: item.description,
+              priority: item.priority as Priority | undefined,
+              status: item.status as TaskStatus | undefined,
+              dueDate: dueAt ? dueAt.slice(0, 10) : null,
+              dueAt,
+              assigneeId: item.assigneeId ?? null,
+              departmentId: item.departmentId ?? null,
+              teamId: item.teamId ?? null,
+              quiet: true,
+              taskKey: workspace.task_key,
+            })
+            const taskRef = formatWorkspaceTaskRef(workspace.task_key, task.task_number)
+            return {
+              index,
+              title: item.title,
+              ok: true,
+              summary: taskRef ? `Created ${taskRef}` : `Created “${item.title}”`,
+              taskId: task.id,
+              taskRef: taskRef ?? undefined,
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            return {
+              index,
+              title: item.title,
+              ok: false,
+              summary: message,
+              error: message,
+            }
+          }
+        },
+      )
+
+      const succeeded = results.filter((row) => row.ok)
+      const failed = results.filter((row) => !row.ok)
+      const ok = succeeded.length > 0
+      const summary =
+        failed.length === 0
+          ? `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
+          : `Created ${succeeded.length}/${items.length} tasks in ${project.name} (${failed.length} failed)`
+
+      return {
+        ok,
+        summary,
+        entities: [
+          ...succeeded.map((row) => ({ type: 'task', id: row.taskId! })),
+          { type: 'project', id: project.id },
+        ],
+        data: {
+          project_id: project.id,
+          project_name: project.name,
+          workspace_id: workspaceId,
+          items: results,
+          succeeded: succeeded.length,
+          failed: failed.length,
+          total: items.length,
         },
       }
     },

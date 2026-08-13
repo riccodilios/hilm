@@ -10,6 +10,10 @@
   node_bundler = "esbuild"
   directory = "netlify/functions"
 
+[functions."ai-chat"]
+  # Large workspace batch plans need headroom beyond the default; reliability still comes from create_many + parse recovery.
+  timeout = 26
+
 [[headers]]
   for = "/*"
   [headers.values]

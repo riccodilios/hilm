@@ -18,6 +18,9 @@ export function humanActionLabel(
   os?: 'personal' | 'workspace',
 ) {
   const def = getRegisteredAction(String(action.type), os)
+  if (action.type === 'task.create_many' && Array.isArray(action.items)) {
+    return `Create ${action.items.length} tasks`
+  }
   const title = typeof action.title === 'string' ? action.title : undefined
   const name = typeof action.name === 'string' ? action.name : undefined
   const summary = typeof action.summary === 'string' ? action.summary : undefined

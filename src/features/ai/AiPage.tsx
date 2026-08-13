@@ -27,6 +27,10 @@ import {
   writeConversationFocus,
 } from '@/features/ai/lib/conversation-focus'
 import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
+import {
+  coalesceWorkspaceTaskCreates,
+  expandCreateManyForDisplay,
+} from '@/features/ai/lib/batch-engine'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { getRegisteredAction } from '@/features/ai/registry'
 import type { ParsedRegistryAction } from '@/features/ai/registry/types'
@@ -134,7 +138,11 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
       userMessage: userMessage ?? lastUserMessageRef.current,
       focus,
     }) as AiAction[]
-    setProposedActions(rewritten)
+    const next =
+      isWorkspace
+        ? (coalesceWorkspaceTaskCreates(rewritten as never) as AiAction[])
+        : rewritten
+    setProposedActions(next)
   }
 
   const conversations = useQuery({
@@ -348,9 +356,18 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         const incoming = event.actions ?? []
         if (!incoming.length) continue
         applyProposed(incoming, conversationId, message)
+      } else if (event.type === 'actions_warning') {
+        toast.message(event.warning)
       } else if (event.type === 'done') {
         const incoming = event.actions ?? []
         if (incoming.length) applyProposed(incoming, conversationId, message)
+        if (event.truncated) {
+          toast.message(
+            t('ai.actionsTruncated', {
+              defaultValue: 'Action plan may be incomplete — review before applying.',
+            }),
+          )
+        }
       } else if (event.type === 'error') {
         hadError = true
         setRetryMessage(message)
@@ -472,11 +489,27 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     if (!proposedActions.length || applying) return
     setApplying(true)
     setActionSummary(null)
-    const initial: ActionRunItem[] = proposedActions.map((action, index) => ({
-      key: `${action.type}-${index}`,
-      label: humanActionLabel(action, osMode),
-      status: 'pending',
-    }))
+
+    const initial: ActionRunItem[] = []
+    for (let index = 0; index < proposedActions.length; index++) {
+      const action = proposedActions[index]!
+      const batchRows = expandCreateManyForDisplay(action as ParsedRegistryAction)
+      if (batchRows.length) {
+        for (const row of batchRows) {
+          initial.push({
+            key: `${index}-${row.key}`,
+            label: row.label,
+            status: 'pending',
+          })
+        }
+      } else {
+        initial.push({
+          key: `${action.type}-${index}`,
+          label: humanActionLabel(action, osMode),
+          status: 'pending',
+        })
+      }
+    }
     setActionRun(initial)
 
     const remaining: AiAction[] = []
@@ -486,89 +519,168 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     try {
       for (let index = 0; index < proposedActions.length; index++) {
         const action = proposedActions[index]!
-        setActionRun((prev) =>
-          prev.map((item, i) =>
-            i === index ? { ...item, status: 'running' } : item,
-          ),
-        )
+        const batchRows = expandCreateManyForDisplay(action as ParsedRegistryAction)
+        const isBatch = batchRows.length > 0
+
+        if (isBatch) {
+          setActionRun((prev) =>
+            prev.map((item) =>
+              item.key.startsWith(`${index}-`) ? { ...item, status: 'running' } : item,
+            ),
+          )
+        } else {
+          setActionRun((prev) =>
+            prev.map((item) =>
+              item.key === `${action.type}-${index}` ? { ...item, status: 'running' } : item,
+            ),
+          )
+        }
+
         const [result] = await executeAiActions([action as ParsedRegistryAction], {
           workspaceId: isWorkspace ? workspaceId : undefined,
           role: workspaceRole ?? undefined,
           sequential: true,
+          coalesceCreates: isWorkspace,
           userMessage: lastUserMessageRef.current,
           conversationFocus: readConversationFocus(selectedId),
         })
-        if (result?.success) {
-          succeeded += 1
-          const entityTask = result.entities?.find((entity) => entity.type === 'task')
-          const taskIdFromAction =
-            typeof action.taskId === 'string' ? action.taskId : undefined
-          const taskId = entityTask?.id ?? taskIdFromAction
-          const titleFromAction =
-            typeof action.title === 'string' ? action.title : undefined
-          const titleFromData =
-            result.data &&
-            typeof result.data === 'object' &&
-            'title' in result.data &&
-            typeof (result.data as { title?: unknown }).title === 'string'
-              ? (result.data as { title: string }).title
-              : undefined
-          if (taskId && selectedId) {
-            const isCreate = String(action.type) === 'task.create'
-            writeConversationFocus(selectedId, {
-              ...(isCreate ? { lastCreatedTaskId: taskId } : {}),
-              lastModifiedTaskId: taskId,
-              lastTaskTitle: titleFromData ?? titleFromAction ?? undefined,
-              lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
-              lastReferencedProjectId:
-                result.data &&
-                typeof result.data === 'object' &&
-                'project_id' in result.data &&
-                typeof (result.data as { project_id?: unknown }).project_id === 'string'
-                  ? (result.data as { project_id: string }).project_id
-                  : undefined,
-              lastReferencedProjectName:
-                result.data &&
-                typeof result.data === 'object' &&
-                'project_name' in result.data &&
-                typeof (result.data as { project_name?: unknown }).project_name === 'string'
-                  ? (result.data as { project_name: string }).project_name
-                  : undefined,
-              lastTaskRef:
-                result.data &&
-                typeof result.data === 'object' &&
-                'task_ref' in result.data &&
-                typeof (result.data as { task_ref?: unknown }).task_ref === 'string'
-                  ? (result.data as { task_ref: string }).task_ref
-                  : undefined,
-            })
+
+        if (result?.success || (isBatch && result?.data && typeof result.data === 'object' && Number((result.data as { succeeded?: number }).succeeded) > 0)) {
+          const batchData = result?.data as
+            | {
+                items?: Array<{
+                  index: number
+                  title: string
+                  ok: boolean
+                  summary: string
+                  taskId?: string
+                  error?: string
+                }>
+                project_id?: string
+                project_name?: string
+                succeeded?: number
+                failed?: number
+              }
+            | undefined
+
+          if (isBatch && batchData?.items) {
+            const okCount = batchData.items.filter((item) => item.ok).length
+            const failCount = batchData.items.length - okCount
+            succeeded += okCount
+            failed += failCount
+            setActionRun((prev) =>
+              prev.map((item) => {
+                if (!item.key.startsWith(`${index}-`)) return item
+                const itemIndex = Number(item.key.split('create-many-')[1] ?? -1)
+                const row = batchData.items?.find((entry) => entry.index === itemIndex)
+                if (!row) return item
+                return {
+                  ...item,
+                  status: row.ok ? 'done' : 'error',
+                  label: row.ok ? row.summary || row.title : item.label,
+                  error: row.ok ? undefined : row.error || row.summary,
+                }
+              }),
+            )
+            if (failCount) remaining.push(action)
+            const firstOk = batchData.items.find((item) => item.ok && item.taskId)
+            if (firstOk?.taskId && selectedId) {
+              writeConversationFocus(selectedId, {
+                lastCreatedTaskId: firstOk.taskId,
+                lastModifiedTaskId: firstOk.taskId,
+                lastTaskTitle: firstOk.title,
+                lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
+                lastReferencedProjectId: batchData.project_id,
+                lastReferencedProjectName: batchData.project_name,
+                lastTaskRef: firstOk.taskId,
+              })
+            }
+          } else if (result?.success) {
+            succeeded += 1
+            const entityTask = result.entities?.find((entity) => entity.type === 'task')
+            const taskIdFromAction =
+              typeof action.taskId === 'string' ? action.taskId : undefined
+            const taskId = entityTask?.id ?? taskIdFromAction
+            const titleFromAction =
+              typeof action.title === 'string' ? action.title : undefined
+            const titleFromData =
+              result.data &&
+              typeof result.data === 'object' &&
+              'title' in result.data &&
+              typeof (result.data as { title?: unknown }).title === 'string'
+                ? (result.data as { title: string }).title
+                : undefined
+            if (taskId && selectedId) {
+              const isCreate = String(action.type) === 'task.create'
+              writeConversationFocus(selectedId, {
+                ...(isCreate ? { lastCreatedTaskId: taskId } : {}),
+                lastModifiedTaskId: taskId,
+                lastTaskTitle: titleFromData ?? titleFromAction ?? undefined,
+                lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
+                lastReferencedProjectId:
+                  result.data &&
+                  typeof result.data === 'object' &&
+                  'project_id' in result.data &&
+                  typeof (result.data as { project_id?: unknown }).project_id === 'string'
+                    ? (result.data as { project_id: string }).project_id
+                    : undefined,
+                lastReferencedProjectName:
+                  result.data &&
+                  typeof result.data === 'object' &&
+                  'project_name' in result.data &&
+                  typeof (result.data as { project_name?: unknown }).project_name === 'string'
+                    ? (result.data as { project_name: string }).project_name
+                    : undefined,
+                lastTaskRef:
+                  result.data &&
+                  typeof result.data === 'object' &&
+                  'task_ref' in result.data &&
+                  typeof (result.data as { task_ref?: unknown }).task_ref === 'string'
+                    ? (result.data as { task_ref: string }).task_ref
+                    : undefined,
+              })
+            }
+            setActionRun((prev) =>
+              prev.map((item) =>
+                item.key === `${action.type}-${index}`
+                  ? {
+                      ...item,
+                      status: 'done',
+                      label: result.summary || item.label,
+                    }
+                  : item,
+              ),
+            )
           }
-          setActionRun((prev) =>
-            prev.map((item, i) =>
-              i === index
-                ? {
-                    ...item,
-                    status: 'done',
-                    label: result.summary || item.label,
-                  }
-                : item,
-            ),
-          )
         } else {
           failed += 1
           remaining.push(action)
-          setActionRun((prev) =>
-            prev.map((item, i) =>
-              i === index
-                ? {
-                    ...item,
-                    status: 'error',
-                    error: result?.error,
-                    label: item.label,
-                  }
-                : item,
-            ),
-          )
+          if (isBatch) {
+            setActionRun((prev) =>
+              prev.map((item) =>
+                item.key.startsWith(`${index}-`)
+                  ? {
+                      ...item,
+                      status: 'error',
+                      error: result?.error,
+                    }
+                  : item,
+              ),
+            )
+          } else {
+            setActionRun((prev) =>
+              prev.map((item) =>
+                item.key === `${action.type}-${index}`
+                  ? {
+                      ...item,
+                      status: 'error',
+                      error: result?.error,
+                      label: item.label,
+                    }
+                  : item,
+              ),
+            )
+          }
         }
       }
 

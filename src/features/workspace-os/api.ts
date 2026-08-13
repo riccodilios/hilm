@@ -479,6 +479,10 @@ export async function createWorkspaceTask(
     departmentId?: string | null
     teamId?: string | null
     reminderType?: ReminderType | null
+    /** Skip assignment notifications (used by AI batch creates). */
+    quiet?: boolean
+    /** When set with quiet, skip workspace refetch for short-id formatting. */
+    taskKey?: string | null
   },
 ) {
   const userId = await requireUserId()
@@ -512,15 +516,33 @@ export async function createWorkspaceTask(
       reminder_type: dueDate ? reminderType : null,
       reminder_at: reminderAt,
     })
-    .select('id')
+    .select('*')
     .maybeSingle()
   if (error) throw error
   if (!data?.id) throw new Error('Could not create workspace task')
-  const created = await getWorkspaceTask(workspaceId, data.id)
-  const workspace = await getWorkspace(workspaceId)
-  const shortRef =
-    formatWorkspaceTaskRef(workspace.task_key, created.task_number) ?? created.title
 
+  const taskKey =
+    input.taskKey ??
+    (input.quiet ? null : (await getWorkspace(workspaceId)).task_key)
+  const shortRef = formatWorkspaceTaskRef(taskKey, data.task_number) ?? data.title
+
+  const created = {
+    ...data,
+    workspace_projects: null,
+    assignee: null,
+    assignment: {
+      state: assignment.assigneeId
+        ? ('individual' as const)
+        : assignment.teamId || assignment.departmentId
+          ? ('team' as const)
+          : ('unassigned' as const),
+      department: null,
+      team: null,
+      assignee: null,
+    },
+  } as WorkspaceTask
+
+  if (!input.quiet) {
   if (assignment.assigneeId && assignment.assigneeId !== userId) {
     await supabase.from('notifications').insert({
       user_id: assignment.assigneeId,
@@ -557,6 +579,7 @@ export async function createWorkspaceTask(
         task_title: input.title,
       },
     })
+  }
   }
 
   const eventType = assignment.assigneeId

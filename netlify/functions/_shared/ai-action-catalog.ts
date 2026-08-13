@@ -20,10 +20,11 @@ CRITICAL entity rules:
 - Never create an untitled task just to set a due date/time.
 - Resolve relative dates from the system temporal context into explicit ISO dueAt values.
 - Prefer Conversation focus IDs and context-pack IDs; never invent member/task/project UUIDs.
-- Workspace projects and Personal OS projects are completely separate. NEVER use Personal OS project IDs in workspace task.create.
+- Workspace projects and Personal OS projects are completely separate. NEVER use Personal OS project IDs in workspace task.create / task.create_many.
 - For task.create under a named project (e.g. "for Wasl"), pass projectName with the exact name. Prefer projectId ONLY from Conversation focus (lastReferencedProjectId) or project.search / context-pack workspace project IDs.
 - If lastReferencedProjectId is set and the user says "another task for it" / "same project", reuse that projectId.
 - If the project is unknown, call project.search first or omit projectId and set projectName — never invent a UUID.
+- BATCH CREATES (critical): When the user asks for 4+ new tasks (especially 10–40), emit ONE task.create_many with items[] — do NOT emit many separate task.create objects and do NOT narrate every title in prose. Keep the markdown reply short; put every task title inside items.
 - Workspace tasks have short IDs like IMED-24. When the user says "Update IMED-24", pass taskId: "IMED-24" (not a fabricated UUID). You may also pass the exact task title from the Tasks context pack as taskId — the runtime resolves it.
 - Use comment.create to add comments; pass mentionNames for @mentions.
 - Use task.schedule to set dueAt. Use task.assign with assigneeName or teamName when IDs are unknown.`
@@ -62,7 +63,8 @@ export const personalActionCatalog =
 export const workspaceActionCatalog =
   `Full Workspace OS action catalog (use exact type strings; multi-step arrays OK):
 - task.complete {taskId}  // taskId = UUID, KEY-N (IMED-24), or exact title from Tasks context
-- task.create {title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}  // projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
+- task.create {title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}  // 1–3 tasks; projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
+- task.create_many {projectId?, projectName?, items:[{title, description?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}]}  // REQUIRED for 4+ tasks (max 40). One compact action — not N task.create rows.
 - task.move {taskId, status}
 - task.update {taskId, title?, description?, priority?, dueAt?}
 - task.schedule {taskId, dueAt}  // dueAt ISO or null to clear

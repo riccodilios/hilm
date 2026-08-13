@@ -36,7 +36,8 @@ export type AiMessage = Tables<'ai_messages'>
 export type ChatStreamEvent =
   | { type: 'token'; token: string }
   | { type: 'actions'; actions: AiAction[] }
-  | { type: 'done'; content?: string; actions?: AiAction[] }
+  | { type: 'actions_warning'; warning: string; recovered?: number }
+  | { type: 'done'; content?: string; actions?: AiAction[]; truncated?: boolean }
   | { type: 'error'; error: string; code?: string }
 
 export type AiUsageSummary = {
@@ -159,11 +160,19 @@ function parseSseEvent(raw: string, workspaceId?: string): ChatStreamEvent | nul
     const event = JSON.parse(data) as Record<string, unknown>
     if (event.type === 'token' && typeof event.token === 'string') return { type: 'token', token: event.token }
     if (event.type === 'actions') return { type: 'actions', actions: parseActions(event.actions, workspaceId) }
+    if (event.type === 'actions_warning' && typeof event.warning === 'string') {
+      return {
+        type: 'actions_warning',
+        warning: event.warning,
+        recovered: typeof event.recovered === 'number' ? event.recovered : undefined,
+      }
+    }
     if (event.type === 'done') {
       return {
         type: 'done',
         content: typeof event.content === 'string' ? event.content : undefined,
         actions: parseActions(event.actions, workspaceId),
+        truncated: Boolean(event.truncated),
       }
     }
     if (event.type === 'error') {
@@ -238,8 +247,13 @@ export async function* streamChat(input: {
   const clock = clientAiClock()
 
   try {
+    const controller = new AbortController()
+    const timeoutMs = input.workspaceId ? 120_000 : 90_000
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
     const response = await fetch(getAiChatUrl(), {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${session.access_token}`,
         apikey: getSupabaseAnonKey(),
@@ -257,6 +271,7 @@ export async function* streamChat(input: {
         clientLocalDate: clock.clientLocalDate,
       }),
     })
+    clearTimeout(timeoutId)
     if (!response.ok) {
       const text = await response.text()
       try {
@@ -290,6 +305,7 @@ export async function* streamChat(input: {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let sawTerminal = false
     while (true) {
       const { done, value } = await reader.read()
       buffer += decoder.decode(value, { stream: !done })
@@ -297,17 +313,39 @@ export async function* streamChat(input: {
       buffer = events.pop() ?? ''
       for (const raw of events) {
         const event = parseSseEvent(raw, input.workspaceId)
-        if (event) yield event
+        if (!event) continue
+        if (event.type === 'done' || event.type === 'error') sawTerminal = true
+        yield event
       }
       if (done) break
     }
     const finalEvent = parseSseEvent(buffer, input.workspaceId)
-    if (finalEvent) yield finalEvent
+    if (finalEvent) {
+      if (finalEvent.type === 'done' || finalEvent.type === 'error') sawTerminal = true
+      yield finalEvent
+    }
+    if (!sawTerminal) {
+      yield {
+        type: 'error',
+        error: 'The AI response ended before completion. Please retry.',
+        code: 'stream_incomplete',
+      }
+    }
   } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? String((error as { code?: string }).code) : undefined
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: string }).code)
+        : error instanceof Error && error.name === 'AbortError'
+          ? 'timeout'
+          : undefined
     yield {
       type: 'error',
-      error: error instanceof Error ? error.message : 'AI request failed',
+      error:
+        error instanceof Error && error.name === 'AbortError'
+          ? 'The AI request timed out. Try a smaller batch or retry.'
+          : error instanceof Error
+            ? error.message
+            : 'AI request failed',
       code,
     }
   } finally {

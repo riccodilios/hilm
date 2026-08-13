@@ -10,6 +10,7 @@ import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
 import { auditAiAction } from '@/features/ai/lib/conversation-focus'
 import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
+import { coalesceWorkspaceTaskCreates } from '@/features/ai/lib/batch-engine'
 import type { ActionContext, ActionRisk, ParsedRegistryAction } from '@/features/ai/registry/types'
 
 export type ActionExecutionResult = {
@@ -26,8 +27,21 @@ export type ExecuteAiActionsOptions = {
   role?: ActionContext['role']
   /** When true, stop after first failure (default for multi-step plans). */
   sequential?: boolean
+  /**
+   * When true (default for workspace), collapse many task.create into task.create_many.
+   * Personal OS is never coalesced.
+   */
+  coalesceCreates?: boolean
   userMessage?: string
   conversationFocus?: import('@/features/ai/lib/conversation-focus').ConversationEntityFocus | null
+  onProgress?: (event: {
+    actionIndex: number
+    action: ParsedRegistryAction
+    phase: 'start' | 'item' | 'done' | 'error'
+    itemIndex?: number
+    summary?: string
+    error?: string
+  }) => void
 }
 
 ensureAiRegistry()
@@ -170,7 +184,10 @@ export async function executeAiActions(
     userMessage: options?.userMessage,
     focus: options?.conversationFocus,
   })
-  const list = rewritten
+  const list =
+    os === 'workspace' && options?.coalesceCreates !== false
+      ? coalesceWorkspaceTaskCreates(rewritten)
+      : rewritten
 
   if (!list.length) {
     return (input?.length ? input : [{ type: 'unknown' }]).map((action) => ({
@@ -236,6 +253,11 @@ export async function executeAiActions(
     }
 
     try {
+      options?.onProgress?.({
+        actionIndex: results.length,
+        action: parsed.data as ParsedRegistryAction,
+        phase: 'start',
+      })
       const outcome = await def.execute(parsed.data, ctx)
       results.push({
         action: parsed.data as ParsedRegistryAction,
@@ -244,6 +266,13 @@ export async function executeAiActions(
         summary: outcome.summary,
         entities: outcome.entities,
         error: outcome.ok ? undefined : outcome.summary || 'Action did not complete',
+      })
+      options?.onProgress?.({
+        actionIndex: results.length - 1,
+        action: parsed.data as ParsedRegistryAction,
+        phase: outcome.ok ? 'done' : 'error',
+        summary: outcome.summary,
+        error: outcome.ok ? undefined : outcome.summary,
       })
       auditAiAction({
         phase: 'result',
@@ -262,7 +291,14 @@ export async function executeAiActions(
           action: parsed.data,
         })
       }
-      if (!outcome.ok && sequential) break
+      // Batch creates already continue internally — don't abort the whole plan on partial success.
+      const isPartialBatch =
+        type === 'task.create_many' &&
+        outcome.data &&
+        typeof outcome.data === 'object' &&
+        'succeeded' in outcome.data &&
+        Number((outcome.data as { succeeded?: unknown }).succeeded) > 0
+      if (!outcome.ok && sequential && !isPartialBatch) break
     } catch (error) {
       console.error('[hilm] AI action failed', {
         os,
