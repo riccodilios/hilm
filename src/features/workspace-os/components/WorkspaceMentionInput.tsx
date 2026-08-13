@@ -123,7 +123,7 @@ export function WorkspaceMentionInput({
         autoFocus={autoFocus}
         rows={3}
         placeholder={placeholder}
-        className="w-full resize-y rounded-xl border border-border bg-surface-2/40 px-3 py-2 text-sm outline-none ring-0 placeholder:text-muted-fg focus:border-border"
+        className="w-full resize-y rounded-xl border border-border bg-surface-2/40 px-3 py-2 text-start text-sm outline-none ring-0 placeholder:text-muted-fg focus:border-border"
         onChange={(e) => handleChange(e.target.value, e.target.selectionStart)}
         onKeyDown={(e) => {
           if (open && filtered.length) {
@@ -156,7 +156,7 @@ export function WorkspaceMentionInput({
       />
       {open && filtered.length ? (
         <ul
-          className="absolute bottom-full left-0 z-50 mb-1 max-h-48 w-full max-w-sm overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1 shadow-xl"
+          className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-48 w-full max-w-sm overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1 shadow-xl"
           onMouseDown={(e) => e.preventDefault()}
         >
           {filtered.map((member, index) => (
@@ -164,7 +164,7 @@ export function WorkspaceMentionInput({
               <button
                 type="button"
                 className={cn(
-                  'flex w-full items-center rounded-lg px-3 py-2 text-left text-sm',
+                  'flex w-full items-center rounded-lg px-3 py-2 text-start text-sm',
                   index === activeIndex ? 'bg-surface-2' : 'hover:bg-surface-2/70',
                 )}
                 onClick={() => insertMention(member)}

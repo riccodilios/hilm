@@ -1,10 +1,11 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { withTranslation, type WithTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
-type Props = { children: ReactNode; title?: string }
+type Props = WithTranslation & { children: ReactNode; title?: string }
 type State = { error: Error | null }
 
-export class RouteErrorBoundary extends Component<Props, State> {
+class RouteErrorBoundaryBase extends Component<Props, State> {
   state: State = { error: null }
 
   static getDerivedStateFromError(error: Error): State {
@@ -16,10 +17,13 @@ export class RouteErrorBoundary extends Component<Props, State> {
   }
 
   render() {
+    const { t } = this.props
     if (this.state.error) {
       return (
         <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-4 rounded-2xl border border-border-subtle bg-surface/40 p-8 text-center">
-          <p className="text-lg font-medium">{this.props.title ?? 'Something went wrong'}</p>
+          <p className="text-lg font-medium">
+            {this.props.title ?? t('errors.generic', { defaultValue: 'Something went wrong' })}
+          </p>
           <p className="max-w-md text-sm text-muted">{this.state.error.message}</p>
           <Button
             onClick={() => {
@@ -27,7 +31,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
               window.location.reload()
             }}
           >
-            Reload
+            {t('common.reload', { defaultValue: 'Reload' })}
           </Button>
         </div>
       )
@@ -35,3 +39,5 @@ export class RouteErrorBoundary extends Component<Props, State> {
     return this.props.children
   }
 }
+
+export const RouteErrorBoundary = withTranslation()(RouteErrorBoundaryBase)

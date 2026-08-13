@@ -204,6 +204,9 @@ export default async (request: Request) => {
             taskHref,
             JSON.stringify({
               reminder_id: row.id,
+              task_title: row.task_title,
+              due_label: dueLabel,
+              project_name: row.project_name,
               push: pushAllowed,
               push_attempted: pushCandidate,
               push_subs: subs.rows.length,

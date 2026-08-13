@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Mail } from 'lucide-react'
 import { toast } from 'sonner'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -156,10 +157,13 @@ export function SignupPage() {
         animate={{ opacity: 1, y: 0 }}
         className="relative w-full max-w-md rounded-2xl border border-border bg-surface/90 p-8 shadow-2xl backdrop-blur"
       >
-        <div className="mb-8">
+        <div className="mb-8 flex items-start justify-between gap-3">
+          <div>
           <p className="text-sm text-muted">{t('brand.name')}</p>
           <h1 className="mt-1 text-3xl font-medium tracking-tight">{t('auth.signUpTitle')}</h1>
           <p className="mt-2 text-sm text-muted">{t('auth.signUpSubtitle')}</p>
+          </div>
+          <LanguageSwitcher compact />
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">

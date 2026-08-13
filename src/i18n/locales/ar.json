@@ -31,7 +31,9 @@
     "remove": "إزالة",
     "complete": "إكمال",
     "notFound": "غير موجود",
-    "pageError": "تعذّر تحميل هذه الصفحة"
+    "pageError": "تعذّر تحميل هذه الصفحة",
+    "member": "عضو",
+    "reload": "إعادة التحميل"
   },
   "nav": {
     "home": "الرئيسية",
@@ -594,7 +596,8 @@
       "year": "سنة"
     },
     "weeklyLoad": "حمل الأسبوع",
-    "productivity": "نبض الشهر"
+    "productivity": "نبض الشهر",
+    "weekOf": "أسبوع {{date}}"
   },
   "projects": {
     "title": "المشاريع",
@@ -631,7 +634,9 @@
     "meetings": "الاجتماعات",
     "releases": "الإصدارات",
     "files": "الملفات",
-    "documentation": "التوثيق"
+    "documentation": "التوثيق",
+    "about": "حول هذا المشروع",
+    "taskStats": "إحصاءات المهام"
   },
   "tasks": {
     "title": "المهام",
@@ -829,7 +834,17 @@
     "clearRead": "مسح المقروء",
     "clearReadConfirm": "حذف كل الإشعارات المقروءة؟ تبقى غير المقروءة.",
     "markedAllRead": "تم تعليم كل الإشعارات كمقروءة",
-    "clearedRead": "تم مسح الإشعارات المقروءة"
+    "clearedRead": "تم مسح الإشعارات المقروءة",
+    "types": {
+      "taskAssigned": "تم تعيين مهمة",
+      "taskAssignedBody": "تم تعيينك على {{task}}",
+      "taskLead": "مهمة جديدة لفريقك",
+      "taskLeadBody": "{{task}} تحتاج توزيعاً — افتح طابور التعيين.",
+      "mention": "إشارة جديدة",
+      "mentionBody": "أشار إليك {{author}} في {{task}}\n«{{snippet}}»",
+      "reminder": "تذكير — {{task}}",
+      "reminderBody": "الاستحقاق {{due}}"
+    }
   },
   "settings": {
     "title": "الإعدادات",
@@ -1035,7 +1050,23 @@
     "departments": "الأقسام",
     "teams": "الفرق",
     "members": "الأعضاء",
-    "metrics": "المقاييس",
+    "metrics": {
+      "tasks_created": "المهام المُنشأة",
+      "tasks_completed": "المهام المكتملة",
+      "completion_rate": "معدل الإنجاز",
+      "overdue_tasks": "المهام المتأخرة",
+      "open_tasks": "المهام المفتوحة",
+      "project_count": "المشاريع",
+      "project_progress": "تقدّم المشاريع",
+      "project_health": "صحة المشاريع",
+      "time_allocation": "توزيع الوقت",
+      "workload": "عبء العمل",
+      "member_workload": "عبء عمل الأعضاء",
+      "team_capacity": "سعة الفريق",
+      "productivity_trend": "اتجاهات الإنتاجية",
+      "upcoming_deadlines": "المواعيد القادمة",
+      "ai_insights": "رؤى الذكاء الاصطناعي"
+    },
     "askAi": "اطلب من الذكاء تخصيص هذا التقرير",
     "applyAi": "تطبيق تخصيص الذكاء",
     "aiDisclaimer": "الذكاء يضبط البنية فقط. كل الأرقام تأتي من بيانات حلم.",
@@ -1060,6 +1091,197 @@
       "this_month": "هذا الشهر",
       "last_month": "الشهر الماضي",
       "custom": "نطاق مخصص"
+    },
+    "types": {
+      "productivity": {
+        "title": "تقرير الإنتاجية",
+        "description": "نظرة عامة على الإنتاجية الشخصية والإنجاز ومجالات التركيز."
+      },
+      "weekly_productivity": {
+        "title": "تقرير الإنتاجية الأسبوعي",
+        "description": "ما أُنجز هذا الأسبوع، ضغط المهام المتراكمة، والأولويات التالية."
+      },
+      "monthly_productivity": {
+        "title": "تقرير الإنتاجية الشهري",
+        "description": "المخرجات الشهرية والاتجاهات وتقدّم المشاريع."
+      },
+      "task": {
+        "title": "تقرير المهام",
+        "description": "جرد المهام حسب الحالة والأولوية وتواريخ الاستحقاق."
+      },
+      "overdue_tasks": {
+        "title": "تقرير المهام المتأخرة",
+        "description": "كل ما تجاوز موعده مع مستوى الإلحاح وسياق المشروع."
+      },
+      "completed_work": {
+        "title": "تقرير العمل المنجز",
+        "description": "ما تم تسليمه خلال الفترة المحددة."
+      },
+      "project": {
+        "title": "تقرير المشاريع",
+        "description": "لمحة عن محفظة المشاريع مع الصحة والتقدّم."
+      },
+      "project_progress": {
+        "title": "تقرير تقدّم المشاريع",
+        "description": "نسبة الإنجاز والعمل المتبقي حسب المشروع."
+      },
+      "project_health": {
+        "title": "تقرير صحة المشاريع",
+        "description": "حالات الصحة والعوائق والعمل المتوقف."
+      },
+      "roadmap_progress": {
+        "title": "تقرير تقدّم الخارطة",
+        "description": "عناصر الخارطة وتقدّم أفق التسليم."
+      },
+      "workload": {
+        "title": "تقرير عبء العمل",
+        "description": "الحمل المفتوح مقابل الإنتاجية المنجزة."
+      },
+      "time_allocation": {
+        "title": "تقرير توزيع الوقت",
+        "description": "أين يتركز الجهد المقدّر عبر المشاريع."
+      },
+      "ai_activity": {
+        "title": "تقرير نشاط الذكاء الاصطناعي",
+        "description": "النشاط المدعوم بالذكاء والخطوات الموصى بها."
+      },
+      "custom": {
+        "title": "تقرير مخصص",
+        "description": "اضبط المقاييس بنفسك أو اطلب من الذكاء تشكيل التقرير."
+      },
+      "workspace_overview": {
+        "title": "نظرة عامة على مساحة العمل",
+        "description": "المشاريع والمهام والصحة على مستوى المؤسسة."
+      },
+      "team_performance": {
+        "title": "تقرير أداء الفريق",
+        "description": "إنتاجية الفريق والحمل المتأخر ومخاطر التسليم."
+      },
+      "department_performance": {
+        "title": "تقرير أداء القسم",
+        "description": "عبء العمل والتقدّم على مستوى القسم."
+      },
+      "team_workload": {
+        "title": "تقرير عبء عمل الفريق",
+        "description": "السعة وضغط التعيينات عبر الأعضاء."
+      },
+      "sprint": {
+        "title": "تقرير السبرنت",
+        "description": "لمحة تسليم للفترة مناسبة لمراجعات السبرنت."
+      }
+    },
+    "pdf": {
+      "executiveSummary": "الملخص التنفيذي",
+      "keyMetrics": "المؤشرات الرئيسية",
+      "detailedAnalysis": "تحليل تفصيلي",
+      "aiInsights": "رؤى الذكاء الاصطناعي",
+      "recommendations": "التوصيات",
+      "charts": "الرسوم البيانية",
+      "tasks": "المهام",
+      "projects": "المشاريع",
+      "teams": "الفرق",
+      "appendix": "الملحق",
+      "generatedAt": "تم الإنشاء {{when}}",
+      "personalOs": "النظام الشخصي",
+      "thisWorkspace": "مساحة العمل هذه",
+      "workspaceNamed": "مساحة العمل «{{name}}»",
+      "summaryTemplate": "{{scope}} لفترة {{period}}: أُنجز {{completed}} مهمة، و{{open}} مفتوحة، و{{overdue}} متأخرة عبر {{projects}} مشروعاً. معدل الإنجاز الإجمالي {{rate}}٪.",
+      "tasksByStatus": "المهام حسب الحالة",
+      "tasksByPriority": "المهام حسب الأولوية",
+      "reportMeta": "التقرير: {{title}}",
+      "generatedBy": "أُنشئ بواسطة: {{name}}",
+      "generatedOn": "تاريخ الإنشاء: {{when}}",
+      "reportingPeriod": "فترة التقرير: {{start}} → {{end}}",
+      "workspaceOrg": "مساحة العمل / المؤسسة: {{name}}",
+      "scopePersonal": "النطاق: النظام الشخصي",
+      "effortByProject": "الجهد المقدّر حسب المشروع",
+      "openByMember": "المهام المفتوحة حسب العضو",
+      "memberWorkload": "عبء عمل الأعضاء"
+    },
+    "period": {
+      "today": "اليوم ({{date}})",
+      "yesterday": "أمس ({{date}})",
+      "thisWeek": "هذا الأسبوع ({{start}} → {{end}})",
+      "lastWeek": "الأسبوع الماضي ({{start}} → {{end}})",
+      "last7Days": "آخر 7 أيام ({{start}} → {{end}})"
+    },
+    "hints": {
+      "timeAllocation": "ساعات مقدّرة عبر المشاريع المحددة",
+      "workload": "المهام المفتوحة في النطاق",
+      "memberWorkload": "المُعيَّنون الذين لديهم عمل مفتوح",
+      "teamCapacity": "وحدات السعة المتبقية التقريبية",
+      "productivityTrend": "المكتمل ناقص المُنشأ خلال الفترة"
+    },
+    "table": {
+      "project": "المشروع",
+      "health": "الصحة",
+      "progress": "التقدّم",
+      "status": "الحالة",
+      "task": "المهمة",
+      "priority": "الأولوية",
+      "due": "الاستحقاق",
+      "member": "العضو",
+      "openTasks": "مهام مفتوحة",
+      "completedTasks": "المهام المكتملة",
+      "tasksInFocus": "المهام قيد التركيز"
+    },
+    "insights": {
+      "overdue": "{{count}} مهمة متأخرة تحتاج انتباهاً قبل التزامات جديدة.",
+      "noOverdue": "لا توجد مهام متأخرة في النطاق المحدد — التنفيذ على المسار حالياً.",
+      "strongCompletion": "معدل الإنجاز قوي عند {{rate}}٪.",
+      "openCompletion": "معدل الإنجاز {{rate}}٪ مع {{open}} عنصراً مفتوحاً لا يزال قيد التنفيذ."
+    },
+    "recommendations": {
+      "clearOverdue": "امسح العمل المتأخر أولاً، ثم أعد موازنة الطابور المفتوح المتبقي.",
+      "intakePace": "الوارد يتجاوز الإنجاز — احمِ وقت التركيز أو قلّل الالتزامات الجديدة.",
+      "breakDown": "قسّم العناصر المفتوحة الكبيرة إلى مخرجات أصغر لاستعادة الزخم.",
+      "maintain": "حافظ على الوتيرة الحالية وجدول نقطة تحقق منتصف الفترة للمشاريع ذات الأولوية العالية."
     }
+  },
+  "labels": {
+    "all": "الكل",
+    "title": "التصنيفات",
+    "create": "إنشاء تصنيف",
+    "created": "تم إنشاء التصنيف",
+    "updated": "تم تحديث التصنيف",
+    "deleted": "تم حذف التصنيف",
+    "updateFailed": "تعذر تحديث التصنيف",
+    "name": "الاسم",
+    "color": "اللون",
+    "edit": "تعديل التصنيف",
+    "rename": "إعادة تسمية التصنيف",
+    "recolor": "تغيير اللون",
+    "delete": "حذف التصنيف",
+    "deleteConfirm": "حذف هذا التصنيف؟",
+    "searchPlaceholder": "ابحث أو أنشئ تصنيفاً",
+    "projectLabels": "تصنيفات المشروع",
+    "add": "إضافة تصنيف",
+    "remove": "إزالة",
+    "manage": "إدارة التصنيفات"
+  },
+  "comments": {
+    "title": "التعليقات",
+    "empty": "لا توجد تعليقات بعد.",
+    "placeholder": "اكتب تعليقاً… استخدم @ للإشارة إلى شخص",
+    "submit": "تعليق",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "edited": "معدّل"
+  },
+  "email": {
+    "reminderSubject": "تذكير بمهمة — {{task}}",
+    "reminderHello": "مرحباً{{name}}",
+    "reminderIntro": "هذا تذكير بأن لديك مهمة قادمة.",
+    "project": "المشروع",
+    "task": "المهمة",
+    "priority": "الأولوية",
+    "due": "الاستحقاق",
+    "openTask": "فتح المهمة",
+    "reminderFoot": "تصلك هذه الرسالة لأن التذكيرات مفعّلة في حلم."
+  },
+  "errors": {
+    "generic": "حدث خطأ ما"
   }
 }

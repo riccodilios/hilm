@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { HeroBackdrop } from '@/features/landing/HeroBackdrop'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { rtlMirrorClass } from '@/lib/rtl'
+import { cn } from '@/lib/utils'
 
 export function LandingHero() {
   const reduce = useReducedMotion()
   const { canInstall, install } = usePwaInstall()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   return (
     <section className="relative isolate min-h-dvh overflow-hidden">
@@ -65,7 +67,7 @@ export function LandingHero() {
         >
           <Button asChild size="lg" className="min-w-[148px]">
             <Link to="/signup">
-              {t('common.getStarted')} <ArrowRight className="size-4" />
+              {t('common.getStarted')} <ArrowRight className={cn('size-4', rtlMirrorClass(i18n.language))} />
             </Link>
           </Button>
           {canInstall ? (

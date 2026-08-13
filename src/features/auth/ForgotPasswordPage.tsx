@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,8 +39,13 @@ export function ForgotPasswordPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface/90 p-8">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
         <h1 className="text-2xl font-medium tracking-tight">{t('auth.forgotTitle')}</h1>
         <p className="mt-2 text-sm text-muted">{t('auth.forgotSubtitle')}</p>
+          </div>
+          <LanguageSwitcher compact />
+        </div>
         {sent ? (
           <p className="mt-6 text-sm text-muted">{t('auth.resetEmailSent')}</p>
         ) : (

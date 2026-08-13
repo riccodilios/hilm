@@ -1,5 +1,6 @@
 import { getReportType } from '@/features/reports/catalog'
 import { resolveReportPeriod } from '@/features/reports/date-ranges'
+import { localizedMetricLabel, localizedPdfCopy } from '@/features/reports/i18n'
 import type {
   ChartDatum,
   MetricId,
@@ -10,6 +11,7 @@ import type {
   ReportTable,
 } from '@/features/reports/types'
 import { taskDueDateKey, todayLocalISO } from '@/lib/dates'
+import i18n from '@/i18n'
 
 export type ReportSourceTask = {
   id: string
@@ -63,16 +65,22 @@ function countBy(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1)
 }
 
-function metricLabel(id: MetricId) {
-  return id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+function metricLabel(id: MetricId, t: ReturnType<typeof i18n.getFixedT>) {
+  return localizedMetricLabel(id, t)
 }
 
 export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
+  const lng = input.config.locale === 'ar' ? 'ar' : 'en'
+  const t = i18n.getFixedT(lng)
+  const pdf = localizedPdfCopy(t)
   const def = getReportType(input.os, input.config.typeId)
+  const typeTitle = t(`reports.types.${def.id}.title`, { defaultValue: def.title })
   const period = resolveReportPeriod(
     input.config.datePreset,
     input.config.customStart,
     input.config.customEnd,
+    new Date(),
+    lng,
   )
   const today = todayLocalISO()
 
@@ -142,17 +150,17 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   const metrics: ReportMetric[] = selectedMetrics.map((id) => {
     switch (id) {
       case 'tasks_created':
-        return { id, label: metricLabel(id), value: createdInPeriod.length }
+        return { id, label: metricLabel(id, t), value: createdInPeriod.length }
       case 'tasks_completed':
-        return { id, label: metricLabel(id), value: completedInPeriod.length }
+        return { id, label: metricLabel(id, t), value: completedInPeriod.length }
       case 'completion_rate':
-        return { id, label: metricLabel(id), value: `${completionRate}%` }
+        return { id, label: metricLabel(id, t), value: `${completionRate}%` }
       case 'overdue_tasks':
-        return { id, label: metricLabel(id), value: overdue.length }
+        return { id, label: metricLabel(id, t), value: overdue.length }
       case 'open_tasks':
-        return { id, label: metricLabel(id), value: open.length }
+        return { id, label: metricLabel(id, t), value: open.length }
       case 'project_count':
-        return { id, label: metricLabel(id), value: projects.length }
+        return { id, label: metricLabel(id, t), value: projects.length }
       case 'project_progress': {
         const avg =
           projects.length === 0
@@ -161,71 +169,81 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
                 projects.reduce((sum, project) => sum + Number(project.completion_pct ?? 0), 0) /
                   projects.length,
               )
-        return { id, label: metricLabel(id), value: `${avg}%` }
+        return { id, label: metricLabel(id, t), value: `${avg}%` }
       }
       case 'project_health': {
         const blocked = projects.filter((project) =>
           ['blocked', 'critical', 'stalled', 'warning'].includes(String(project.health ?? '')),
         ).length
-        return { id, label: 'At-risk projects', value: blocked }
+        return { id, label: metricLabel(id, t), value: blocked }
       }
       case 'time_allocation':
         return {
           id,
-          label: metricLabel(id),
+          label: metricLabel(id, t),
           value: Math.round([...projectLoad.values()].reduce((a, b) => a + b, 0)),
-          hint: 'Estimated hours across selected projects',
+          hint: t('reports.hints.timeAllocation'),
         }
       case 'workload':
-        return { id, label: metricLabel(id), value: open.length, hint: 'Open tasks in scope' }
+        return {
+          id,
+          label: metricLabel(id, t),
+          value: open.length,
+          hint: t('reports.hints.workload'),
+        }
       case 'member_workload':
         return {
           id,
-          label: metricLabel(id),
+          label: metricLabel(id, t),
           value: memberLoad.size,
-          hint: 'Assignees with open work',
+          hint: t('reports.hints.memberWorkload'),
         }
       case 'team_capacity':
         return {
           id,
-          label: metricLabel(id),
+          label: metricLabel(id, t),
           value: Math.max(0, (input.members?.length ?? 0) * 5 - open.length),
-          hint: 'Rough remaining capacity units',
+          hint: t('reports.hints.teamCapacity'),
         }
       case 'productivity_trend':
         return {
           id,
-          label: metricLabel(id),
+          label: metricLabel(id, t),
           value: completedInPeriod.length - createdInPeriod.length,
-          hint: 'Completed minus created in period',
+          hint: t('reports.hints.productivityTrend'),
         }
       case 'upcoming_deadlines':
-        return { id, label: metricLabel(id), value: upcoming.length }
+        return { id, label: metricLabel(id, t), value: upcoming.length }
       case 'ai_insights':
         return {
           id,
-          label: metricLabel(id),
-          value: input.aiPromptNotes?.length ?? insightsFromData(overdue.length, completionRate, open.length).length,
+          label: metricLabel(id, t),
+          value:
+            input.aiPromptNotes?.length ??
+            insightsFromData(overdue.length, completionRate, open.length, t).length,
         }
       default:
-        return { id, label: metricLabel(id), value: '—' }
+        return { id, label: metricLabel(id, t), value: '—' }
     }
   })
 
   const charts: ReportSnapshot['charts'] = []
   if (statusMap.size) {
     charts.push({
-      title: 'Tasks by status',
+      title: t('reports.pdf.tasksByStatus', { defaultValue: 'Tasks by status' }),
       kind: 'bar',
-      data: [...statusMap.entries()].map(([label, value]) => ({ label, value })),
+      data: [...statusMap.entries()].map(([label, value]) => ({
+        label: t(`status.${label}`, { defaultValue: label.replaceAll('_', ' ') }),
+        value,
+      })),
     })
   }
   if (priorityMap.size) {
     charts.push({
-      title: 'Tasks by priority',
+      title: t('reports.pdf.tasksByPriority', { defaultValue: 'Tasks by priority' }),
       kind: 'pie',
       data: [...priorityMap.entries()].map(([label, value], index) => ({
-        label,
+        label: t(`priority.${label}`, { defaultValue: label }),
         value,
         color: PIE_COLORS[index % PIE_COLORS.length],
       })),
@@ -234,17 +252,20 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   if (projectLoad.size) {
     const projectName = new Map(projects.map((project) => [project.id, project.name]))
     charts.push({
-      title: 'Estimated effort by project',
+      title: t('reports.pdf.effortByProject'),
       kind: 'bar',
       data: [...projectLoad.entries()]
-        .map(([id, value]) => ({ label: projectName.get(id) ?? id.slice(0, 8), value: Math.round(value) }))
+        .map(([id, value]) => ({
+          label: projectName.get(id) ?? id.slice(0, 8),
+          value: Math.round(value),
+        }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 8),
     })
   }
   if (memberLoad.size) {
     charts.push({
-      title: 'Open tasks by member',
+      title: t('reports.pdf.openByMember'),
       kind: 'bar',
       data: [...memberLoad.entries()]
         .map(([id, value]) => ({ label: memberMap.get(id) ?? id.slice(0, 8), value }))
@@ -256,8 +277,13 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   const tables: ReportTable[] = []
   if (def.sections.includes('projects') || def.sections.includes('appendix')) {
     tables.push({
-      title: 'Projects',
-      headers: ['Project', 'Health', 'Progress', 'Status'],
+      title: t('reports.pdf.projects'),
+      headers: [
+        t('reports.table.project'),
+        t('reports.table.health'),
+        t('reports.table.progress'),
+        t('reports.table.status'),
+      ],
       rows: projects.slice(0, 40).map((project) => [
         project.name,
         String(project.health ?? '—'),
@@ -277,21 +303,30 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
             : tasks
     const projectName = new Map(projects.map((project) => [project.id, project.name]))
     tables.push({
-      title: input.config.typeId === 'completed_work' ? 'Completed tasks' : 'Tasks in focus',
-      headers: ['Task', 'Project', 'Status', 'Priority', 'Due'],
+      title:
+        input.config.typeId === 'completed_work'
+          ? t('reports.table.completedTasks')
+          : t('reports.table.tasksInFocus'),
+      headers: [
+        t('reports.table.task'),
+        t('reports.table.project'),
+        t('reports.table.status'),
+        t('reports.table.priority'),
+        t('reports.table.due'),
+      ],
       rows: focus.slice(0, 50).map((task) => [
         task.title,
         task.project_id ? projectName.get(task.project_id) ?? '—' : '—',
-        task.status,
-        task.priority,
+        t(`status.${task.status}`, { defaultValue: task.status }),
+        t(`priority.${task.priority}`, { defaultValue: task.priority }),
         taskDueDateKey(task) ?? '—',
       ]),
     })
   }
   if (def.sections.includes('teams') && memberLoad.size) {
     tables.push({
-      title: 'Member workload',
-      headers: ['Member', 'Open tasks'],
+      title: t('reports.pdf.memberWorkload'),
+      headers: [t('reports.table.member'), t('reports.table.openTasks')],
       rows: [...memberLoad.entries()]
         .map(([id, value]) => [memberMap.get(id) ?? id.slice(0, 8), String(value)])
         .sort((a, b) => Number(b[1]) - Number(a[1])),
@@ -299,20 +334,23 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   }
 
   const insights = [
-    ...insightsFromData(overdue.length, completionRate, open.length),
+    ...insightsFromData(overdue.length, completionRate, open.length, t),
     ...(input.aiPromptNotes ?? []),
   ]
-  const recommendations = recommendationsFromData({
-    overdue: overdue.length,
-    open: open.length,
-    completionRate,
-    completed: completedInPeriod.length,
-    created: createdInPeriod.length,
-  })
+  const recommendations = recommendationsFromData(
+    {
+      overdue: overdue.length,
+      open: open.length,
+      completionRate,
+      completed: completedInPeriod.length,
+      created: createdInPeriod.length,
+    },
+    t,
+  )
 
   const title =
     input.config.title?.trim() ||
-    `${def.title} · ${period.label}`
+    `${typeTitle} · ${period.label}`
 
   return {
     version: 1,
@@ -339,6 +377,7 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
       projects: projects.length,
       completionRate,
       workspaceName: input.workspaceName,
+      pdf,
     }),
     metrics,
     charts,
@@ -352,40 +391,48 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
 
 const PIE_COLORS = ['#18181b', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8']
 
-function insightsFromData(overdue: number, completionRate: number, open: number) {
+function insightsFromData(
+  overdue: number,
+  completionRate: number,
+  open: number,
+  t: ReturnType<typeof i18n.getFixedT>,
+) {
   const lines: string[] = []
   if (overdue > 0) {
-    lines.push(`${overdue} overdue task${overdue === 1 ? '' : 's'} need attention before new commitments.`)
+    lines.push(t('reports.insights.overdue', { count: overdue }))
   } else {
-    lines.push('No overdue tasks in the selected scope — execution is currently on track.')
+    lines.push(t('reports.insights.noOverdue'))
   }
   if (completionRate >= 70) {
-    lines.push(`Completion rate is strong at ${completionRate}%.`)
+    lines.push(t('reports.insights.strongCompletion', { rate: completionRate }))
   } else if (open > 0) {
-    lines.push(`Completion rate is ${completionRate}% with ${open} open items still in flight.`)
+    lines.push(t('reports.insights.openCompletion', { rate: completionRate, open }))
   }
   return lines
 }
 
-function recommendationsFromData(input: {
-  overdue: number
-  open: number
-  completionRate: number
-  completed: number
-  created: number
-}) {
+function recommendationsFromData(
+  input: {
+    overdue: number
+    open: number
+    completionRate: number
+    completed: number
+    created: number
+  },
+  t: ReturnType<typeof i18n.getFixedT>,
+) {
   const lines: string[] = []
   if (input.overdue > 0) {
-    lines.push('Clear overdue work first, then re-balance the remaining open queue.')
+    lines.push(t('reports.recommendations.clearOverdue'))
   }
   if (input.created > input.completed + 2) {
-    lines.push('Intake is outpacing completion — protect focus time or reduce new commitments.')
+    lines.push(t('reports.recommendations.intakePace'))
   }
   if (input.completionRate < 50 && input.open > 5) {
-    lines.push('Break large open items into smaller deliverables to restore momentum.')
+    lines.push(t('reports.recommendations.breakDown'))
   }
   if (!lines.length) {
-    lines.push('Maintain current cadence and schedule a mid-period checkpoint on high-priority projects.')
+    lines.push(t('reports.recommendations.maintain'))
   }
   return lines
 }
@@ -399,14 +446,23 @@ function buildExecutiveSummary(input: {
   projects: number
   completionRate: number
   workspaceName?: string | null
+  pdf: ReturnType<typeof localizedPdfCopy>
 }) {
   const scope =
     input.os === 'workspace'
       ? input.workspaceName
-        ? `Workspace “${input.workspaceName}”`
-        : 'This workspace'
-      : 'Personal OS'
-  return `${scope} for ${input.periodLabel}: ${input.completed} tasks completed, ${input.open} open, ${input.overdue} overdue across ${input.projects} projects. Overall completion rate is ${input.completionRate}%.`
+        ? input.pdf.workspaceNamed(input.workspaceName)
+        : input.pdf.thisWorkspace
+      : input.pdf.personalOs
+  return input.pdf.summaryTemplate({
+    scope,
+    period: input.periodLabel,
+    completed: input.completed,
+    open: input.open,
+    overdue: input.overdue,
+    projects: input.projects,
+    rate: input.completionRate,
+  })
 }
 
 export function emptyChartGuard(data: ChartDatum[]) {

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell } from 'lucide-react'
 import { format } from 'date-fns'
+import { ar, enUS } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
   clearReadNotifications,
@@ -12,12 +13,14 @@ import {
   markNotificationRead,
   notificationsKeys,
 } from '@/features/notifications/api'
+import { formatNotificationCopy } from '@/features/notifications/format'
 import { ProjectBadge } from '@/components/ProjectBadge'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton } from '@/components/ui/page'
 
 export function NotificationsList({ compact = false }: { compact?: boolean }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({
     queryKey: notificationsKeys.list(),
@@ -108,6 +111,7 @@ export function NotificationsList({ compact = false }: { compact?: boolean }) {
         <div className={compact ? 'max-h-[min(50vh,360px)] space-y-2 overflow-y-auto overflow-x-hidden pe-1' : 'space-y-2'}>
           <AnimatePresence initial={false}>
             {data.map((item) => {
+              const copy = formatNotificationCopy(item, t)
               const content = (
                 <motion.div
                   layout
@@ -124,14 +128,16 @@ export function NotificationsList({ compact = false }: { compact?: boolean }) {
                   />
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <p className={`truncate text-sm ${item.read_at ? 'text-muted' : 'font-medium'}`}>
-                      {item.title}
+                      {copy.title}
                     </p>
-                    {item.body ? (
-                      <p className="mt-1 break-words text-xs text-muted whitespace-pre-wrap">{item.body}</p>
+                    {copy.body ? (
+                      <p className="mt-1 break-words text-xs text-muted whitespace-pre-wrap">{copy.body}</p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
                       {item.projects ? <ProjectBadge {...item.projects} /> : null}
-                      <span className="shrink-0">{format(new Date(item.created_at), 'MMM d · HH:mm')}</span>
+                      <span className="shrink-0">
+                        {format(new Date(item.created_at), 'MMM d · HH:mm', { locale: dateLocale })}
+                      </span>
                     </div>
                   </div>
                 </motion.div>

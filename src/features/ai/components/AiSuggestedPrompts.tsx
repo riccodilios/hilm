@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { rtlMirrorClass } from '@/lib/rtl'
 
 export type SuggestedPrompt = {
   id: string
@@ -123,7 +124,7 @@ export function AiSuggestedPrompts({
   onSelect: (prompt: string) => void
   disabled?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const prompts = suggestedPromptsForOs(os)
 
   return (
@@ -161,7 +162,12 @@ export function AiSuggestedPrompts({
               <span className="min-w-0 flex-1 truncate font-medium text-foreground/90">
                 {t(item.labelKey, { defaultValue: item.defaultLabel })}
               </span>
-              <ChevronRight className="size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-60" />
+              <ChevronRight
+                className={cn(
+                  'size-3.5 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-60',
+                  rtlMirrorClass(i18n.language),
+                )}
+              />
             </button>
           )
         })}

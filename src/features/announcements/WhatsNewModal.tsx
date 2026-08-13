@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import { ArrowRight, Bot, Building2, Sparkles, Tag, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
@@ -7,6 +8,7 @@ import {
 } from '@/features/announcements/catalog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { rtlMirrorClass } from '@/lib/rtl'
 
 function HeroIcon({ icon }: { icon: FeatureAnnouncement['icon'] }) {
   const className = 'size-5'
@@ -38,6 +40,7 @@ export function WhatsNewModal({
   onContinue: () => void
   pending?: boolean
 }) {
+  const { i18n } = useTranslation()
   return (
     <AnimatePresence>
       <motion.div
@@ -124,7 +127,7 @@ export function WhatsNewModal({
               </div>
               <Button onClick={onContinue} disabled={pending} className="w-full sm:w-auto">
                 {announcement.primaryCta.label}
-                <ArrowRight className="size-4" />
+                <ArrowRight className={cn('size-4', rtlMirrorClass(i18n.language))} />
               </Button>
             </div>
           </div>

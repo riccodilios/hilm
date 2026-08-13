@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { notificationsKeys } from '@/features/notifications/api'
+import { formatNotificationCopy } from '@/features/notifications/format'
 
 const seenKey = 'hilm-notif-seen'
 
@@ -54,6 +56,7 @@ function showOsNotification(title: string, body?: string | null, href?: string |
  */
 export function NotificationListener() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -64,7 +67,7 @@ export function NotificationListener() {
     async function hydrateUnread() {
       const { data } = await supabase
         .from('notifications')
-        .select('id, title, body, href, created_at')
+        .select('id, type, title, body, href, metadata, created_at')
         .eq('user_id', user!.id)
         .is('read_at', null)
         .order('created_at', { ascending: false })
@@ -76,16 +79,25 @@ export function NotificationListener() {
 
       for (const row of fresh) markSeen(row.id)
       const latest = fresh[0]
-      toast.message(latest.title, {
-        description: latest.body ?? undefined,
+      const copy = formatNotificationCopy(
+        {
+          type: latest.type,
+          title: latest.title,
+          body: latest.body,
+          metadata: (latest.metadata as Record<string, unknown> | null) ?? null,
+        },
+        t,
+      )
+      toast.message(copy.title, {
+        description: copy.body ?? undefined,
         action: latest.href
           ? {
-              label: 'Open',
+              label: t('common.open', { defaultValue: 'Open' }),
               onClick: () => window.location.assign(latest.href!),
             }
           : undefined,
       })
-      showOsNotification(latest.title, latest.body, latest.href)
+      showOsNotification(copy.title, copy.body, latest.href)
       void qc.invalidateQueries({ queryKey: notificationsKeys.all })
     }
 
@@ -104,22 +116,33 @@ export function NotificationListener() {
         (payload) => {
           const row = payload.new as {
             id: string
+            type?: string
             title: string
             body?: string | null
             href?: string | null
+            metadata?: Record<string, unknown> | null
           }
           if (!row?.id || wasSeen(row.id)) return
           markSeen(row.id)
-          toast.message(row.title, {
-            description: row.body ?? undefined,
+          const copy = formatNotificationCopy(
+            {
+              type: row.type,
+              title: row.title,
+              body: row.body,
+              metadata: row.metadata ?? null,
+            },
+            t,
+          )
+          toast.message(copy.title, {
+            description: copy.body ?? undefined,
             action: row.href
               ? {
-                  label: 'Open',
+                  label: t('common.open', { defaultValue: 'Open' }),
                   onClick: () => window.location.assign(row.href!),
                 }
               : undefined,
           })
-          showOsNotification(row.title, row.body, row.href)
+          showOsNotification(copy.title, copy.body, row.href)
           void qc.invalidateQueries({ queryKey: notificationsKeys.all })
         },
       )
@@ -129,7 +152,7 @@ export function NotificationListener() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [user, qc])
+  }, [user, qc, t])
 
   return null
 }

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,8 +34,13 @@ export function ResetPasswordPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface/90 p-8">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
         <h1 className="text-2xl font-medium tracking-tight">{t('auth.resetTitle')}</h1>
         <p className="mt-2 text-sm text-muted">{t('auth.resetSubtitle')}</p>
+          </div>
+          <LanguageSwitcher compact />
+        </div>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="password">{t('auth.password')}</Label>

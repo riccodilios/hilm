@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
+import { ar, enUS } from 'date-fns/locale'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
@@ -12,7 +14,11 @@ import {
   workspaceCommentKeys,
 } from '@/features/workspace-os/comments-api'
 import { listWorkspaceMembers } from '@/features/workspace-os/api'
-import { WorkspaceMentionInput, displayToTokens, tokensToDisplay } from '@/features/workspace-os/components/WorkspaceMentionInput'
+import {
+  WorkspaceMentionInput,
+  displayToTokens,
+  tokensToDisplay,
+} from '@/features/workspace-os/components/WorkspaceMentionInput'
 import { renderMentionContent } from '@/features/workspace-os/lib/task-refs'
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import { Button } from '@/components/ui/button'
@@ -29,6 +35,8 @@ export function WorkspaceTaskComments({
   canEdit: boolean
 }) {
   const { user } = useAuth()
+  const { t, i18n } = useTranslation()
+  const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
   const qc = useQueryClient()
   const [params] = useSearchParams()
   const highlightId = params.get('comment')
@@ -132,7 +140,7 @@ export function WorkspaceTaskComments({
 
   return (
     <section className="space-y-3 border-t border-border-subtle pt-4">
-      <h2 className="text-sm font-medium">Comments</h2>
+      <h2 className="text-sm font-medium">{t('comments.title')}</h2>
       <div ref={listRef} className="space-y-3">
         {(comments.data ?? []).map((comment) => {
           const isMine = comment.author_user_id === user?.id
@@ -151,8 +159,11 @@ export function WorkspaceTaskComments({
                   {comment.author?.display_name ?? 'Member'}
                 </p>
                 <time className="shrink-0 text-[11px] text-muted">
-                  {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                  {comment.updated_at !== comment.created_at ? ' · edited' : ''}
+                  {formatDistanceToNow(new Date(comment.created_at), {
+                    addSuffix: true,
+                    locale: dateLocale,
+                  })}
+                  {comment.updated_at !== comment.created_at ? ` · ${t('comments.edited')}` : ''}
                 </time>
               </div>
               {editingId === comment.id ? (
@@ -161,6 +172,7 @@ export function WorkspaceTaskComments({
                     value={editDraft}
                     onChange={setEditDraft}
                     members={mentionMembers}
+                    placeholder={t('comments.placeholder')}
                     disabled={update.isPending}
                     onSubmit={() => update.mutate()}
                   />
@@ -170,7 +182,7 @@ export function WorkspaceTaskComments({
                       disabled={update.isPending || !editDraft.trim()}
                       onClick={() => update.mutate()}
                     >
-                      Save
+                      {t('comments.save')}
                     </Button>
                     <Button
                       size="sm"
@@ -180,7 +192,7 @@ export function WorkspaceTaskComments({
                         setEditDraft('')
                       }}
                     >
-                      Cancel
+                      {t('comments.cancel')}
                     </Button>
                   </div>
                 </div>
@@ -207,7 +219,7 @@ export function WorkspaceTaskComments({
                       setEditDraft(tokensToDisplay(comment.content, mentionMembers))
                     }}
                   >
-                    Edit
+                    {t('comments.edit')}
                   </button>
                   <button
                     type="button"
@@ -215,7 +227,7 @@ export function WorkspaceTaskComments({
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(comment.id)}
                   >
-                    Delete
+                    {t('comments.delete')}
                   </button>
                 </div>
               ) : null}
@@ -223,7 +235,7 @@ export function WorkspaceTaskComments({
           )
         })}
         {!comments.data?.length && !comments.isLoading ? (
-          <p className="text-sm text-muted">No comments yet.</p>
+          <p className="text-sm text-muted">{t('comments.empty')}</p>
         ) : null}
       </div>
       {canEdit ? (
@@ -232,6 +244,7 @@ export function WorkspaceTaskComments({
             value={draft}
             onChange={setDraft}
             members={mentionMembers}
+            placeholder={t('comments.placeholder')}
             disabled={create.isPending}
             onSubmit={() => create.mutate()}
           />
@@ -240,7 +253,7 @@ export function WorkspaceTaskComments({
             disabled={create.isPending || !draft.trim()}
             onClick={() => create.mutate()}
           >
-            Comment
+            {t('comments.submit')}
           </Button>
         </div>
       ) : null}

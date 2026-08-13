@@ -137,6 +137,8 @@ async function syncCommentMentions(input: {
         task_id: input.taskId,
         comment_id: input.commentId,
         task_ref: shortId,
+        author_name: input.authorName,
+        snippet,
       },
     }))
 

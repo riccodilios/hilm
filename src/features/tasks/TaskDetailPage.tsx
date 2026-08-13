@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
 import { mergeVoiceTranscript, speechLocaleFromI18n } from '@/lib/voice-transcript'
+import { rtlMirrorClass } from '@/lib/rtl'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -138,7 +140,7 @@ export function TaskDetailPage() {
     <div className="max-w-3xl">
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link to="/personal/tasks">
-          <ChevronLeft /> {t('tasks.title')}
+          <ChevronLeft className={cn(rtlMirrorClass(i18n.language))} /> {t('tasks.title')}
         </Link>
       </Button>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">

@@ -531,6 +531,12 @@ export async function createWorkspaceTask(
       entity_type: 'workspace_task',
       entity_id: created.id,
       href: `/workspace/${workspaceId}/tasks/${created.id}`,
+      metadata: {
+        workspace_id: workspaceId,
+        task_id: created.id,
+        task_ref: shortRef,
+        task_title: input.title,
+      },
     })
   }
   for (const leadId of assignment.notifyLeadIds) {
@@ -544,6 +550,12 @@ export async function createWorkspaceTask(
       entity_type: 'workspace_task',
       entity_id: created.id,
       href: `/workspace/${workspaceId}/team-lead`,
+      metadata: {
+        workspace_id: workspaceId,
+        task_id: created.id,
+        task_ref: shortRef,
+        task_title: input.title,
+      },
     })
   }
 
@@ -716,6 +728,11 @@ export async function updateWorkspaceTask(
         entity_type: 'workspace_task',
         entity_id: taskId,
         href: `/workspace/${workspaceId}/team-lead`,
+        metadata: {
+          workspace_id: workspaceId,
+          task_id: taskId,
+          task_title: before.title,
+        },
       })
     }
 
@@ -731,6 +748,11 @@ export async function updateWorkspaceTask(
           entity_type: 'workspace_task',
           entity_id: taskId,
           href: `/workspace/${workspaceId}/tasks/${taskId}`,
+          metadata: {
+            workspace_id: workspaceId,
+            task_id: taskId,
+            task_title: before.title,
+          },
         })
       }
     }

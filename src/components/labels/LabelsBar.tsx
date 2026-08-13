@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ManagedLabelChip } from '@/components/labels/ManagedLabelChip'
 import { EditLabelDialog, type LabelDraft } from '@/components/labels/EditLabelDialog'
@@ -32,6 +33,7 @@ export function LabelsBar({
   updateLabel,
   deleteLabel,
 }: LabelsBarProps) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [edit, setEdit] = useState<{
@@ -44,11 +46,12 @@ export function LabelsBar({
   const invalidate = () => qc.invalidateQueries({ queryKey })
 
   const createMut = useMutation({
-    mutationFn: () => createLabel({ name: search.trim() || 'Work', color: PROJECT_COLORS[0] }),
+    mutationFn: () =>
+      createLabel({ name: search.trim() || t('labels.title'), color: PROJECT_COLORS[0] }),
     onSuccess: async () => {
       await invalidate()
       setSearch('')
-      toast.success('Label created')
+      toast.success(t('labels.created'))
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -60,7 +63,7 @@ export function LabelsBar({
       await invalidate()
       setDeleting(null)
       if (filter === deletedId) onFilterChange('all')
-      toast.success('Label deleted')
+      toast.success(t('labels.deleted'))
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -87,9 +90,9 @@ export function LabelsBar({
       }
       await invalidate()
       setEdit(null)
-      toast.success('Label updated')
+      toast.success(t('labels.updated'))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update label')
+      toast.error(e instanceof Error ? e.message : t('labels.updateFailed'))
     } finally {
       setSaving(false)
     }
@@ -105,7 +108,7 @@ export function LabelsBar({
             filter === 'all' ? 'border-accent/40 bg-accent/10' : 'border-border-subtle'
           }`}
         >
-          All
+          {t('labels.all')}
         </button>
         {labels.map((label) => (
           <ManagedLabelChip
@@ -130,8 +133,8 @@ export function LabelsBar({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="New label"
-              className="h-8 w-32"
+              placeholder={t('labels.create')}
+              className="h-8 w-36"
             />
             <Button type="submit" size="sm" variant="secondary" disabled={createMut.isPending}>
               +
@@ -140,22 +143,29 @@ export function LabelsBar({
         ) : null}
       </div>
 
-      <EditLabelDialog
-        open={Boolean(edit)}
-        onOpenChange={(open) => !open && setEdit(null)}
-        initial={edit?.draft}
-        mode={edit?.mode ?? 'edit'}
-        pending={saving}
-        onSave={handleSave}
-      />
-
-      <DeleteLabelConfirm
-        open={Boolean(deleting)}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        labelName={deleting?.name ?? ''}
-        pending={deleteMut.isPending}
-        onConfirm={() => deleteMut.mutate()}
-      />
+      {edit ? (
+        <EditLabelDialog
+          open
+          initial={edit.draft}
+          mode={edit.mode}
+          pending={saving}
+          onOpenChange={(open) => {
+            if (!open) setEdit(null)
+          }}
+          onSave={handleSave}
+        />
+      ) : null}
+      {deleting ? (
+        <DeleteLabelConfirm
+          open
+          labelName={deleting.name}
+          pending={deleteMut.isPending}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null)
+          }}
+          onConfirm={() => deleteMut.mutate()}
+        />
+      ) : null}
     </>
   )
 }

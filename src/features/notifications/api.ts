@@ -9,12 +9,14 @@ export const notificationsKeys = {
 
 export type NotificationRow = {
   id: string
+  type: string
   title: string
   body: string | null
   href: string | null
   read_at: string | null
   created_at: string
   project_id: string | null
+  metadata: Record<string, unknown> | null
   projects: { id: string; name: string; color: string; icon: string | null } | null
 }
 
@@ -22,7 +24,7 @@ export async function listNotifications() {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('notifications')
-    .select('id, title, body, href, read_at, created_at, project_id')
+    .select('id, type, title, body, href, read_at, created_at, project_id, metadata')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)

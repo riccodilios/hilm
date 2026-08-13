@@ -31,7 +31,9 @@
     "remove": "Remove",
     "complete": "Complete",
     "notFound": "Not found",
-    "pageError": "This page failed to load"
+    "pageError": "This page failed to load",
+    "member": "Member",
+    "reload": "Reload"
   },
   "nav": {
     "home": "Home",
@@ -594,7 +596,8 @@
       "year": "Year"
     },
     "weeklyLoad": "Weekly workload",
-    "productivity": "Monthly pulse"
+    "productivity": "Monthly pulse",
+    "weekOf": "Week of {{date}}"
   },
   "projects": {
     "title": "Projects",
@@ -631,7 +634,9 @@
     "meetings": "Meetings",
     "releases": "Releases",
     "files": "Files",
-    "documentation": "Documentation"
+    "documentation": "Documentation",
+    "about": "About this project",
+    "taskStats": "Task stats"
   },
   "tasks": {
     "title": "Tasks",
@@ -829,7 +834,17 @@
     "clearRead": "Clear read",
     "clearReadConfirm": "Remove all read notifications? Unread items stay.",
     "markedAllRead": "All notifications marked read",
-    "clearedRead": "Read notifications cleared"
+    "clearedRead": "Read notifications cleared",
+    "types": {
+      "taskAssigned": "Task assigned",
+      "taskAssignedBody": "You were assigned {{task}}",
+      "taskLead": "New task for your team",
+      "taskLeadBody": "{{task}} needs distribution — open the assignment queue.",
+      "mention": "New mention",
+      "mentionBody": "{{author}} mentioned you in {{task}}\n“{{snippet}}”",
+      "reminder": "Reminder — {{task}}",
+      "reminderBody": "Due {{due}}"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1035,7 +1050,23 @@
     "departments": "Departments",
     "teams": "Teams",
     "members": "Members",
-    "metrics": "Metrics",
+    "metrics": {
+      "tasks_created": "Tasks created",
+      "tasks_completed": "Tasks completed",
+      "completion_rate": "Completion rate",
+      "overdue_tasks": "Overdue tasks",
+      "open_tasks": "Open tasks",
+      "project_count": "Projects",
+      "project_progress": "Project progress",
+      "project_health": "Project health",
+      "time_allocation": "Time allocation",
+      "workload": "Workload",
+      "member_workload": "Member workload",
+      "team_capacity": "Team capacity",
+      "productivity_trend": "Productivity trends",
+      "upcoming_deadlines": "Upcoming deadlines",
+      "ai_insights": "AI insights"
+    },
     "askAi": "Ask AI to customize this report",
     "applyAi": "Apply AI customization",
     "aiDisclaimer": "AI only configures structure and emphasis. All numbers come from your Hilm data.",
@@ -1060,6 +1091,199 @@
       "this_month": "This month",
       "last_month": "Last month",
       "custom": "Custom range"
+    },
+    "types": {
+      "productivity": {
+        "title": "Productivity Report",
+        "description": "Overall personal productivity, completion, and focus areas."
+      },
+      "weekly_productivity": {
+        "title": "Weekly Productivity Report",
+        "description": "This week’s completed work, backlog pressure, and next priorities."
+      },
+      "monthly_productivity": {
+        "title": "Monthly Productivity Report",
+        "description": "Month-level output, trends, and project progress."
+      },
+      "task": {
+        "title": "Task Report",
+        "description": "Task inventory by status, priority, and due dates."
+      },
+      "overdue_tasks": {
+        "title": "Overdue Tasks Report",
+        "description": "Everything past due with urgency and project context."
+      },
+      "completed_work": {
+        "title": "Completed Work Report",
+        "description": "What shipped in the selected period."
+      },
+      "project": {
+        "title": "Project Report",
+        "description": "Project portfolio snapshot with health and progress."
+      },
+      "project_progress": {
+        "title": "Project Progress Report",
+        "description": "Completion percentage and remaining work by project."
+      },
+      "project_health": {
+        "title": "Project Health Report",
+        "description": "Health states, blockers, and stalled work."
+      },
+      "roadmap_progress": {
+        "title": "Roadmap Progress Report",
+        "description": "Roadmap items and delivery horizon progress."
+      },
+      "workload": {
+        "title": "Workload Report",
+        "description": "Open load versus completed throughput."
+      },
+      "time_allocation": {
+        "title": "Time Allocation Report",
+        "description": "Where estimated effort is concentrated across projects."
+      },
+      "ai_activity": {
+        "title": "AI Activity Report",
+        "description": "AI-assisted activity and recommended next moves."
+      },
+      "custom": {
+        "title": "Custom Report",
+        "description": "Configure metrics yourself or ask AI to shape the report."
+      },
+      "workspace_overview": {
+        "title": "Workspace Overview",
+        "description": "Organization-wide projects, tasks, and health."
+      },
+      "team_performance": {
+        "title": "Team Performance Report",
+        "description": "Team throughput, overdue load, and delivery risk."
+      },
+      "department_performance": {
+        "title": "Department Performance Report",
+        "description": "Department-level workload and progress."
+      },
+      "team_workload": {
+        "title": "Team Workload Report",
+        "description": "Capacity and assignment pressure across members."
+      },
+      "sprint": {
+        "title": "Sprint Report",
+        "description": "Period delivery snapshot suitable for sprint reviews."
+      }
+    },
+    "pdf": {
+      "executiveSummary": "Executive Summary",
+      "keyMetrics": "Key Metrics",
+      "detailedAnalysis": "Detailed Analysis",
+      "aiInsights": "AI Insights",
+      "recommendations": "Recommendations",
+      "charts": "Charts",
+      "tasks": "Tasks",
+      "projects": "Projects",
+      "teams": "Teams",
+      "appendix": "Appendix",
+      "generatedAt": "Generated {{when}}",
+      "personalOs": "Personal OS",
+      "thisWorkspace": "This workspace",
+      "workspaceNamed": "Workspace “{{name}}”",
+      "summaryTemplate": "{{scope}} for {{period}}: {{completed}} tasks completed, {{open}} open, {{overdue}} overdue across {{projects}} projects. Overall completion rate is {{rate}}%.",
+      "tasksByStatus": "Tasks by status",
+      "tasksByPriority": "Tasks by priority",
+      "reportMeta": "Report: {{title}}",
+      "generatedBy": "Generated by: {{name}}",
+      "generatedOn": "Generated on: {{when}}",
+      "reportingPeriod": "Reporting period: {{start}} → {{end}}",
+      "workspaceOrg": "Workspace / Organization: {{name}}",
+      "scopePersonal": "Scope: Personal OS",
+      "effortByProject": "Estimated effort by project",
+      "openByMember": "Open tasks by member",
+      "memberWorkload": "Member workload"
+    },
+    "period": {
+      "today": "Today ({{date}})",
+      "yesterday": "Yesterday ({{date}})",
+      "thisWeek": "This week ({{start}} → {{end}})",
+      "lastWeek": "Last week ({{start}} → {{end}})",
+      "last7Days": "Last 7 days ({{start}} → {{end}})"
+    },
+    "hints": {
+      "timeAllocation": "Estimated hours across selected projects",
+      "workload": "Open tasks in scope",
+      "memberWorkload": "Assignees with open work",
+      "teamCapacity": "Rough remaining capacity units",
+      "productivityTrend": "Completed minus created in period"
+    },
+    "table": {
+      "project": "Project",
+      "health": "Health",
+      "progress": "Progress",
+      "status": "Status",
+      "task": "Task",
+      "priority": "Priority",
+      "due": "Due",
+      "member": "Member",
+      "openTasks": "Open tasks",
+      "completedTasks": "Completed tasks",
+      "tasksInFocus": "Tasks in focus"
+    },
+    "insights": {
+      "overdue_one": "{{count}} overdue task needs attention before new commitments.",
+      "overdue_other": "{{count}} overdue tasks need attention before new commitments.",
+      "overdue": "{{count}} overdue task(s) need attention before new commitments.",
+      "noOverdue": "No overdue tasks in the selected scope — execution is currently on track.",
+      "strongCompletion": "Completion rate is strong at {{rate}}%.",
+      "openCompletion": "Completion rate is {{rate}}% with {{open}} open items still in flight."
+    },
+    "recommendations": {
+      "clearOverdue": "Clear overdue work first, then re-balance the remaining open queue.",
+      "intakePace": "Intake is outpacing completion — protect focus time or reduce new commitments.",
+      "breakDown": "Break large open items into smaller deliverables to restore momentum.",
+      "maintain": "Maintain current cadence and schedule a mid-period checkpoint on high-priority projects."
     }
+  },
+  "labels": {
+    "all": "All",
+    "title": "Labels",
+    "create": "Create label",
+    "created": "Label created",
+    "updated": "Label updated",
+    "deleted": "Label deleted",
+    "updateFailed": "Failed to update label",
+    "name": "Name",
+    "color": "Color",
+    "edit": "Edit label",
+    "rename": "Rename label",
+    "recolor": "Change color",
+    "delete": "Delete label",
+    "deleteConfirm": "Delete this label?",
+    "searchPlaceholder": "Search or create a label",
+    "projectLabels": "Project labels",
+    "add": "Add label",
+    "remove": "Remove",
+    "manage": "Manage labels"
+  },
+  "comments": {
+    "title": "Comments",
+    "empty": "No comments yet.",
+    "placeholder": "Write a comment… Use @ to mention someone",
+    "submit": "Comment",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "edited": "edited"
+  },
+  "email": {
+    "reminderSubject": "Task Reminder — {{task}}",
+    "reminderHello": "Hi{{name}}",
+    "reminderIntro": "This is a reminder that you have an upcoming task.",
+    "project": "Project",
+    "task": "Task",
+    "priority": "Priority",
+    "due": "Due",
+    "openTask": "Open task",
+    "reminderFoot": "You’re receiving this because reminders are enabled in Hilm."
+  },
+  "errors": {
+    "generic": "Something went wrong"
   }
 }

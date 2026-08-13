@@ -33,6 +33,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
+import { rtlMirrorClass } from '@/lib/rtl'
 import { addLocalDays, taskDueDateKey, todayLocalISO, toLocalDateKey } from '@/lib/dates'
 
 type MobilePane = 'calendar' | 'timeline' | 'overview'
@@ -221,9 +222,14 @@ export function WorkspaceMissionControlPage() {
     })
   }
 
-  const title = format(anchor, view === 'day' ? 'EEEE, MMM d' : view === 'week' ? "'Week of' MMM d" : 'MMMM yyyy', {
-    locale: dateLocale,
-  })
+  const title =
+    view === 'week'
+      ? t('mission.weekOf', {
+          date: format(anchor, 'MMM d', { locale: dateLocale }),
+        })
+      : format(anchor, view === 'day' ? 'EEEE, MMM d' : 'MMMM yyyy', {
+          locale: dateLocale,
+        })
 
   if (bootstrapping) {
     return (
@@ -275,7 +281,7 @@ export function WorkspaceMissionControlPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="icon" variant="secondary" onClick={() => shiftAnchor(-1)} aria-label={t('mission.prev')}>
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className={cn('size-4', rtlMirrorClass(i18n.language))} />
         </Button>
         <button
           type="button"
@@ -289,7 +295,7 @@ export function WorkspaceMissionControlPage() {
           {title}
         </button>
         <Button size="icon" variant="secondary" onClick={() => shiftAnchor(1)} aria-label={t('mission.next')}>
-          <ChevronRight className="size-4" />
+          <ChevronRight className={cn('size-4', rtlMirrorClass(i18n.language))} />
         </Button>
 
         <div className="ms-auto flex max-w-full gap-1 overflow-x-auto pb-1">

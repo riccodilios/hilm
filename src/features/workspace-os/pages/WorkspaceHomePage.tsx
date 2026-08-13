@@ -23,10 +23,12 @@ import {
 import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
+import { Badge, HealthBadge, PriorityBadge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDueRemaining } from '@/lib/dates'
+import { rtlMirrorClass } from '@/lib/rtl'
 import { cn, formatRelative } from '@/lib/utils'
+import type { TaskStatus } from '@/types/domain'
 
 function DueTaskRow({
   task,
@@ -92,6 +94,7 @@ export function WorkspaceHomePage() {
   const qc = useQueryClient()
   const locale = i18n.language
   const dateLocale = locale.startsWith('ar') ? ar : enUS
+  const mirror = rtlMirrorClass(locale)
 
   const home = useQuery({
     queryKey: workspaceKeys.home(workspaceId),
@@ -201,9 +204,7 @@ export function WorkspaceHomePage() {
                   {focus.workspace_projects.name}
                 </Badge>
               ) : null}
-              <Badge className="bg-surface-3 text-muted capitalize">
-                {(focus.status ?? 'todo').replace('_', ' ')}
-              </Badge>
+              <StatusBadge status={(focus.status ?? 'todo') as TaskStatus} />
               {focus.due_at || focus.due_date ? (
                 <span className="text-sm text-muted">
                   {formatDueRemaining(focus, { locale })}
@@ -213,7 +214,7 @@ export function WorkspaceHomePage() {
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
                 <Link to={`/workspace/${workspaceId}/tasks/${focus.id}`}>
-                  {t('workspace.openTask')} <ArrowRight className="size-4" />
+                  {t('workspace.openTask')} <ArrowRight className={`size-4 ${mirror ?? ''}`} />
                 </Link>
               </Button>
               {canEdit ? (

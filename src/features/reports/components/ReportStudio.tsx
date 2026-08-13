@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Download, Sparkles, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getReportType, listReportTypes, metricsForOs } from '@/features/reports/catalog'
+import { getReportType, metricsForOs } from '@/features/reports/catalog'
+import { listLocalizedReportTypes, localizedMetricLabel, localizedReportType } from '@/features/reports/i18n'
 import { customizeReportFromPrompt } from '@/features/reports/engine/aiCustomize'
 import { buildReportSnapshot } from '@/features/reports/engine/buildSnapshot'
 import type {
@@ -73,9 +74,16 @@ export function ReportStudio(props: ReportStudioProps) {
     }
   }, [props.reopenSnapshot])
 
-  const types = useMemo(() => listReportTypes(props.os), [props.os])
-  const typeDef = getReportType(props.os, config.typeId)
-  const metricOptions = metricsForOs(props.os)
+  const types = useMemo(() => listLocalizedReportTypes(props.os, t), [props.os, t])
+  const typeDef = localizedReportType(props.os, config.typeId, t)
+  const metricOptions = useMemo(
+    () =>
+      metricsForOs(props.os).map((metric) => ({
+        ...metric,
+        label: localizedMetricLabel(metric.id, t),
+      })),
+    [props.os, t],
+  )
 
   function patchConfig(patch: Partial<ReportConfig>) {
     setConfig((prev) => ({ ...prev, ...patch }))

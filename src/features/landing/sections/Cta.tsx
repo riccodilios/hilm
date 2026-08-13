@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { FadeIn, Section } from '@/features/landing/primitives'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { rtlMirrorClass } from '@/lib/rtl'
+import { cn } from '@/lib/utils'
 
 export function CtaSection() {
   const { canInstall, install } = usePwaInstall()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   return (
     <Section>
@@ -22,7 +24,7 @@ export function CtaSection() {
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
                 <Link to="/signup">
-                  {t('common.getStarted')} <ArrowRight className="size-4" />
+                  {t('common.getStarted')} <ArrowRight className={cn('size-4', rtlMirrorClass(i18n.language))} />
                 </Link>
               </Button>
               {canInstall ? (

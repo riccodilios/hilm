@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
+import { ar, enUS } from 'date-fns/locale'
 import { ArrowRight, Check, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { getDashboardData, homeKeys } from '@/features/home/api'
@@ -10,12 +11,14 @@ import { activityKeys } from '@/features/activity/api'
 import { ProjectInsightCard } from '@/features/projects/ProjectInsightCard'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge, PriorityBadge } from '@/components/ui/badge'
+import { PriorityBadge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ProjectBadge } from '@/components/ProjectBadge'
 import { formatDueRemaining } from '@/lib/dates'
 import { formatRelative } from '@/lib/utils'
+import { rtlMirrorClass } from '@/lib/rtl'
 import type { TaskWithProject } from '@/features/tasks/reminders'
+import type { TaskStatus } from '@/types/domain'
 
 function DueTaskRow({ task, locale }: { task: TaskWithProject; locale: string }) {
   return (
@@ -39,6 +42,8 @@ export function HomePage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const locale = i18n.language
+  const dateLocale = locale.startsWith('ar') ? ar : enUS
+  const mirror = rtlMirrorClass(locale)
   const { data, isLoading, error } = useQuery({
     queryKey: homeKeys.dashboard(),
     queryFn: getDashboardData,
@@ -86,7 +91,7 @@ export function HomePage() {
     <div className="mx-auto w-full min-w-0 max-w-full">
       <PageHeader
         title={t('home.title')}
-        description={format(new Date(), 'EEEE, MMMM d')}
+        description={format(new Date(), 'EEEE, MMMM d', { locale: dateLocale })}
         actions={
           <Button asChild variant="secondary" size="sm">
             <Link to="/personal/ai">
@@ -107,9 +112,7 @@ export function HomePage() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PriorityBadge priority={data.focus.priority} />
               {data.focus.projects ? <ProjectBadge {...data.focus.projects} /> : null}
-              <Badge className="bg-surface-3 text-muted capitalize">
-                {data.focus.status.replace('_', ' ')}
-              </Badge>
+              <StatusBadge status={data.focus.status as TaskStatus} />
               {data.focus.due_at || data.focus.due_date ? (
                 <span className="text-sm text-muted">
                   {formatDueRemaining(data.focus, { locale })}
@@ -119,7 +122,7 @@ export function HomePage() {
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild>
                 <Link to={`/personal/tasks/${data.focus.id}`}>
-                  {t('home.openTask')} <ArrowRight className="size-4" />
+                  {t('home.openTask')} <ArrowRight className={`size-4 ${mirror ?? ''}`} />
                 </Link>
               </Button>
               <Button

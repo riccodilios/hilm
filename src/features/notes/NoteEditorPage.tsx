@@ -13,9 +13,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EmptyState, Skeleton } from '@/components/ui/page'
+import { rtlMirrorClass } from '@/lib/rtl'
+import { cn } from '@/lib/utils'
 
 export function NoteEditorPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { id } = useParams()
   const qc = useQueryClient()
   const [preview, setPreview] = useState(false)
@@ -41,7 +43,7 @@ export function NoteEditorPage() {
   if (isLoading) return <Skeleton className="h-96" />
   if (!note) return <EmptyState title={t('notes.notFound')} action={<Button asChild><Link to="/personal/notes">{t('notes.back')}</Link></Button>} />
   return <div className="mx-auto max-w-4xl">
-    <div className="mb-4 flex items-center justify-between gap-2"><Button variant="ghost" size="sm" asChild><Link to="/personal/notes"><ChevronLeft /> {t('notes.title')}</Link></Button><div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => setPreview((value) => !value)}>{preview ? <PenLine /> : <Eye />}{preview ? t('notes.edit') : t('notes.preview')}</Button><Button size="sm" variant="secondary" onClick={() => convert.mutate()} disabled={!title.trim() || (!note.project_id && !projects?.[0]) || convert.isPending}><CheckSquare /> {t('notes.convertTask')}</Button><Button size="sm" onClick={() => save.mutate()} disabled={!title.trim() || save.isPending}>{t('notes.save')}</Button></div></div>
+    <div className="mb-4 flex items-center justify-between gap-2"><Button variant="ghost" size="sm" asChild><Link to="/personal/notes"><ChevronLeft className={cn(rtlMirrorClass(i18n.language))} /> {t('notes.title')}</Link></Button><div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => setPreview((value) => !value)}>{preview ? <PenLine /> : <Eye />}{preview ? t('notes.edit') : t('notes.preview')}</Button><Button size="sm" variant="secondary" onClick={() => convert.mutate()} disabled={!title.trim() || (!note.project_id && !projects?.[0]) || convert.isPending}><CheckSquare /> {t('notes.convertTask')}</Button><Button size="sm" onClick={() => save.mutate()} disabled={!title.trim() || save.isPending}>{t('notes.save')}</Button></div></div>
     <Input value={title} onChange={(event) => setTitle(event.target.value)} className="mb-4 h-auto border-0 bg-transparent px-0 text-3xl font-medium tracking-tight shadow-none focus-visible:ring-0" placeholder={t('notes.empty')} />
     {preview ? <article className="prose prose-invert max-w-none rounded-2xl border border-border-subtle bg-surface/70 p-6 prose-headings:text-foreground prose-p:text-muted prose-a:text-accent">{body ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown> : <p className="text-muted">{t('notes.empty')}</p>}</article> : <Textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder={t('notes.empty')} className="min-h-[60vh] resize-y font-mono text-sm leading-7" />}
   </div>

@@ -8,25 +8,58 @@ export type ReminderEmailPayload = {
   dueLabel: string
   openUrl: string
   appUrl: string
+  locale?: 'en' | 'ar'
 }
 
+const COPY = {
+  en: {
+    subject: (task: string) => `Task Reminder — ${task}`,
+    hello: (name: string) => `Hi${name ? ` ${name}` : ''},`,
+    intro: 'This is a reminder that you have an upcoming task.',
+    project: 'Project',
+    task: 'Task',
+    priority: 'Priority',
+    due: 'Due',
+    openTask: 'Open Task',
+    foot: 'Sent by Hilm',
+    brand: 'Hilm',
+    title: 'Task reminder',
+  },
+  ar: {
+    subject: (task: string) => `تذكير بمهمة — ${task}`,
+    hello: (name: string) => `مرحباً${name ? ` ${name}` : ''}،`,
+    intro: 'هذا تذكير بأن لديك مهمة قادمة.',
+    project: 'المشروع',
+    task: 'المهمة',
+    priority: 'الأولوية',
+    due: 'الاستحقاق',
+    openTask: 'فتح المهمة',
+    foot: 'أُرسل من حلم',
+    brand: 'حلم',
+    title: 'تذكير بمهمة',
+  },
+} as const
+
 export function buildTaskReminderEmail(payload: ReminderEmailPayload) {
-  const subject = `Task Reminder — ${payload.taskTitle}`
+  const locale = payload.locale === 'ar' ? 'ar' : 'en'
+  const copy = COPY[locale]
+  const dir = locale === 'ar' ? 'rtl' : 'ltr'
+  const subject = copy.subject(payload.taskTitle)
   const text = [
-    `Hi${payload.userName ? ` ${payload.userName}` : ''},`,
+    copy.hello(payload.userName),
     '',
-    'This is a reminder that you have an upcoming task.',
+    copy.intro,
     '',
-    `Project: ${payload.projectName}`,
-    `Task: ${payload.taskTitle}`,
-    `Priority: ${payload.priority}`,
-    `Due: ${payload.dueLabel}`,
+    `${copy.project}: ${payload.projectName}`,
+    `${copy.task}: ${payload.taskTitle}`,
+    `${copy.priority}: ${payload.priority}`,
+    `${copy.due}: ${payload.dueLabel}`,
     '',
-    `Open task: ${payload.openUrl}`,
+    `${copy.openTask}: ${payload.openUrl}`,
   ].join('\n')
 
   const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}" dir="${dir}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -35,9 +68,9 @@ export function buildTaskReminderEmail(payload: ReminderEmailPayload) {
   <title>${escapeHtml(subject)}</title>
   <style>
     :root { color-scheme: light dark; }
-    body { margin:0; padding:0; background:#0a0a0b; color:#f4f4f5; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+    body { margin:0; padding:0; background:#0a0a0b; color:#f4f4f5; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Arabic", sans-serif; direction:${dir}; }
     .wrap { max-width:560px; margin:0 auto; padding:32px 20px; }
-    .card { background:#111113; border:1px solid #27272a; border-radius:20px; padding:28px; }
+    .card { background:#111113; border:1px solid #27272a; border-radius:20px; padding:28px; text-align:start; }
     .brand { font-size:13px; letter-spacing:0.08em; text-transform:uppercase; color:#a1a1aa; margin-bottom:18px; }
     h1 { font-size:22px; line-height:1.3; margin:0 0 12px; font-weight:560; color:#fafafa; }
     p { margin:0 0 18px; color:#a1a1aa; font-size:15px; line-height:1.6; }
@@ -61,15 +94,15 @@ export function buildTaskReminderEmail(payload: ReminderEmailPayload) {
 <body>
   <div class="wrap">
     <div class="card">
-      <div class="brand">Hilm</div>
-      <h1>Task reminder</h1>
-      <p>Hi${payload.userName ? ` ${escapeHtml(payload.userName)}` : ''}, this is a reminder that you have an upcoming task.</p>
-      <div class="row"><div class="label">Project</div><div class="value"><span class="badge"><span class="dot"></span>${escapeHtml(payload.projectName)}</span></div></div>
-      <div class="row"><div class="label">Task</div><div class="value">${escapeHtml(payload.taskTitle)}</div></div>
-      <div class="row"><div class="label">Priority</div><div class="value">${escapeHtml(payload.priority)}</div></div>
-      <div class="row"><div class="label">Due</div><div class="value">${escapeHtml(payload.dueLabel)}</div></div>
-      <a class="btn" href="${escapeHtml(payload.openUrl)}">Open Task</a>
-      <p class="foot">Sent by Hilm · <a href="${escapeHtml(payload.appUrl)}" style="color:inherit">${escapeHtml(payload.appUrl)}</a></p>
+      <div class="brand">${escapeHtml(copy.brand)}</div>
+      <h1>${escapeHtml(copy.title)}</h1>
+      <p>${escapeHtml(copy.hello(payload.userName))} ${escapeHtml(copy.intro)}</p>
+      <div class="row"><div class="label">${escapeHtml(copy.project)}</div><div class="value"><span class="badge"><span class="dot"></span>${escapeHtml(payload.projectName)}</span></div></div>
+      <div class="row"><div class="label">${escapeHtml(copy.task)}</div><div class="value">${escapeHtml(payload.taskTitle)}</div></div>
+      <div class="row"><div class="label">${escapeHtml(copy.priority)}</div><div class="value">${escapeHtml(payload.priority)}</div></div>
+      <div class="row"><div class="label">${escapeHtml(copy.due)}</div><div class="value">${escapeHtml(payload.dueLabel)}</div></div>
+      <a class="btn" href="${escapeHtml(payload.openUrl)}">${escapeHtml(copy.openTask)}</a>
+      <p class="foot">${escapeHtml(copy.foot)} · <a href="${escapeHtml(payload.appUrl)}" style="color:inherit">${escapeHtml(payload.appUrl)}</a></p>
     </div>
   </div>
 </body>

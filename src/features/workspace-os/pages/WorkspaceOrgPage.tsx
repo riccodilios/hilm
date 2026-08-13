@@ -180,7 +180,7 @@ function DepartmentNode({
   return (
     <div style={{ marginInlineStart: depth * 16 }}>
       <div className="flex items-center gap-2 py-1">
-        {depth > 0 ? <ChevronRight className="size-3 text-muted" /> : null}
+        {depth > 0 ? <ChevronRight className="size-3 text-muted rtl:-scale-x-100" /> : null}
         <Building2 className="size-3.5 text-muted" />
         <span className="text-sm font-medium">{title}</span>
         {!isUnassigned && node.department.description ? (

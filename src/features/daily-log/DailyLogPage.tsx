@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { cn, todayISO } from '@/lib/utils'
+import { rtlMirrorClass } from '@/lib/rtl'
 
 function shiftDate(date: string, days: number) {
   return format(addDays(parseISO(date), days), 'yyyy-MM-dd')
@@ -205,7 +206,7 @@ export function DailyLogPage() {
           aria-label={t('dailyLog.prevDay')}
           onClick={() => setDate((current) => shiftDate(current, -1))}
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft className={cn('size-4', rtlMirrorClass(i18n.language))} />
         </Button>
         <div className="min-w-0 text-center">
           <p className="truncate text-sm font-medium">{prettyDate}</p>
@@ -218,7 +219,7 @@ export function DailyLogPage() {
           disabled={isToday}
           onClick={() => setDate((current) => shiftDate(current, 1))}
         >
-          <ChevronRight className="size-4" />
+          <ChevronRight className={cn('size-4', rtlMirrorClass(i18n.language))} />
         </Button>
       </div>
 
