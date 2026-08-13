@@ -5,6 +5,7 @@ import {
   optionalUuid,
   priorityEnum,
   requiredUuid,
+  taskIdOrRef,
   taskStatusEnum,
 } from '@/features/ai/registry/schemas'
 import {
@@ -17,6 +18,7 @@ import {
   createWorkspaceTask,
   deleteWorkspaceProject,
   deleteWorkspaceTask,
+  getWorkspace,
   listWorkspaceMembers,
   listWorkspaceProjects,
   listWorkspaceTasks,
@@ -24,6 +26,7 @@ import {
   updateWorkspaceProject,
   updateWorkspaceTask,
 } from '@/features/workspace-os/api'
+import { createWorkspaceTaskComment } from '@/features/workspace-os/comments-api'
 import {
   createWorkspaceLabel,
   deleteWorkspaceLabel,
@@ -41,9 +44,24 @@ import {
 } from '@/features/workspace-os/org-api'
 import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
 import { resolveWorkspaceProjectForAction } from '@/features/ai/lib/resolve-workspace-project'
+import { resolveWorkspaceTaskForAction } from '@/features/workspace-os/lib/resolve-workspace-task'
+import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
 import { requireUserId } from '@/lib/supabase/activity'
 import { supabase } from '@/lib/supabase/client'
 import type { Priority, TaskStatus } from '@/types/domain'
+
+async function resolveTaskOrFail(
+  workspaceId: string,
+  taskId: string,
+  preferTaskId?: string | null,
+) {
+  const resolved = await resolveWorkspaceTaskForAction(workspaceId, {
+    taskId,
+    taskRef: taskId,
+    preferTaskId,
+  })
+  return resolved
+}
 
 export function registerWorkspaceActions() {
   const editOk = (ctx: { role?: string | null }) => canEditContent(ctx.role as never)
@@ -58,11 +76,20 @@ export function registerWorkspaceActions() {
     risk: 'safe',
     parallelSafe: true,
     permission: editOk,
-    inputSchema: z.object({ type: z.literal('task.complete'), taskId: requiredUuid }),
-    promptFields: 'taskId',
+    inputSchema: z.object({ type: z.literal('task.complete'), taskId: taskIdOrRef }),
+    promptFields: 'taskId (UUID or short id like IMED-24)',
     execute: async (input, ctx) => {
-      await updateWorkspaceTask(ctx.workspaceId!, input.taskId, { status: 'done' })
-      return { ok: true, summary: `Completed task ${input.taskId}` }
+      const resolved = await resolveTaskOrFail(
+        ctx.workspaceId!,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+      await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, { status: 'done' })
+      const ws = await getWorkspace(ctx.workspaceId!)
+      const ref =
+        formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
+      return { ok: true, summary: `Completed ${ref}`, entities: [{ type: 'task', id: resolved.task.id }] }
     },
   })
 
@@ -153,9 +180,13 @@ export function registerWorkspaceActions() {
         })
       }
 
+      const ws = await getWorkspace(workspaceId)
+      const taskRef = formatWorkspaceTaskRef(ws.task_key, task.task_number)
       return {
         ok: true,
-        summary: `Created task “${input.title}” in ${project.name}`,
+        summary: taskRef
+          ? `Created ${taskRef} “${input.title}” in ${project.name}`
+          : `Created task “${input.title}” in ${project.name}`,
         entities: [
           { type: 'task', id: task.id },
           { type: 'project', id: project.id },
@@ -169,6 +200,97 @@ export function registerWorkspaceActions() {
           workspace_id: workspaceId,
           due_at: task.due_at ?? dueAt,
           status: task.status ?? input.status ?? 'todo',
+          task_number: task.task_number,
+          task_ref: taskRef,
+        },
+      }
+    },
+  })
+
+  registerAction({
+    type: 'comment.create',
+    os: 'workspace',
+    title: 'Add task comment',
+    description: 'Add a comment on a workspace task; supports @mentions by member name',
+    risk: 'safe',
+    permission: editOk,
+    inputSchema: z.object({
+      type: z.literal('comment.create'),
+      taskId: taskIdOrRef,
+      content: z.string().min(1),
+      mentionNames: z.array(z.string().min(1)).optional(),
+    }),
+    promptFields: 'taskId (UUID or KEY-N), content, mentionNames?',
+    execute: async (input, ctx) => {
+      const workspaceId = ctx.workspaceId!
+      const resolved = await resolveTaskOrFail(
+        workspaceId,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+
+      let content = input.content.trim()
+      const members = await listWorkspaceMembers(workspaceId)
+      for (const name of input.mentionNames ?? []) {
+        const needle = name.trim().toLowerCase()
+        if (!needle) continue
+        const member = members.find((row) => {
+          const label = (
+            row.display_name_override ||
+            row.profiles?.display_name ||
+            row.email ||
+            ''
+          ).toLowerCase()
+          return label === needle || label.includes(needle) || needle.includes(label)
+        })
+        if (!member) continue
+        const label =
+          member.display_name_override ||
+          member.profiles?.display_name ||
+          member.email ||
+          'member'
+        const token = `@{${member.user_id}}`
+        if (!content.includes(token)) {
+          // Prefer replacing @Name if present; otherwise append.
+          const atName = new RegExp(`@${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i')
+          if (atName.test(content)) content = content.replace(atName, token)
+          else content = `${content} ${token}`.trim()
+        }
+      }
+
+      // Also convert leftover @DisplayName mentions from content
+      const sorted = [...members].sort((a, b) => {
+        const la = a.display_name_override || a.profiles?.display_name || a.email || ''
+        const lb = b.display_name_override || b.profiles?.display_name || b.email || ''
+        return lb.length - la.length
+      })
+      for (const member of sorted) {
+        const label =
+          member.display_name_override ||
+          member.profiles?.display_name ||
+          member.email ||
+          ''
+        if (!label) continue
+        const re = new RegExp(`@${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|\\s|[.,!?;:])`, 'g')
+        content = content.replace(re, `@{${member.user_id}}`)
+      }
+
+      const comment = await createWorkspaceTaskComment(workspaceId, resolved.task.id, content)
+      const ws = await getWorkspace(workspaceId)
+      const ref =
+        formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
+      return {
+        ok: true,
+        summary: `Added your comment to ${ref}`,
+        entities: [
+          { type: 'task', id: resolved.task.id },
+          { type: 'comment', id: comment.id },
+        ],
+        data: {
+          comment_id: comment.id,
+          task_id: resolved.task.id,
+          task_ref: ref,
         },
       }
     },
@@ -184,15 +306,25 @@ export function registerWorkspaceActions() {
     permission: editOk,
     inputSchema: z.object({
       type: z.literal('task.move'),
-      taskId: requiredUuid,
+      taskId: taskIdOrRef,
       status: taskStatusEnum,
     }),
-    promptFields: 'taskId, status',
+    promptFields: 'taskId (UUID or KEY-N), status',
     execute: async (input, ctx) => {
-      await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
+      const resolved = await resolveTaskOrFail(
+        ctx.workspaceId!,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+      await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
         status: input.status as TaskStatus,
       })
-      return { ok: true, summary: `Moved task to ${input.status}` }
+      return {
+        ok: true,
+        summary: `Moved task to ${input.status}`,
+        entities: [{ type: 'task', id: resolved.task.id }],
+      }
     },
   })
 
@@ -206,26 +338,35 @@ export function registerWorkspaceActions() {
     permission: editOk,
     inputSchema: z.object({
       type: z.literal('task.update'),
-      taskId: requiredUuid,
+      taskId: taskIdOrRef,
       title: z.string().optional(),
       description: z.string().optional(),
       priority: priorityEnum.optional(),
       dueAt: z.string().nullable().optional(),
     }),
-    promptFields: 'taskId, title?, description?, priority?, dueAt?',
+    promptFields: 'taskId (UUID or KEY-N), title?, description?, priority?, dueAt?',
     execute: async (input, ctx) => {
+      const resolved = await resolveTaskOrFail(
+        ctx.workspaceId!,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId ?? ctx.conversationFocus?.lastCreatedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
       const dueAt = input.dueAt
-      const updated = await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
+      const updated = await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         due_date: dueAt === undefined ? undefined : dueAt ? dueAt.slice(0, 10) : null,
         due_at: dueAt,
       })
+      const ws = await getWorkspace(ctx.workspaceId!)
+      const ref =
+        formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
       return {
         ok: true,
-        summary: `Updated task ${input.title?.trim() || input.taskId}`,
-        entities: [{ type: 'task', id: input.taskId }],
+        summary: `Updated ${ref}${input.title?.trim() ? ` — “${input.title.trim()}”` : ''}`,
+        entities: [{ type: 'task', id: resolved.task.id }],
         data: updated,
       }
     },
@@ -240,15 +381,25 @@ export function registerWorkspaceActions() {
     permission: editOk,
     inputSchema: z.object({
       type: z.literal('task.assign'),
-      taskId: requiredUuid,
+      taskId: taskIdOrRef,
       assigneeId: requiredUuid,
     }),
-    promptFields: 'taskId, assigneeId',
+    promptFields: 'taskId (UUID or KEY-N), assigneeId',
     execute: async (input, ctx) => {
-      await updateWorkspaceTask(ctx.workspaceId!, input.taskId, {
+      const resolved = await resolveTaskOrFail(
+        ctx.workspaceId!,
+        input.taskId,
+        ctx.conversationFocus?.lastModifiedTaskId,
+      )
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+      await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
         assignee_id: input.assigneeId,
       })
-      return { ok: true, summary: `Assigned task to ${input.assigneeId}` }
+      return {
+        ok: true,
+        summary: `Assigned task to ${input.assigneeId}`,
+        entities: [{ type: 'task', id: resolved.task.id }],
+      }
     },
   })
 
@@ -259,10 +410,12 @@ export function registerWorkspaceActions() {
     description: 'Delete a workspace task',
     risk: 'destructive',
     permission: editOk,
-    inputSchema: z.object({ type: z.literal('task.delete'), taskId: requiredUuid }),
-    promptFields: 'taskId',
+    inputSchema: z.object({ type: z.literal('task.delete'), taskId: taskIdOrRef }),
+    promptFields: 'taskId (UUID or KEY-N)',
     execute: async (input, ctx) => {
-      await deleteWorkspaceTask(ctx.workspaceId!, input.taskId)
+      const resolved = await resolveTaskOrFail(ctx.workspaceId!, input.taskId)
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
+      await deleteWorkspaceTask(ctx.workspaceId!, resolved.task.id)
       return { ok: true, summary: `Deleted task ${input.taskId}` }
     },
   })
@@ -276,16 +429,17 @@ export function registerWorkspaceActions() {
     permission: editOk,
     inputSchema: z.object({
       type: z.literal('assignee.recommend'),
-      taskId: requiredUuid,
+      taskId: taskIdOrRef,
     }),
-    promptFields: 'taskId',
+    promptFields: 'taskId (UUID or KEY-N)',
     execute: async (input, ctx) => {
+      const resolved = await resolveTaskOrFail(ctx.workspaceId!, input.taskId)
+      if (!resolved.ok) return { ok: false, summary: resolved.reason }
       const [tasks, members] = await Promise.all([
         listWorkspaceTasks(ctx.workspaceId!),
         listWorkspaceMembers(ctx.workspaceId!),
       ])
-      const task = tasks.find((t) => t.id === input.taskId)
-      if (!task) throw new Error('Task not found')
+      const task = resolved.task
       const insight = analyzeAssignmentCandidates({
         members,
         tasks,
@@ -298,7 +452,7 @@ export function registerWorkspaceActions() {
           ? `Load balancer recommends ${insight.best.userId} (score ${insight.best.score}): ${insight.best.reasons.join('; ')}`
           : 'Load balancer found no suitable assignee',
         entityType: 'task',
-        entityId: input.taskId,
+        entityId: resolved.task.id,
         projectId: task.project_id,
         payload: insight as never,
       })

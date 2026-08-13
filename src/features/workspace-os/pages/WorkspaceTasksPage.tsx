@@ -20,6 +20,7 @@ import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssign
 import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
 import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, type Priority } from '@/types/domain'
 import { Button } from '@/components/ui/button'
@@ -45,7 +46,7 @@ const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
 
 export function WorkspaceTasksPage() {
   const { t, i18n } = useTranslation()
-  const { workspaceId, canEdit } = useWorkspace()
+  const { workspaceId, workspace, canEdit } = useWorkspace()
   const { filterTasks } = useOrgVisibility()
   const [params, setSearchParams] = useSearchParams()
   const projectFilter = params.get('project')
@@ -186,9 +187,18 @@ export function WorkspaceTasksPage() {
                   className="flex min-w-0 flex-1 items-center justify-between gap-4"
                 >
                   <div className="min-w-0">
-                    <p className={cn('truncate font-medium', done && 'text-muted line-through')}>
-                      {task.title}
-                    </p>
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <WorkspaceTaskRefBadge
+                        workspaceId={workspaceId}
+                        taskKey={workspace.task_key}
+                        taskNumber={task.task_number}
+                        taskId={task.id}
+                        link={false}
+                      />
+                      <p className={cn('truncate font-medium', done && 'text-muted line-through')}>
+                        {task.title}
+                      </p>
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
                       {task.workspace_projects ? (
                         <span className="inline-flex items-center gap-1.5">

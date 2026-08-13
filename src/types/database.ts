@@ -752,6 +752,7 @@ export type Database = {
           id: string
           name: string
           slug: string
+          task_key: string
           description: string | null
           logo_url: string | null
           color: string
@@ -764,6 +765,7 @@ export type Database = {
           id?: string
           name: string
           slug: string
+          task_key: string
           description?: string | null
           logo_url?: string | null
           color?: string
@@ -775,6 +777,7 @@ export type Database = {
         {
           name?: string
           slug?: string
+          task_key?: string
           description?: string | null
           logo_url?: string | null
           color?: string
@@ -866,6 +869,7 @@ export type Database = {
           completed_at: string | null
           reminder_type: string | null
           reminder_at: string | null
+          task_number: number
           created_at: string
           updated_at: string
         },
@@ -888,6 +892,7 @@ export type Database = {
           completed_at?: string | null
           reminder_type?: string | null
           reminder_at?: string | null
+          task_number?: number
           created_at?: string
           updated_at?: string
         },
@@ -907,7 +912,64 @@ export type Database = {
           completed_at?: string | null
           reminder_type?: string | null
           reminder_at?: string | null
+          task_number?: number
           updated_at?: string
+        }
+      >
+      workspace_task_counters: Table<
+        {
+          workspace_id: string
+          last_number: number
+        },
+        {
+          workspace_id: string
+          last_number?: number
+        },
+        {
+          last_number?: number
+        }
+      >
+      workspace_task_comments: Table<
+        {
+          id: string
+          workspace_id: string
+          task_id: string
+          author_user_id: string
+          content: string
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          task_id: string
+          author_user_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        },
+        {
+          content?: string
+          updated_at?: string
+        }
+      >
+      workspace_comment_mentions: Table<
+        {
+          id: string
+          workspace_id: string
+          comment_id: string
+          mentioned_user_id: string
+          created_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          comment_id: string
+          mentioned_user_id: string
+          created_at?: string
+        },
+        {
+          mentioned_user_id?: string
         }
       >
       workspace_activity_events: Table<

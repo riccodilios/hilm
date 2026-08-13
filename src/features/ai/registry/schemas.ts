@@ -20,6 +20,18 @@ export const requiredUuid = z.preprocess((value) => {
   return value.trim()
 }, uuidLoose)
 
+/** Workspace task UUID or short ref (e.g. IMED-24). */
+export const taskIdOrRef = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(
+    (value) =>
+      uuidLoose.safeParse(value).success ||
+      /^[A-Za-z][A-Za-z0-9]{1,11}-\d+$/.test(value),
+    { message: 'Invalid task id' },
+  )
+
 export const priorityEnum = z.enum(['none', 'low', 'medium', 'high', 'urgent'])
 export const taskStatusEnum = z.enum([
   'backlog',

@@ -7,6 +7,7 @@ export type ConversationEntityFocus = {
   lastReferencedProjectName?: string | null
   lastReferencedWorkspaceId?: string | null
   lastTaskTitle?: string | null
+  lastTaskRef?: string | null
   updatedAt?: string
 }
 
@@ -61,6 +62,7 @@ export function formatFocusForPrompt(focus: ConversationEntityFocus) {
   if (focus.lastCreatedTaskId) lines.push(`lastCreatedTaskId=${focus.lastCreatedTaskId}`)
   if (focus.lastModifiedTaskId) lines.push(`lastModifiedTaskId=${focus.lastModifiedTaskId}`)
   if (focus.lastTaskTitle) lines.push(`lastTaskTitle=${JSON.stringify(focus.lastTaskTitle)}`)
+  if (focus.lastTaskRef) lines.push(`lastTaskRef=${focus.lastTaskRef}`)
   if (focus.lastReferencedProjectId) lines.push(`lastReferencedProjectId=${focus.lastReferencedProjectId}`)
   if (focus.lastReferencedProjectName) {
     lines.push(`lastReferencedProjectName=${JSON.stringify(focus.lastReferencedProjectName)}`)

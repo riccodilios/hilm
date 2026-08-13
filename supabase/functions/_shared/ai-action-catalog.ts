@@ -23,7 +23,9 @@ CRITICAL entity rules:
 - Workspace projects and Personal OS projects are completely separate. NEVER use Personal OS project IDs in workspace task.create.
 - For task.create under a named project (e.g. "for Wasl"), pass projectName with the exact name. Prefer projectId ONLY from Conversation focus (lastReferencedProjectId) or project.search / context-pack workspace project IDs.
 - If lastReferencedProjectId is set and the user says "another task for it" / "same project", reuse that projectId.
-- If the project is unknown, call project.search first or omit projectId and set projectName — never invent a UUID.`
+- If the project is unknown, call project.search first or omit projectId and set projectName — never invent a UUID.
+- Workspace tasks have short IDs like IMED-24. When the user says "Update IMED-24", pass taskId: "IMED-24" (not a title). Never treat KEY-N as a task title.
+- Use comment.create to add comments; pass mentionNames for @mentions.`
 
 
 export const personalActionCatalog =
@@ -58,12 +60,13 @@ export const personalActionCatalog =
 
 export const workspaceActionCatalog =
   `Full Workspace OS action catalog (use exact type strings; multi-step arrays OK):
-- task.complete {taskId}
+- task.complete {taskId}  // taskId may be UUID or short id KEY-N
 - task.create {title, description?, projectId?, projectName?, priority?, status?, dueAt?, assigneeId?, departmentId?, teamId?}  // projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
 - task.move {taskId, status}
 - task.update {taskId, title?, description?, priority?, dueAt?}
 - task.assign {taskId, assigneeId}
 - task.delete {taskId}
+- comment.create {taskId, content, mentionNames?}  // add comment; mentionNames resolves @members
 - assignee.recommend {taskId}  // load balancer; does not assign until task.assign
 - project.search {query?}  // returns real workspace project id+name; use before task.create when unsure
 - project.create {name, description?, color?, icon?}

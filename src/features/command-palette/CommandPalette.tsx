@@ -19,10 +19,15 @@ import { listProjects, projectsKeys } from '@/features/projects/api'
 import { listTasks, tasksKeys } from '@/features/tasks/api'
 import { listNotes, notesKeys } from '@/features/notes/api'
 import {
+  getWorkspace,
   listWorkspaceProjects,
   listWorkspaceTasks,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import {
+  formatWorkspaceTaskRef,
+  matchesWorkspaceTaskRef,
+} from '@/features/workspace-os/lib/task-refs'
 import { cn } from '@/lib/utils'
 
 export function CommandPalette() {
@@ -59,10 +64,16 @@ export function CommandPalette() {
     queryFn: () => listWorkspaceTasks(workspaceId!),
     enabled: open && isWorkspace,
   })
+  const workspaceDetail = useQuery({
+    queryKey: workspaceKeys.detail(workspaceId ?? ''),
+    queryFn: () => getWorkspace(workspaceId!),
+    enabled: open && isWorkspace,
+  })
 
   const projects = isWorkspace ? (workspaceProjects.data ?? []) : (personalProjects.data ?? [])
   const tasks = isWorkspace ? (workspaceTasks.data ?? []) : (personalTasks.data ?? [])
   const noteItems = notes.data ?? []
+  const taskKey = workspaceDetail.data?.task_key
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -91,10 +102,22 @@ export function CommandPalette() {
     }
     return {
       projects: projects.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8),
-      tasks: tasks.filter((item) => item.title.toLowerCase().includes(q)).slice(0, 8),
+      tasks: tasks
+        .filter((item) => {
+          if (item.title.toLowerCase().includes(q)) return true
+          if (
+            isWorkspace &&
+            'task_number' in item &&
+            matchesWorkspaceTaskRef(query, taskKey, item.task_number)
+          ) {
+            return true
+          }
+          return false
+        })
+        .slice(0, 8),
       notes: noteItems.filter((n) => n.title.toLowerCase().includes(q)).slice(0, 8),
     }
-  }, [query, projects, tasks, noteItems])
+  }, [query, projects, tasks, noteItems, isWorkspace, taskKey])
 
   function go(path: string) {
     setOpen(false)
@@ -189,16 +212,22 @@ export function CommandPalette() {
 
             {filtered.tasks.length ? (
               <Command.Group heading={t('command.tasks')} className="px-1 py-2 text-xs text-muted">
-                {filtered.tasks.map((task) => (
+                {filtered.tasks.map((task) => {
+                  const ref =
+                    isWorkspace && taskKey && 'task_number' in task
+                      ? formatWorkspaceTaskRef(taskKey, task.task_number)
+                      : null
+                  return (
                   <Item
                     key={task.id}
                     onSelect={() =>
                       go(isWorkspace ? `${ws}/tasks/${task.id}` : `/personal/tasks/${task.id}`)
                     }
                     icon={CheckSquare}
-                    label={task.title}
+                    label={ref ? `${ref} — ${task.title}` : task.title}
                   />
-                ))}
+                  )
+                })}
               </Command.Group>
             ) : null}
 

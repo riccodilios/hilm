@@ -7,7 +7,6 @@ import {
   deleteWorkspaceTask,
   getWorkspaceTask,
   listAssignmentEvents,
-  listWorkspaceMembers,
   updateWorkspaceTask,
   workspaceKeys,
 } from '@/features/workspace-os/api'
@@ -22,7 +21,10 @@ import {
   type TaskAssignmentValue,
 } from '@/features/workspace-os/components/TaskAssignmentFields'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
+import { WorkspaceTaskComments } from '@/features/workspace-os/components/WorkspaceTaskComments'
+import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
 import { Button } from '@/components/ui/button'
@@ -32,7 +34,7 @@ import { PageHeader, Skeleton } from '@/components/ui/page'
 export function WorkspaceTaskDetailPage() {
   const { t } = useTranslation()
   const { taskId = '' } = useParams()
-  const { workspaceId, canEdit } = useWorkspace()
+  const { workspaceId, workspace, canEdit } = useWorkspace()
   const qc = useQueryClient()
   const [description, setDescription] = useState('')
   const [assignment, setAssignment] = useState<TaskAssignmentValue>({
@@ -44,19 +46,16 @@ export function WorkspaceTaskDetailPage() {
     queryKey: workspaceKeys.task(workspaceId, taskId),
     queryFn: () => getWorkspaceTask(workspaceId, taskId),
   })
+  const resolvedTaskId = task.data?.id ?? taskId
   const attachments = useQuery({
-    queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
-    queryFn: () => listWorkspaceTaskAttachments(workspaceId, taskId),
-    enabled: Boolean(taskId),
-  })
-  const members = useQuery({
-    queryKey: workspaceKeys.members(workspaceId),
-    queryFn: () => listWorkspaceMembers(workspaceId),
+    queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
+    queryFn: () => listWorkspaceTaskAttachments(workspaceId, resolvedTaskId),
+    enabled: Boolean(task.data?.id),
   })
   const assignmentHistory = useQuery({
-    queryKey: [...workspaceKeys.task(workspaceId, taskId), 'assignment-events'],
-    queryFn: () => listAssignmentEvents(workspaceId, taskId),
-    enabled: Boolean(taskId),
+    queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'assignment-events'],
+    queryFn: () => listAssignmentEvents(workspaceId, resolvedTaskId),
+    enabled: Boolean(task.data?.id),
   })
 
   useEffect(() => {
@@ -68,16 +67,22 @@ export function WorkspaceTaskDetailPage() {
         assigneeId: task.data.assignee_id ?? null,
       })
     }
-  }, [task.data?.id, task.data?.description, task.data?.department_id, task.data?.team_id, task.data?.assignee_id])
+  }, [
+    task.data?.id,
+    task.data?.description,
+    task.data?.department_id,
+    task.data?.team_id,
+    task.data?.assignee_id,
+  ])
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
-      updateWorkspaceTask(workspaceId, taskId, patch),
+      updateWorkspaceTask(workspaceId, resolvedTaskId, patch),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
       await qc.invalidateQueries({
-        queryKey: [...workspaceKeys.task(workspaceId, taskId), 'assignment-events'],
+        queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'assignment-events'],
       })
       toast.success(t('workspace.taskUpdated'))
     },
@@ -85,7 +90,7 @@ export function WorkspaceTaskDetailPage() {
   })
 
   const remove = useMutation({
-    mutationFn: () => deleteWorkspaceTask(workspaceId, taskId),
+    mutationFn: () => deleteWorkspaceTask(workspaceId, resolvedTaskId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
       toast.success(t('workspace.taskDeleted'))
@@ -97,15 +102,7 @@ export function WorkspaceTaskDetailPage() {
   if (task.isLoading) return <Skeleton className="h-40" />
   if (!task.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
 
-  const mentionOptions =
-    members.data?.map((m) => ({
-      id: m.user_id,
-      label:
-        m.display_name_override ||
-        m.profiles?.display_name ||
-        m.email ||
-        m.user_id.slice(0, 8),
-    })) ?? []
+  const shortRef = formatWorkspaceTaskRef(workspace.task_key, task.data.task_number)
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -113,6 +110,16 @@ export function WorkspaceTaskDetailPage() {
         title={task.data.title}
         description={`${task.data.workspace_projects?.name ?? '—'} · ${task.data.status}`}
       />
+      {shortRef ? (
+        <WorkspaceTaskRefBadge
+          workspaceId={workspaceId}
+          taskKey={workspace.task_key}
+          taskNumber={task.data.task_number}
+          taskId={task.data.id}
+          link={false}
+          className="text-xs"
+        />
+      ) : null}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted">{t('workspace.assignedTo')}</span>
         <TaskAssigneeLabel assignee={task.data.assignee} assignment={task.data.assignment} />
@@ -122,7 +129,6 @@ export function WorkspaceTaskDetailPage() {
         <RichTextEditor
           value={description}
           editable={canEdit}
-          mentions={mentionOptions}
           onChange={setDescription}
           onBlur={(html) => {
             if (!canEdit) return
@@ -176,16 +182,16 @@ export function WorkspaceTaskDetailPage() {
         items={attachments.data ?? []}
         onUpload={async (files) => {
           for (const file of Array.from(files)) {
-            await uploadWorkspaceTaskAttachment(workspaceId, taskId, file)
+            await uploadWorkspaceTaskAttachment(workspaceId, resolvedTaskId, file)
           }
           await qc.invalidateQueries({
-            queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
+            queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
           })
         }}
         onRemove={async (id) => {
           await removeWorkspaceTaskAttachment(id)
           await qc.invalidateQueries({
-            queryKey: [...workspaceKeys.task(workspaceId, taskId), 'attachments'],
+            queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
           })
         }}
         onDownload={(item) =>
@@ -193,6 +199,11 @@ export function WorkspaceTaskDetailPage() {
             item as Awaited<ReturnType<typeof listWorkspaceTaskAttachments>>[number],
           )
         }
+      />
+      <WorkspaceTaskComments
+        workspaceId={workspaceId}
+        taskId={task.data.id}
+        canEdit={canEdit}
       />
       {canEdit ? (
         <div className="flex flex-wrap gap-2">

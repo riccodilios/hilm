@@ -4,6 +4,11 @@ import { combineDueAt, computeRemindAt, type ReminderType } from '@/features/tas
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import type { Tables, Updates } from '@/types/database'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
+import {
+  formatWorkspaceTaskRef,
+  looksLikeWorkspaceTaskRef,
+  parseWorkspaceTaskRef,
+} from '@/features/workspace-os/lib/task-refs'
 
 export const workspaceKeys = {
   all: ['workspace-os'] as const,
@@ -443,11 +448,21 @@ export async function listWorkspaceTasks(workspaceId: string) {
   })
 }
 
-export async function getWorkspaceTask(workspaceId: string, taskId: string) {
+export async function getWorkspaceTask(workspaceId: string, taskIdOrRef: string) {
   const tasks = await listWorkspaceTasks(workspaceId)
-  const task = tasks.find((t) => t.id === taskId)
-  if (!task) throw new Error('Task not found')
-  return task
+  const byId = tasks.find((t) => t.id === taskIdOrRef)
+  if (byId) return byId
+
+  if (looksLikeWorkspaceTaskRef(taskIdOrRef)) {
+    const parsed = parseWorkspaceTaskRef(taskIdOrRef)!
+    const workspace = await getWorkspace(workspaceId)
+    if (parsed.key === workspace.task_key.toUpperCase()) {
+      const byNumber = tasks.find((t) => t.task_number === parsed.number)
+      if (byNumber) return byNumber
+    }
+  }
+
+  throw new Error('Task not found')
 }
 
 export async function createWorkspaceTask(
@@ -502,6 +517,9 @@ export async function createWorkspaceTask(
   if (error) throw error
   if (!data?.id) throw new Error('Could not create workspace task')
   const created = await getWorkspaceTask(workspaceId, data.id)
+  const workspace = await getWorkspace(workspaceId)
+  const shortRef =
+    formatWorkspaceTaskRef(workspace.task_key, created.task_number) ?? created.title
 
   if (assignment.assigneeId && assignment.assigneeId !== userId) {
     await supabase.from('notifications').insert({
@@ -509,7 +527,7 @@ export async function createWorkspaceTask(
       channel: 'in_app',
       type: 'workspace.task.assigned',
       title: 'Task assigned',
-      body: `You were assigned "${input.title}"`,
+      body: `You were assigned ${shortRef} — "${input.title}"`,
       entity_type: 'workspace_task',
       entity_id: created.id,
       href: `/workspace/${workspaceId}/tasks/${created.id}`,
@@ -522,7 +540,7 @@ export async function createWorkspaceTask(
       channel: 'in_app',
       type: 'workspace.task.lead',
       title: 'New task for your team',
-      body: `"${input.title}" was assigned to your team — open the assignment queue to distribute.`,
+      body: `${shortRef} “${input.title}” was assigned to your team — open the assignment queue to distribute.`,
       entity_type: 'workspace_task',
       entity_id: created.id,
       href: `/workspace/${workspaceId}/team-lead`,

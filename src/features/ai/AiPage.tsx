@@ -534,6 +534,13 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                 typeof (result.data as { project_name?: unknown }).project_name === 'string'
                   ? (result.data as { project_name: string }).project_name
                   : undefined,
+              lastTaskRef:
+                result.data &&
+                typeof result.data === 'object' &&
+                'task_ref' in result.data &&
+                typeof (result.data as { task_ref?: unknown }).task_ref === 'string'
+                  ? (result.data as { task_ref: string }).task_ref
+                  : undefined,
             })
           }
           setActionRun((prev) =>

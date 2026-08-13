@@ -20,6 +20,7 @@ import {
   memberInitials,
   resolveMemberDisplayName,
 } from '@/features/workspace-os/lib/member-display'
+import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge, HealthBadge, PriorityBadge } from '@/components/ui/badge'
@@ -30,10 +31,12 @@ import { cn, formatRelative } from '@/lib/utils'
 function DueTaskRow({
   task,
   workspaceId,
+  taskKey,
   locale,
 }: {
   task: WorkspaceTask
   workspaceId: string
+  taskKey: string
   locale: string
 }) {
   return (
@@ -51,7 +54,16 @@ function DueTaskRow({
             {task.workspace_projects.name}
           </span>
         ) : null}
-        <p className="truncate text-sm font-medium">{task.title}</p>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <WorkspaceTaskRefBadge
+            workspaceId={workspaceId}
+            taskKey={taskKey}
+            taskNumber={task.task_number}
+            taskId={task.id}
+            link={false}
+          />
+          <p className="truncate text-sm font-medium">{task.title}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <TaskAssigneeLabel assignee={task.assignee} assignment={task.assignment} compact />
           <p className="truncate text-xs text-muted">
@@ -284,13 +296,20 @@ export function WorkspaceHomePage() {
                       key={task.id}
                       task={task}
                       workspaceId={workspaceId}
+                      taskKey={workspace.task_key}
                       locale={locale}
                     />
                   ))}
                 </div>
               ) : null}
               {todayTasks.map((task) => (
-                <DueTaskRow key={task.id} task={task} workspaceId={workspaceId} locale={locale} />
+                <DueTaskRow
+                  key={task.id}
+                  task={task}
+                  workspaceId={workspaceId}
+                  taskKey={workspace.task_key}
+                  locale={locale}
+                />
               ))}
               {todayTasks.length === 0 && overdueTasks.length === 0 ? (
                 <p className="px-2 text-sm text-muted">{t('workspace.nothingDueToday')}</p>
@@ -306,7 +325,13 @@ export function WorkspaceHomePage() {
             </CardHeader>
             <CardContent className="min-w-0 space-y-1">
               {upcoming.map((task) => (
-                <DueTaskRow key={task.id} task={task} workspaceId={workspaceId} locale={locale} />
+                <DueTaskRow
+                  key={task.id}
+                  task={task}
+                  workspaceId={workspaceId}
+                  taskKey={workspace.task_key}
+                  locale={locale}
+                />
               ))}
               {upcoming.length === 0 ? (
                 <p className="px-2 text-sm text-muted">{t('workspace.noUpcoming')}</p>
