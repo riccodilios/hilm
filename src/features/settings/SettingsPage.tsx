@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, LogOut, Save } from 'lucide-react'
+import { Download, LogOut, Save, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings } from '@/features/settings/api'
+import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings, deleteAccount } from '@/features/settings/api'
 import { aiKeys, getAiUsageSummary } from '@/features/ai/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { PageHeader, Skeleton } from '@/components/ui/page'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useTheme } from '@/hooks/useTheme'
@@ -65,6 +72,8 @@ export function SettingsPage({
   const [pushBusy, setPushBusy] = useState(false)
   const [testBusy, setTestBusy] = useState(false)
   const [deviceStatus, setDeviceStatus] = useState<string>('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
 
   async function refreshDeviceStatus() {
     try {
@@ -241,6 +250,29 @@ export function SettingsPage({
       navigate('/login', { replace: true })
     },
     onError: (error: Error) => toast.error(error.message),
+  })
+
+  const removeAccount = useMutation({
+    mutationFn: () => deleteAccount(deleteConfirm),
+    onSuccess: async () => {
+      setDeleteOpen(false)
+      setDeleteConfirm('')
+      queryClient.clear()
+      toast.success(t('settings.deleteAccountSuccess'))
+      try {
+        await signOut()
+      } catch {
+        // Session may already be invalid after auth.users delete.
+      }
+      navigate('/login', { replace: true })
+    },
+    onError: (error: Error & { code?: string }) => {
+      if (error.code === 'owned_shared_workspaces') {
+        toast.error(t('settings.deleteAccountOwnedWorkspaces'))
+        return
+      }
+      toast.error(error.message || t('settings.deleteAccountFailed'))
+    },
   })
 
   const changePassword = useMutation({
@@ -606,7 +638,7 @@ export function SettingsPage({
             <CardTitle>{t('settings.account')}</CardTitle>
             <CardDescription>{t('settings.accountDesc')}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Button
               type="button"
               variant="secondary"
@@ -615,6 +647,21 @@ export function SettingsPage({
             >
               <LogOut className="size-4" /> {t('settings.signOut')}
             </Button>
+            <div className="rounded-xl border border-danger/30 bg-danger/5 p-4">
+              <p className="text-sm font-medium text-danger">{t('settings.deleteAccount')}</p>
+              <p className="mt-1 text-xs text-muted">{t('settings.deleteAccountDesc')}</p>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mt-3"
+                onClick={() => {
+                  setDeleteConfirm('')
+                  setDeleteOpen(true)
+                }}
+              >
+                <Trash2 className="size-4" /> {t('settings.deleteAccount')}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -622,6 +669,51 @@ export function SettingsPage({
           <Save className="size-4" /> {t('common.save')}
         </Button>
       </form>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) setDeleteConfirm('')
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('settings.deleteAccountConfirmTitle')}</DialogTitle>
+            <DialogDescription>{t('settings.deleteAccountConfirm')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-account-confirm">{t('settings.deleteAccountType')}</Label>
+            <Input
+              id="delete-account-confirm"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={t('settings.deleteAccountPlaceholder')}
+              autoComplete="off"
+            />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={removeAccount.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                removeAccount.isPending || deleteConfirm.trim().toUpperCase() !== 'DELETE'
+              }
+              onClick={() => removeAccount.mutate()}
+            >
+              <Trash2 className="size-4" /> {t('settings.deleteAccountSubmit')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
