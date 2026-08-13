@@ -80,8 +80,9 @@ export function MissionTimeline({
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !isToday) return
-    const top = Math.max(0, nowHour * HOUR_HEIGHT - el.clientHeight / 3)
-    el.scrollTo({ top, behavior: 'smooth' })
+    const offset = Math.max(0, nowHour * HOUR_HEIGHT - window.innerHeight / 3)
+    const top = el.getBoundingClientRect().top + window.scrollY + offset
+    window.scrollTo({ top, behavior: 'smooth' })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- focus once when day becomes today
   }, [dayKey, isToday])
 
@@ -104,7 +105,7 @@ export function MissionTimeline({
       return hit ? hourFromTimelineY(hit.y) : 9
     }
     const rect = root.getBoundingClientRect()
-    const y = clientY - rect.top + root.scrollTop - 8
+    const y = clientY - rect.top - 8
     return hourFromTimelineY(y)
   }
 
@@ -182,8 +183,8 @@ export function MissionTimeline({
         ref={scrollRef}
         data-mission-timeline
         className={cn(
-          'relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-border-subtle bg-surface/40',
-          drag.isDragging ? 'touch-none select-none' : 'touch-pan-y',
+          'relative min-h-0 overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40',
+          drag.isDragging ? 'touch-none select-none' : undefined,
         )}
         onClick={(event) => {
           if (!onEmptySlotClick || drag.isDragging || drag.suppressClick()) return

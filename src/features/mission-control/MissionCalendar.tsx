@@ -74,7 +74,7 @@ export function MissionCalendar({
 
       <div
         className={cn(
-          'mt-2 min-h-0 flex-1 gap-1 overflow-y-auto overscroll-contain',
+          'mt-2 min-h-0 flex-1 gap-1',
           view === 'month' && 'grid grid-cols-7 auto-rows-[minmax(4.5rem,1fr)]',
           view === 'week' && 'grid grid-cols-7',
           view === 'day' && 'grid grid-cols-1',

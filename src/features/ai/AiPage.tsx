@@ -32,6 +32,7 @@ import {
   expandCreateManyForDisplay,
 } from '@/features/ai/lib/batch-engine'
 import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
+import { getRegisteredAction } from '@/features/ai/registry'
 import type { ParsedRegistryAction } from '@/features/ai/registry/types'
 import { labelKeys } from '@/features/projects/labels-api'
 import { workspaceLabelKeys } from '@/features/workspace-os/labels-api'
@@ -238,27 +239,20 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   }
 
   const scrollToBottom = useCallback((smooth = true) => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    bottomRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'end',
+    })
     setShowJump(false)
     setStickToBottom(true)
   }, [])
 
-  function handleScroll() {
-    const el = scrollRef.current
-    if (!el) return
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-    const nearBottom = distance < 80
-    setStickToBottom(nearBottom)
-    if (nearBottom) setShowJump(false)
-  }
-
   function handleScrollTouchStart() {
-    // First upward read of older messages — stop auto-follow immediately.
-    const el = scrollRef.current
-    if (!el) return
-    if (el.scrollHeight - el.scrollTop - el.clientHeight > 40) {
+    // User started interacting away from the live bottom — pause auto-follow.
+    const bottom = bottomRef.current
+    if (!bottom) return
+    const rect = bottom.getBoundingClientRect()
+    if (rect.top > window.innerHeight + 40) {
       setStickToBottom(false)
     }
   }
@@ -749,6 +743,21 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const chatTitle = selectedConversation?.title || t('ai.newChat')
   const isEmpty = !displayedMessages.length
 
+  useEffect(() => {
+    const bottom = bottomRef.current
+    if (!bottom) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const nearBottom = Boolean(entry?.isIntersecting)
+        setStickToBottom(nearBottom)
+        if (nearBottom) setShowJump(false)
+      },
+      { root: null, rootMargin: '0px 0px 140px 0px', threshold: 0 },
+    )
+    observer.observe(bottom)
+    return () => observer.disconnect()
+  }, [selectedId, displayedMessages.length])
+
   return (
     <div className="pb-[env(safe-area-inset-bottom)]">
       <PageHeader
@@ -855,7 +864,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         </DialogContent>
       </Dialog>
 
-      <Card className="relative flex min-h-[calc(100dvh-15rem)] flex-col overflow-hidden">
+      <Card className="relative flex min-h-[calc(100dvh-15rem)] flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
@@ -896,9 +905,8 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <div
             ref={scrollRef}
-            onScroll={handleScroll}
             onTouchStart={handleScrollTouchStart}
-            className="relative min-h-0 flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-y-contain p-4 sm:space-y-5 sm:p-6"
+            className="relative space-y-4 p-4 sm:space-y-5 sm:p-6"
           >
             {isEmpty ? (
               <AiSuggestedPrompts
@@ -979,7 +987,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           </div>
 
           {showJump ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-28 z-10 flex justify-center sm:bottom-32">
+            <div className="pointer-events-none fixed inset-x-0 bottom-28 z-20 flex justify-center sm:bottom-32">
               <Button
                 type="button"
                 size="sm"
@@ -1006,7 +1014,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   {t('ai.apply')}
                 </Button>
               </div>
-              <div className="flex max-h-40 flex-wrap gap-2 overflow-auto">
+              <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto overscroll-y-auto">
                 {flattenProposedActionLabels(proposedActions, osMode).map((row) => (
                   <span
                     key={row.key}

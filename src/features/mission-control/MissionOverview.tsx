@@ -170,7 +170,7 @@ export function MissionOverview({
   })
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-y-auto overflow-x-hidden pe-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden pe-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="min-w-0 shrink-0">
         <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('mission.overview')}</p>
         <h2 className="mt-1 text-lg font-medium">{t('mission.missionBrief')}</h2>
