@@ -144,17 +144,27 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
   const filterTasks = useCallback(
     (tasks: WorkspaceTask[]) => {
       const selected = new Set(selectedDepartmentIds)
-      if (canSeeAll && selected.size === visibleDepartmentIds.length) return tasks
+      const allVisibleSelected =
+        selected.size > 0 &&
+        selected.size === visibleDepartmentIds.length &&
+        visibleDepartmentIds.every((id) => selected.has(id))
+
+      // Admin + every visible department selected → no further narrowing.
+      if (canSeeAll && allVisibleSelected) return tasks
+
       return tasks.filter((task) =>
         taskPassesDepartmentFilter(task, {
           selectedDepartmentIds: selected,
           userId: user?.id ?? null,
           leadTeamIds,
-          includeUnscoped: canSeeAll || selected.size === visibleDepartmentIds.length,
+          // Empty selection: admins still see unscoped tasks (prior behavior).
+          // All-visible selected (member): include unscoped within their tree.
+          // Partial selection: only tasks in the active department chips.
+          includeUnscoped: selected.size === 0 ? canSeeAll : allVisibleSelected,
         }),
       )
     },
-    [selectedDepartmentIds, canSeeAll, visibleDepartmentIds.length, user?.id, leadTeamIds],
+    [selectedDepartmentIds, canSeeAll, visibleDepartmentIds, user?.id, leadTeamIds],
   )
 
   const value = useMemo(

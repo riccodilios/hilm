@@ -47,7 +47,7 @@ const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
 export function WorkspaceTasksPage() {
   const { t, i18n } = useTranslation()
   const { workspaceId, workspace, canEdit } = useWorkspace()
-  const { filterTasks } = useOrgVisibility()
+  const { filterTasks, selectedDepartmentIds } = useOrgVisibility()
   const [params, setSearchParams] = useSearchParams()
   const projectFilter = params.get('project')
   const qc = useQueryClient()
@@ -80,7 +80,7 @@ export function WorkspaceTasksPage() {
       filterTasks(tasks.data ?? []).filter((task) =>
         projectFilter ? task.project_id === projectFilter : true,
       ),
-    [tasks.data, projectFilter, filterTasks],
+    [tasks.data, projectFilter, filterTasks, selectedDepartmentIds],
   )
 
   function resetForm() {

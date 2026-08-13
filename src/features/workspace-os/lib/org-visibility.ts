@@ -72,16 +72,21 @@ export function taskPassesDepartmentFilter(
       ? input.selectedDepartmentIds
       : new Set(input.selectedDepartmentIds)
 
-  // Always keep personal relevance
-  if (input.userId && task.assignee_id === input.userId) return true
-  if (input.userId && task.created_by === input.userId) return true
-  if (task.team_id && input.leadTeamIds?.has(task.team_id)) return true
+  // Prefer explicit department_id; fall back to resolved team department from list enrichment.
+  const departmentId = task.department_id ?? task.assignment?.department?.id ?? null
 
-  if (!task.department_id) {
+  // Empty selection → no department-scoped tasks (and no personal-relevance bypass).
+  if (selected.size === 0) {
+    return !departmentId && input.includeUnscoped !== false
+  }
+
+  if (!departmentId) {
     return input.includeUnscoped !== false
   }
-  if (selected.size === 0) return false
-  return selected.has(task.department_id)
+
+  // Active department chips are authoritative — assignee/creator/lead must not keep
+  // tasks from deselected departments visible.
+  return selected.has(departmentId)
 }
 
 export function projectPassesDepartmentFilter(
