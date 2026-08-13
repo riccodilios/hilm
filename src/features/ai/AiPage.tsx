@@ -758,7 +758,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   }, [selectedId, displayedMessages.length])
 
   return (
-    <div className="pb-[env(safe-area-inset-bottom)]">
+    <div className="pb-[env(safe-area-inset-bottom,0px)]">
       <PageHeader
         title={isWorkspace ? t('ai.workspaceTitle') : t('ai.title')}
         description={isWorkspace ? t('ai.workspaceEmpty') : t('ai.empty')}
@@ -1062,7 +1062,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
           </Dialog>
 
           <form
-            className="sticky bottom-0 border-t border-border-subtle bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+            className="hilm-ai-composer sticky bottom-0 border-t border-border-subtle bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md"
             onSubmit={(event) => {
               event.preventDefault()
               void sendMessage()

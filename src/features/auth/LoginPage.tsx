@@ -79,7 +79,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(96,165,250,0.12),_transparent_55%),radial-gradient(ellipse_at_bottom,_rgba(52,211,153,0.08),_transparent_50%)]" />
       <motion.div
         initial={{ opacity: 0, y: 12 }}

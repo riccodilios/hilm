@@ -37,7 +37,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4">
+    <div className="flex min-h-dvh items-center justify-center px-4 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface/90 p-8">
         <div className="mb-2 flex items-start justify-between gap-3">
           <div>

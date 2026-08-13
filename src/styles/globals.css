@@ -84,6 +84,12 @@
     text-align: start;
   }
 
+  html {
+    /* Prevent iOS text inflation that feels like a viewport scale jump. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     margin: 0;
     min-height: 100dvh;
@@ -96,6 +102,24 @@
 
   #root {
     min-height: 100dvh;
+  }
+
+  /*
+   * iOS Safari auto-zooms focused fields under 16px.
+   * -webkit-touch-callout is Safari-only, so Android Chrome is unchanged.
+   * Do not use user-scalable=no — pinch zoom must remain available.
+   */
+  @supports (-webkit-touch-callout: none) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']):not([type='hidden']),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+
+    .rte-content[contenteditable='true'],
+    .rte-content.ProseMirror {
+      font-size: 16px;
+    }
   }
 
   ::selection {
@@ -344,4 +368,17 @@ li[data-type='taskItem'][data-checked='true'] > div {
 
 .ai-message-enter {
   animation: ai-message-in 180ms ease-out;
+}
+
+/* iOS PWA: keep AI composer above the bottom tab bar + home indicator */
+@supports (-webkit-touch-callout: none) {
+  .hilm-ai-composer {
+    bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 1024px) {
+    .hilm-ai-composer {
+      bottom: 0;
+    }
+  }
 }
