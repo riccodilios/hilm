@@ -28,6 +28,12 @@ import {
 } from '@/features/ai/lib/conversation-focus'
 import { rewriteActionsForConversationFocus } from '@/features/ai/lib/rewrite-actions'
 import {
+  describeProposedActions,
+  previewDetail,
+  previewHeadline,
+} from '@/features/ai/lib/action-preview'
+import { usePreviewDirectory } from '@/features/ai/lib/use-preview-directory'
+import {
   coalesceWorkspaceTaskCreates,
   expandCreateManyForDisplay,
 } from '@/features/ai/lib/batch-engine'
@@ -44,7 +50,7 @@ import { tasksKeys } from '@/features/tasks/api'
 import { workspaceKeys } from '@/features/workspace-os/api'
 import {
   AiActionProgress,
-  flattenProposedActionLabels,
+  AiProposedActionList,
   humanActionLabel,
   type ActionRunItem,
 } from '@/features/ai/components/AiActionProgress'
@@ -108,6 +114,11 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
   const [optimisticUser, setOptimisticUser] = useState<DraftMessage | null>(null)
   const [draft, setDraft] = useState<DraftMessage | null>(null)
   const [proposedActions, setProposedActions] = useState<AiAction[]>([])
+  const previewDirectory = usePreviewDirectory(
+    osMode,
+    isWorkspace ? workspaceId : undefined,
+    proposedActions.length > 0,
+  )
   const [actionRun, setActionRun] = useState<ActionRunItem[]>([])
   const [actionSummary, setActionSummary] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
@@ -483,22 +494,35 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
     setApplying(true)
     setActionSummary(null)
 
+    const previews = describeProposedActions(proposedActions, {
+      os: osMode,
+      focus: readConversationFocus(selectedId),
+      directory: previewDirectory,
+    })
     const initial: ActionRunItem[] = []
     for (let index = 0; index < proposedActions.length; index++) {
       const action = proposedActions[index]!
       const batchRows = expandCreateManyForDisplay(action as ParsedRegistryAction)
       if (batchRows.length) {
         for (const row of batchRows) {
+          const preview = previews.find((item) => item.key === `${index}-${row.key}`)
           initial.push({
             key: `${index}-${row.key}`,
-            label: row.label,
+            label: preview
+              ? `${preview.verb} · ${previewHeadline(preview)}`
+              : row.label,
+            detail: preview ? previewDetail(preview) : undefined,
             status: 'pending',
           })
         }
       } else {
+        const preview = previews.find((item) => item.key === `${action.type}-${index}`)
         initial.push({
           key: `${action.type}-${index}`,
-          label: humanActionLabel(action, osMode),
+          label: preview
+            ? `${preview.verb} · ${previewHeadline(preview)}`
+            : humanActionLabel(action, osMode),
+          detail: preview ? previewDetail(preview) : undefined,
           status: 'pending',
         })
       }
@@ -1002,8 +1026,15 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
 
           {proposedActions.length ? (
             <div className="border-t border-border-subtle bg-surface/50 p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">{t('ai.actions')}</p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{t('ai.actions')}</p>
+                  <p className="text-[11px] text-muted">
+                    {t('ai.reviewActions', {
+                      defaultValue: 'Each card shows the project, the task, and what will change.',
+                    })}
+                  </p>
+                </div>
                 <Button size="sm" disabled={applying} onClick={() => void executeActions()}>
                   {applying ? (
                     <LoaderCircle className="size-4 animate-spin" />
@@ -1013,24 +1044,17 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   {t('ai.apply')}
                 </Button>
               </div>
-              <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto overscroll-y-auto">
-                {flattenProposedActionLabels(proposedActions, osMode).map((row) => (
-                  <span
-                    key={row.key}
-                    className="rounded-lg border border-border-subtle bg-surface-2 px-2.5 py-1.5 text-xs text-muted"
-                  >
-                    {row.label}
-                    {row.risk ? (
-                      <span className="ms-1 text-[10px] uppercase text-warning">{row.risk}</span>
-                    ) : null}
-                  </span>
-                ))}
-              </div>
+              <AiProposedActionList
+                actions={proposedActions}
+                os={osMode}
+                focus={readConversationFocus(selectedId)}
+                directory={previewDirectory}
+              />
             </div>
           ) : null}
 
           <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{t('ai.confirmTitle', { defaultValue: 'Confirm actions' })}</DialogTitle>
                 <DialogDescription>
@@ -1040,16 +1064,13 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   })}
                 </DialogDescription>
               </DialogHeader>
-              <ul className="max-h-48 space-y-2 overflow-auto text-sm">
-                {flattenProposedActionLabels(proposedActions, osMode).map((row) => (
-                  <li key={`${row.key}-confirm`} className="rounded-lg bg-surface-2 px-3 py-2">
-                    <span className="font-medium">{row.label}</span>
-                    {row.risk ? (
-                      <span className="ms-2 text-xs text-muted">{row.risk}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
+              <AiProposedActionList
+                actions={proposedActions}
+                os={osMode}
+                focus={readConversationFocus(selectedId)}
+                directory={previewDirectory}
+                className="max-h-64"
+              />
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
                   {t('common.cancel', { defaultValue: 'Cancel' })}

@@ -775,6 +775,7 @@
     "agents": "Agent",
     "actions": "Actions",
     "apply": "Apply",
+    "reviewActions": "Each card shows the project, the task, and what will change.",
     "applied": "Actions applied",
     "appliedOne": "Action applied",
     "appliedMany": "{{count}} actions applied",
