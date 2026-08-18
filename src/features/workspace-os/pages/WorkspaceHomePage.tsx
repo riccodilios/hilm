@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { ar, enUS } from 'date-fns/locale'
 import { motion } from 'framer-motion'
-import { ArrowRight, Check, Plus, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, Check, FolderKanban, Plus, Sparkles, Users } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/features/auth/AuthProvider'
 import {
   getWorkspaceHome,
   updateWorkspaceTask,
@@ -16,6 +17,7 @@ import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
+import { ProjectIcon } from '@/features/projects/icons'
 import {
   memberInitials,
   resolveMemberDisplayName,
@@ -50,9 +52,11 @@ function DueTaskRow({
         {task.workspace_projects ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
             <span
-              className="size-1.5 rounded-full"
+              className="flex size-4 items-center justify-center rounded text-background"
               style={{ backgroundColor: task.workspace_projects.color }}
-            />
+            >
+              <ProjectIcon icon={task.workspace_projects.icon} size={10} />
+            </span>
             {task.workspace_projects.name}
           </span>
         ) : null}
@@ -87,8 +91,52 @@ const fadeUp = {
   }),
 }
 
+const PRIORITY_RANK: Record<string, number> = {
+  urgent: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  none: 1,
+}
+
+function taskDueKey(task: WorkspaceTask) {
+  if (task.due_date) return task.due_date.slice(0, 10)
+  if (task.due_at) {
+    const d = new Date(task.due_at)
+    if (Number.isNaN(d.getTime())) return null
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return null
+}
+
+function todayLocalKey() {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+function pickFocus(tasks: WorkspaceTask[]) {
+  const todayKey = todayLocalKey()
+  const overdue = tasks
+    .filter((task) => {
+      const key = taskDueKey(task)
+      return key != null && key < todayKey
+    })
+    .sort((a, b) => (taskDueKey(a) ?? '').localeCompare(taskDueKey(b) ?? ''))
+  if (overdue[0]) return overdue[0]
+  const dueToday = tasks
+    .filter((task) => taskDueKey(task) === todayKey)
+    .sort((a, b) => (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0))
+  if (dueToday[0]) return dueToday[0]
+  return (
+    [...tasks].sort(
+      (a, b) => (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0),
+    )[0] ?? null
+  )
+}
+
 export function WorkspaceHomePage() {
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
   const { workspaceId, workspace, canEdit } = useWorkspace()
   const { filterTasks } = useOrgVisibility()
   const qc = useQueryClient()
@@ -140,14 +188,13 @@ export function WorkspaceHomePage() {
   }
 
   const data = home.data
+  const openTasks = data.openTasks ?? []
+  const myTasks = openTasks.filter((task) => task.assignee_id === user?.id)
+  const visibleOpen = filterTasks(openTasks)
   const overdueTasks = filterTasks(data.overdueTasks ?? [])
   const todayTasks = filterTasks(data.todayTasks ?? [])
-  const upcoming = filterTasks(data.upcoming ?? [])
-  const focus =
-    overdueTasks[0] ??
-    todayTasks[0] ??
-    filterTasks(data.focus ? [data.focus] : [])[0] ??
-    null
+  const upcoming = filterTasks(data.upcoming ?? []).slice(0, 8)
+  const focus = pickFocus(myTasks) ?? pickFocus(visibleOpen)
   const projects = data.projects ?? []
   const recentActivity = data.recentActivity ?? []
   const members = data.members ?? []
@@ -156,7 +203,7 @@ export function WorkspaceHomePage() {
     <div className="mx-auto w-full min-w-0 max-w-full">
       <PageHeader
         title={workspace.name}
-        description={format(new Date(), 'EEEE, MMMM d', { locale: dateLocale })}
+        description={`${format(new Date(), 'EEEE, MMMM d', { locale: dateLocale })} · ${t('workspace.homeDesc')}`}
         actions={
           <div className="flex flex-wrap gap-2">
             {canEdit ? (
@@ -177,7 +224,28 @@ export function WorkspaceHomePage() {
         }
       />
 
-      <DepartmentFilterBar className="mb-6" />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button asChild variant="secondary" size="sm">
+          <Link to={`/workspace/${workspaceId}/tasks`}>
+            {t('workspace.viewAllTasks')}
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/workspace/${workspaceId}/projects`}>
+            <FolderKanban className="size-4" />
+            {t('nav.projects')}
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/workspace/${workspaceId}/team`}>
+            <Users className="size-4" />
+            {t('nav.team')}
+          </Link>
+        </Button>
+      </div>
+
+      <DepartmentFilterBar className="mb-2" />
+      <p className="mb-6 text-xs text-muted">{t('workspace.departmentFilterHint')}</p>
 
       <motion.section
         custom={0}
@@ -198,9 +266,11 @@ export function WorkspaceHomePage() {
               {focus.workspace_projects ? (
                 <Badge className="bg-surface-3 text-muted">
                   <span
-                    className="me-1.5 inline-block size-1.5 rounded-full"
+                    className="me-1.5 inline-flex size-4 items-center justify-center rounded text-background"
                     style={{ backgroundColor: focus.workspace_projects.color }}
-                  />
+                  >
+                    <ProjectIcon icon={focus.workspace_projects.icon} size={10} />
+                  </span>
                   {focus.workspace_projects.name}
                 </Badge>
               ) : null}
@@ -265,8 +335,8 @@ export function WorkspaceHomePage() {
         className="mb-6 grid w-full min-w-0 grid-cols-2 gap-3 sm:grid-cols-4"
       >
         {[
-          { label: t('workspace.openTasks'), value: data.openTaskCount ?? 0 },
-          { label: t('workspace.statOverdue'), value: data.overdueCount ?? overdueTasks.length },
+          { label: t('workspace.myTasks'), value: myTasks.length },
+          { label: t('workspace.statOverdue'), value: overdueTasks.length },
           { label: t('workspace.doneTasks'), value: data.doneTaskCount ?? 0 },
           { label: t('nav.projects'), value: data.projectCount ?? projects.length },
         ].map((stat) => (
@@ -281,7 +351,32 @@ export function WorkspaceHomePage() {
       </motion.div>
 
       <div className="grid w-full min-w-0 gap-4 lg:grid-cols-2">
-        <motion.div custom={2} variants={fadeUp} initial="hidden" animate="show">
+        <motion.div custom={2} variants={fadeUp} initial="hidden" animate="show" className="lg:col-span-2">
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>{t('workspace.myTasks')}</CardTitle>
+              <Button asChild variant="ghost" size="sm" className="self-start sm:self-auto">
+                <Link to={`/workspace/${workspaceId}/tasks`}>{t('workspace.viewAllTasks')}</Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="min-w-0 space-y-1">
+              {myTasks.slice(0, 8).map((task) => (
+                <DueTaskRow
+                  key={task.id}
+                  task={task}
+                  workspaceId={workspaceId}
+                  taskKey={workspace.task_key}
+                  locale={locale}
+                />
+              ))}
+              {myTasks.length === 0 ? (
+                <p className="px-2 text-sm text-muted">{t('workspace.noAssignedTasks')}</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div custom={3} variants={fadeUp} initial="hidden" animate="show">
           <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle>{t('workspace.dueToday')}</CardTitle>
@@ -356,43 +451,16 @@ export function WorkspaceHomePage() {
                   to={`/workspace/${workspaceId}/projects/${project.id}`}
                   className="flex w-full min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface/60 p-3 transition-colors hover:border-border hover:bg-surface"
                 >
-                  <div className="relative flex size-11 shrink-0 items-center justify-center">
-                    <svg width={44} height={44} className="-rotate-90" aria-hidden>
-                      <circle
-                        cx={22}
-                        cy={22}
-                        r={18}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={3.5}
-                        className="text-surface-3"
-                      />
-                      <circle
-                        cx={22}
-                        cy={22}
-                        r={18}
-                        fill="none"
-                        stroke={project.color || '#60a5fa'}
-                        strokeWidth={3.5}
-                        strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 18}
-                        strokeDashoffset={
-                          2 * Math.PI * 18 -
-                          (Math.max(0, Math.min(100, project.completion_pct ?? 0)) / 100) *
-                            2 *
-                            Math.PI *
-                            18
-                        }
-                      />
-                    </svg>
-                    <span className="absolute text-[10px] font-medium tabular-nums">
-                      {Math.round(project.completion_pct ?? 0)}%
-                    </span>
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl text-background" style={{ backgroundColor: project.color || '#60a5fa' }}>
+                    <ProjectIcon icon={project.icon} size={20} />
                   </div>
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-sm font-medium">{project.name}</p>
                       <HealthBadge health={project.health} />
+                      <span className="text-[11px] tabular-nums text-muted">
+                        {Math.round(project.completion_pct ?? 0)}%
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
                       <span>

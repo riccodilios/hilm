@@ -10,6 +10,7 @@ import {
   listWorkspaceProjects,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
 import {
   createWorkspaceLabel,
   deleteWorkspaceLabel,
@@ -45,6 +46,7 @@ export function WorkspaceProjectsPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [color, setColor] = useState<string>(PROJECT_COLORS[0]!)
+  const [icon, setIcon] = useState('folder')
   const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
   const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
 
@@ -82,6 +84,7 @@ export function WorkspaceProjectsPage() {
         name,
         description: description || undefined,
         color,
+        icon,
       })
       if (createLabelIds.length) {
         await setProjectLabels(workspaceId, project.id, createLabelIds)
@@ -96,6 +99,7 @@ export function WorkspaceProjectsPage() {
       setName('')
       setDescription('')
       setColor(PROJECT_COLORS[0]!)
+      setIcon('folder')
       setCreateLabelIds([])
       toast.success(t('workspace.projectCreated'))
     },
@@ -152,40 +156,19 @@ export function WorkspaceProjectsPage() {
                 to={`/workspace/${workspaceId}/projects/${project.id}`}
                 className="flex h-full min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface"
               >
-                <div className="relative flex size-11 shrink-0 items-center justify-center">
-                  <svg width={44} height={44} className="-rotate-90" aria-hidden>
-                    <circle
-                      cx={22}
-                      cy={22}
-                      r={18}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={3.5}
-                      className="text-surface-3"
-                    />
-                    <circle
-                      cx={22}
-                      cy={22}
-                      r={18}
-                      fill="none"
-                      stroke={project.color || '#60a5fa'}
-                      strokeWidth={3.5}
-                      strokeLinecap="round"
-                      strokeDasharray={2 * Math.PI * 18}
-                      strokeDashoffset={
-                        2 * Math.PI * 18 -
-                        (Math.max(0, Math.min(100, project.completion_pct)) / 100) * 2 * Math.PI * 18
-                      }
-                    />
-                  </svg>
-                  <span className="absolute text-[10px] font-medium tabular-nums">
-                    {Math.round(project.completion_pct)}%
-                  </span>
-                </div>
+                <span
+                  className="flex size-11 shrink-0 items-center justify-center rounded-xl text-background"
+                  style={{ backgroundColor: project.color || '#60a5fa' }}
+                >
+                  <ProjectIcon icon={project.icon} size={20} />
+                </span>
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate font-medium">{project.name}</p>
                     <HealthBadge health={project.health} />
+                    <span className="text-[11px] tabular-nums text-muted">
+                      {Math.round(project.completion_pct)}%
+                    </span>
                   </div>
                   <p className="line-clamp-2 text-sm text-muted">
                     {project.description || t('workspace.noDescription')}
@@ -244,6 +227,10 @@ export function WorkspaceProjectsPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('workspace.icon')}</Label>
+              <ProjectIconPicker value={icon} onChange={setIcon} color={color} />
             </div>
             <div className="space-y-2">
               <Label>{t('workspace.color')}</Label>

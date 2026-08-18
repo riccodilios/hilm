@@ -3,11 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  Activity,
+  BarChart3,
   Bell,
   Brain,
+  Building2,
   Crosshair,
+  FileText,
   LogOut,
+  Network,
   Palette,
   Settings,
   Shield,
@@ -136,25 +139,25 @@ export function WorkspaceProfilePage() {
       to: `/workspace/${workspaceId}/org`,
       label: t('workspace.orgTitle'),
       description: t('workspace.orgDesc'),
-      icon: Crosshair,
+      icon: Network,
     },
     {
       to: `/workspace/${workspaceId}/crm`,
       label: t('workspace.crmTitle'),
       description: t('workspace.crmDesc'),
-      icon: Activity,
+      icon: Building2,
     },
     {
       to: `/workspace/${workspaceId}/reports`,
       label: t('workspace.reportsTitle'),
       description: t('workspace.reportsDesc'),
-      icon: Activity,
+      icon: BarChart3,
     },
     {
       to: `/workspace/${workspaceId}/activity`,
       label: t('workspace.activity'),
       description: t('workspace.activityDesc'),
-      icon: Activity,
+      icon: FileText,
     },
   ]
 

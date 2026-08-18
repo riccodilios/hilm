@@ -1009,7 +1009,6 @@ export async function getWorkspaceHome(workspaceId: string) {
       return key != null && key > todayKey
     })
     .sort((a, b) => (dueKey(a) ?? '').localeCompare(dueKey(b) ?? ''))
-    .slice(0, 8)
 
   const focus =
     overdueTasks[0] ??
@@ -1045,12 +1044,12 @@ export async function getWorkspaceHome(workspaceId: string) {
     doneTaskCount: tasks.filter((task) => task.status === 'done').length,
     overdueCount: overdueTasks.length,
     focus,
-    overdueTasks: overdueTasks.slice(0, 4),
+    overdueTasks,
     todayTasks,
     upcoming,
     recentActivity: activity,
     projects: projectCards,
-    openTasks: openTasks.slice(0, 6),
+    openTasks,
     members: members.slice(0, 8),
   }
 }

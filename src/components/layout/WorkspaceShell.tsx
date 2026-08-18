@@ -133,27 +133,39 @@ function WorkspaceShellInner() {
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const hidePersonal = settings.data?.hide_personal_os ?? false
 
-  const nav = [
-    { to: base, label: t('nav.home'), icon: Home, end: true },
-    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
-    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
-    { to: `${base}/team`, label: t('nav.team'), icon: Users },
-    { to: `${base}/org`, label: t('nav.org'), icon: Network },
-    { to: `${base}/crm`, label: t('nav.crm'), icon: Building2 },
-    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
+  const nav: Array<{
+    to: string
+    label: string
+    icon: typeof Home
+    end?: boolean
+    group: 'work' | 'people' | 'account'
+  }> = [
+    { to: base, label: t('nav.home'), icon: Home, end: true, group: 'work' },
+    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban, group: 'work' },
+    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare, group: 'work' },
+    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain, group: 'work' },
+    { to: `${base}/team`, label: t('nav.team'), icon: Users, group: 'people' },
+    { to: `${base}/org`, label: t('nav.org'), icon: Network, group: 'people' },
+    { to: `${base}/crm`, label: t('nav.crm'), icon: Building2, group: 'people' },
     ...(!hidePersonal
-      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid }]
+      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid, group: 'account' as const }]
       : []),
-    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound, group: 'account' },
   ]
 
   const mobileNav = [
     { to: base, label: t('nav.home'), icon: Home, end: true },
     { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
-    { to: `${base}/org`, label: t('nav.org'), icon: Network },
+    { to: `${base}/team`, label: t('nav.team'), icon: Users },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
+  ]
+
+  const navGroups: Array<{ id: 'work' | 'people' | 'account'; label: string }> = [
+    { id: 'work', label: t('nav.work') },
+    { id: 'people', label: t('nav.people') },
+    { id: 'account', label: t('nav.settings') },
   ]
 
   return (
@@ -169,24 +181,35 @@ function WorkspaceShellInner() {
           <WorkspaceSwitcher />
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
-                  isActive
-                    ? 'bg-surface-2 text-foreground'
-                    : 'text-muted hover:bg-surface-2/70 hover:text-foreground',
-                )
-              }
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </NavLink>
-          ))}
+          {navGroups.map((group) => {
+            const items = nav.filter((item) => item.group === group.id)
+            if (!items.length) return null
+            return (
+              <div key={group.id} className="mb-2">
+                <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted">
+                  {group.label}
+                </p>
+                {items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+                        isActive
+                          ? 'bg-surface-2 text-foreground'
+                          : 'text-muted hover:bg-surface-2/70 hover:text-foreground',
+                      )
+                    }
+                  >
+                    <item.icon className="size-4" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
         </nav>
         <div className="mt-auto space-y-2">
           <LanguageSwitcher className="w-full justify-between" />
