@@ -1340,15 +1340,17 @@ export function registerWorkspaceActions() {
               'tasks_by_priority',
               'effort_by_project',
               'open_by_member',
+              'completion_trend',
+              'project_comparison',
             ]),
-            kind: z.enum(['bar', 'pie']),
+            kind: z.enum(['bar', 'column', 'pie', 'line', 'comparison']),
           }),
         )
         .max(8)
         .optional(),
     }),
     promptFields:
-      'title, body (describe desired metrics/charts/fields), projectId?, projectName?, datePreset?, metrics?, charts:[{id,kind}]?',
+      'title, body (describe desired metrics/charts/fields), projectId?, projectName?, datePreset?, metrics?, charts:[{id:tasks_by_status|tasks_by_priority|effort_by_project|open_by_member|completion_trend|project_comparison, kind:bar|column|pie|line|comparison}]?',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
       const userId = await requireUserId()

@@ -3,6 +3,7 @@ import type {
   DateRangePreset,
   MetricId,
   ReportChartId,
+  ReportChartKind,
   ReportChartSpec,
   ReportConfig,
   ReportOs,
@@ -55,20 +56,55 @@ const METRIC_HINTS: Array<{ id: MetricId; keys: string[] }> = [
   { id: 'project_count', keys: ['project count', 'how many projects'] },
 ]
 
-const CHART_HINTS: Array<{ id: ReportChartId; keys: string[]; preferPie?: boolean }> = [
-  { id: 'tasks_by_status', keys: ['by status', 'status chart', 'status breakdown', 'status pie', 'status graph'] },
+const CHART_HINTS: Array<{
+  id: ReportChartId
+  keys: string[]
+  preferKind?: ReportChartKind
+}> = [
+  {
+    id: 'tasks_by_status',
+    keys: ['by status', 'status chart', 'status breakdown', 'status pie', 'status graph', 'status bar'],
+  },
   {
     id: 'tasks_by_priority',
     keys: ['by priority', 'priority chart', 'priority breakdown', 'priority pie', 'priority graph'],
-    preferPie: true,
+    preferKind: 'pie',
   },
   {
     id: 'effort_by_project',
-    keys: ['by project', 'project chart', 'effort by project', 'project breakdown', 'project graph'],
+    keys: ['by project', 'project chart', 'effort by project', 'project breakdown', 'project graph', 'column'],
+    preferKind: 'column',
   },
   {
     id: 'open_by_member',
     keys: ['by member', 'member chart', 'assignee', 'people chart', 'workload chart', 'who has'],
+  },
+  {
+    id: 'completion_trend',
+    keys: [
+      'line',
+      'trend',
+      'over time',
+      'timeline',
+      'created vs completed',
+      'completion trend',
+      'time series',
+    ],
+    preferKind: 'line',
+  },
+  {
+    id: 'project_comparison',
+    keys: [
+      'comparison',
+      'compare',
+      'market comparison',
+      'vs',
+      'versus',
+      'side by side',
+      'project comparison',
+      'benchmark',
+    ],
+    preferKind: 'comparison',
   },
 ]
 
@@ -77,12 +113,17 @@ const ALL_CHART_IDS: ReportChartId[] = [
   'tasks_by_priority',
   'effort_by_project',
   'open_by_member',
+  'completion_trend',
+  'project_comparison',
 ]
+
+const CHART_KINDS: ReportChartKind[] = ['bar', 'column', 'pie', 'line', 'comparison']
 
 function defaultChartsForType(typeId: ReportTypeId, os: ReportOs): ReportChartSpec[] {
   const charts: ReportChartSpec[] = [
     { id: 'tasks_by_status', kind: 'bar' },
     { id: 'tasks_by_priority', kind: 'pie' },
+    { id: 'completion_trend', kind: 'line' },
   ]
   if (
     typeId.includes('project') ||
@@ -91,7 +132,8 @@ function defaultChartsForType(typeId: ReportTypeId, os: ReportOs): ReportChartSp
     typeId === 'workspace_overview' ||
     typeId === 'custom'
   ) {
-    charts.push({ id: 'effort_by_project', kind: 'bar' })
+    charts.push({ id: 'effort_by_project', kind: 'column' })
+    charts.push({ id: 'project_comparison', kind: 'comparison' })
   }
   if (os === 'workspace' || typeId.includes('team') || typeId.includes('workload')) {
     charts.push({ id: 'open_by_member', kind: 'bar' })
@@ -104,7 +146,44 @@ function preferPieFromPrompt(text: string) {
 }
 
 function preferBarFromPrompt(text: string) {
-  return /\b(bar|column|histogram)\b/i.test(text)
+  return /\b(bar graph|bar chart|horizontal bar)\b/i.test(text) || /\bbar\b/i.test(text)
+}
+
+function preferColumnFromPrompt(text: string) {
+  return /\b(column|vertical bar)\b/i.test(text)
+}
+
+function preferLineFromPrompt(text: string) {
+  return /\b(line graph|line chart|trend line|time series|over time)\b/i.test(text) || /\bline\b/i.test(text)
+}
+
+function preferComparisonFromPrompt(text: string) {
+  return /\b(comparison|compare|market comparison|side[- ]by[- ]side|benchmark|versus|\bvs\b)\b/i.test(
+    text,
+  )
+}
+
+function resolveKindFromPrompt(
+  text: string,
+  fallback: ReportChartKind,
+): ReportChartKind {
+  const votes: ReportChartKind[] = []
+  if (preferPieFromPrompt(text)) votes.push('pie')
+  if (preferLineFromPrompt(text)) votes.push('line')
+  if (preferComparisonFromPrompt(text)) votes.push('comparison')
+  if (preferColumnFromPrompt(text)) votes.push('column')
+  if (preferBarFromPrompt(text) && !preferColumnFromPrompt(text)) votes.push('bar')
+  // Prefer the chart's natural kind when the prompt mentions that visual.
+  if (votes.includes(fallback)) return fallback
+  if (votes.length === 1) return votes[0]!
+  if (votes.length > 1) {
+    if (votes.includes('comparison')) return 'comparison'
+    if (votes.includes('line')) return 'line'
+    if (votes.includes('pie')) return 'pie'
+    if (votes.includes('column')) return 'column'
+    return 'bar'
+  }
+  return fallback
 }
 
 /**
@@ -141,37 +220,50 @@ export function customizeReportFromPrompt(
   }
 
   const def = getReportType(os, typeId)
-  const metrics = new Set<MetricId>(base?.metrics?.length ? base.metrics : def.defaultMetrics)
+  const additive = /\b(also|add|include|keep)\b/i.test(text)
+  const metrics = new Set<MetricId>(
+    additive && base?.metrics?.length ? base.metrics : def.defaultMetrics,
+  )
   for (const hint of METRIC_HINTS) {
     if (hint.keys.some((key) => text.includes(key))) metrics.add(hint.id)
   }
 
   const chartMap = new Map<ReportChartId, ReportChartSpec>()
-  for (const chart of base?.charts?.length ? base.charts : defaultChartsForType(typeId, os)) {
+  const seedCharts = base?.charts?.length ? base.charts : defaultChartsForType(typeId, os)
+  for (const chart of seedCharts) {
     chartMap.set(chart.id, chart)
   }
 
+  // Re-apply: if the prompt names specific visuals, rebuild chart set around them
+  // instead of only merging into a stale previous selection.
+  const namedHints = CHART_HINTS.filter((hint) => hint.keys.some((key) => text.includes(key)))
   const wantsCharts =
-    /\b(chart|charts|graph|graphs|pie|bar|visual|visualization|breakdown|distribution)\b/i.test(
+    /\b(chart|charts|graph|graphs|pie|bar|line|column|visual|visualization|breakdown|distribution|comparison|trend)\b/i.test(
       text,
     )
+
+  if (namedHints.length && !additive) {
+    chartMap.clear()
+  }
+
   if (wantsCharts) {
-    // Ensure charts section data is present when user asks for visuals.
-    for (const id of ALL_CHART_IDS) {
-      if (!chartMap.has(id) && CHART_HINTS.some((hint) => hint.id === id && hint.keys.some((k) => text.includes(k)))) {
-        chartMap.set(id, {
-          id,
-          kind: preferPieFromPrompt(text) ? 'pie' : 'bar',
-        })
-      }
+    for (const hint of namedHints) {
+      if (os === 'personal' && hint.id === 'open_by_member') continue
+      chartMap.set(hint.id, {
+        id: hint.id,
+        kind: resolveKindFromPrompt(text, hint.preferKind ?? 'bar'),
+      })
     }
-    if (chartMap.size === 0 || CHART_HINTS.every((hint) => !hint.keys.some((k) => text.includes(k)))) {
-      // Broad "add charts/graphs" → include the full visual set
+    if (chartMap.size === 0 || namedHints.length === 0) {
       for (const id of ALL_CHART_IDS) {
+        if (os === 'personal' && id === 'open_by_member') continue
         if (!chartMap.has(id)) {
+          const prefer =
+            CHART_HINTS.find((hint) => hint.id === id)?.preferKind ??
+            (id === 'tasks_by_priority' ? 'pie' : id === 'completion_trend' ? 'line' : 'bar')
           chartMap.set(id, {
             id,
-            kind: id === 'tasks_by_priority' || preferPieFromPrompt(text) ? 'pie' : 'bar',
+            kind: resolveKindFromPrompt(text, prefer),
           })
         }
       }
@@ -180,23 +272,25 @@ export function customizeReportFromPrompt(
 
   for (const hint of CHART_HINTS) {
     if (!hint.keys.some((key) => text.includes(key))) continue
-    const kind = preferPieFromPrompt(text) && !preferBarFromPrompt(text)
-      ? 'pie'
-      : preferBarFromPrompt(text) && !preferPieFromPrompt(text)
-        ? 'bar'
-        : hint.preferPie
-          ? 'pie'
-          : chartMap.get(hint.id)?.kind ?? 'bar'
+    if (os === 'personal' && hint.id === 'open_by_member') continue
+    const kind = resolveKindFromPrompt(
+      text,
+      hint.preferKind ?? chartMap.get(hint.id)?.kind ?? 'bar',
+    )
     chartMap.set(hint.id, { id: hint.id, kind })
   }
 
-  // If the user only asked for pie OR only for bar (not both), apply that kind to charts
-  // that were added from a broad "charts/graphs" request without a specific kind.
-  if (preferPieFromPrompt(text) !== preferBarFromPrompt(text)) {
-    const kind = preferPieFromPrompt(text) ? 'pie' : 'bar'
-    const specific = new Set(
-      CHART_HINTS.filter((hint) => hint.keys.some((key) => text.includes(key))).map((hint) => hint.id),
-    )
+  // Global kind keyword (only one kind mentioned) applies to unspecified charts.
+  const kindMentions = CHART_KINDS.filter((kind) => {
+    if (kind === 'pie') return preferPieFromPrompt(text)
+    if (kind === 'line') return preferLineFromPrompt(text)
+    if (kind === 'comparison') return preferComparisonFromPrompt(text)
+    if (kind === 'column') return preferColumnFromPrompt(text)
+    return preferBarFromPrompt(text) && !preferColumnFromPrompt(text)
+  })
+  if (kindMentions.length === 1) {
+    const kind = kindMentions[0]!
+    const specific = new Set(namedHints.map((hint) => hint.id))
     for (const [id, chart] of chartMap) {
       if (specific.has(id)) continue
       chartMap.set(id, { ...chart, kind })

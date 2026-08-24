@@ -9,8 +9,11 @@ import {
   Svg,
   Path,
   G,
+  Line,
+  Circle,
+  Rect,
 } from '@react-pdf/renderer'
-import type { ChartDatum, ReportSnapshot } from '@/features/reports/types'
+import type { ChartDatum, ChartSeries, ReportChartKind, ReportSnapshot } from '@/features/reports/types'
 import i18n from '@/i18n'
 import { localizedPdfCopy } from '@/features/reports/i18n'
 
@@ -330,6 +333,8 @@ function Footer({ snapshot, styles }: { snapshot: ReportSnapshot; styles: Return
   )
 }
 
+const PIE_FALLBACK = ['#18181b', '#52525b', '#a1a1aa', '#3f3f46', '#71717a', '#d4d4d8']
+
 function BarChart({
   data,
   styles,
@@ -359,6 +364,271 @@ function BarChart({
       ))}
     </View>
   )
+}
+
+function ColumnChart({
+  data,
+  accent,
+}: {
+  data: ChartDatum[]
+  accent: string
+}) {
+  const rows = data.slice(0, 10)
+  const max = Math.max(...rows.map((d) => d.value), 1)
+  const width = 460
+  const height = 140
+  const padX = 28
+  const padTop = 12
+  const padBottom = 28
+  const chartH = height - padTop - padBottom
+  const gap = 8
+  const barW = Math.max(10, (width - padX * 2 - gap * Math.max(rows.length - 1, 0)) / Math.max(rows.length, 1))
+
+  return (
+    <View>
+      <Svg width={width} height={height}>
+        <Line
+          x1={padX}
+          y1={padTop + chartH}
+          x2={width - padX}
+          y2={padTop + chartH}
+          stroke="#e4e4e7"
+          strokeWidth={1}
+        />
+        {rows.map((row, index) => {
+          const h = Math.max(2, (row.value / max) * chartH)
+          const x = padX + index * (barW + gap)
+          const y = padTop + chartH - h
+          return (
+            <Rect
+              key={`${row.label}-${index}`}
+              x={x}
+              y={y}
+              width={barW}
+              height={h}
+              fill={row.color ?? accent}
+            />
+          )
+        })}
+      </Svg>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 }}>
+        {rows.map((row) => (
+          <Text
+            key={row.label}
+            style={{ fontSize: 7, color: HILM.muted, width: `${100 / Math.max(rows.length, 1)}%`, textAlign: 'center' }}
+          >
+            {row.label.length > 10 ? `${row.label.slice(0, 9)}…` : row.label}
+            {'\n'}
+            {row.value}
+          </Text>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function LineChart({
+  data,
+  series,
+  accent,
+}: {
+  data: ChartDatum[]
+  series?: ChartSeries[]
+  accent: string
+}) {
+  const lines =
+    series && series.length
+      ? series
+      : [{ name: 'Series', color: accent, data }]
+  const allPoints = lines.flatMap((line) => line.data)
+  const labels = lines[0]?.data.map((point) => point.label) ?? data.map((point) => point.label)
+  const max = Math.max(...allPoints.map((point) => point.value), 1)
+  const width = 460
+  const height = 150
+  const padX = 24
+  const padTop = 16
+  const padBottom = 28
+  const chartW = width - padX * 2
+  const chartH = height - padTop - padBottom
+  const n = Math.max(labels.length, 1)
+
+  function pointAt(index: number, value: number) {
+    const x = padX + (n === 1 ? chartW / 2 : (index / (n - 1)) * chartW)
+    const y = padTop + chartH - (value / max) * chartH
+    return { x, y }
+  }
+
+  return (
+    <View>
+      <Svg width={width} height={height}>
+        <Line
+          x1={padX}
+          y1={padTop + chartH}
+          x2={width - padX}
+          y2={padTop + chartH}
+          stroke="#e4e4e7"
+          strokeWidth={1}
+        />
+        {lines.map((line, lineIndex) => {
+          const color = line.color ?? PIE_FALLBACK[lineIndex % PIE_FALLBACK.length]
+          const pts = line.data.map((point, index) => pointAt(index, point.value))
+          const d = pts
+            .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+            .join(' ')
+          return (
+            <G key={line.name}>
+              {pts.length > 1 ? <Path d={d} stroke={color} strokeWidth={2} fill="none" /> : null}
+              {pts.map((point, index) => (
+                <Circle key={`${line.name}-${index}`} cx={point.x} cy={point.y} r={2.5} fill={color} />
+              ))}
+            </G>
+          )
+        })}
+      </Svg>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+        {lines.map((line, index) => (
+          <View key={line.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: line.color ?? PIE_FALLBACK[index % PIE_FALLBACK.length],
+              }}
+            />
+            <Text style={{ fontSize: 8, color: HILM.body }}>{line.name}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        {labels.filter((_, index) => index === 0 || index === labels.length - 1 || index % Math.ceil(labels.length / 4) === 0).map((label) => (
+          <Text key={label} style={{ fontSize: 7, color: HILM.muted }}>
+            {label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function ComparisonChart({
+  data,
+  series,
+  accent,
+}: {
+  data: ChartDatum[]
+  series?: ChartSeries[]
+  accent: string
+}) {
+  const groups =
+    series && series.length >= 2
+      ? series.slice(0, 3)
+      : [
+          { name: 'A', color: '#a1a1aa', data },
+          {
+            name: 'B',
+            color: accent,
+            data: data.map((row) => ({ ...row, value: Math.max(0, row.value - 1) })),
+          },
+        ]
+  const labels = groups[0]?.data.map((row) => row.label) ?? []
+  const max = Math.max(...groups.flatMap((group) => group.data.map((row) => row.value)), 1)
+  const width = 460
+  const height = 160
+  const padX = 20
+  const padTop = 12
+  const padBottom = 36
+  const chartH = height - padTop - padBottom
+  const groupCount = Math.max(labels.length, 1)
+  const groupW = (width - padX * 2) / groupCount
+  const barGap = 2
+  const barW = Math.max(4, (groupW - 8 - barGap * (groups.length - 1)) / groups.length)
+
+  return (
+    <View>
+      <Svg width={width} height={height}>
+        <Line
+          x1={padX}
+          y1={padTop + chartH}
+          x2={width - padX}
+          y2={padTop + chartH}
+          stroke="#e4e4e7"
+          strokeWidth={1}
+        />
+        {labels.map((label, groupIndex) => {
+          const groupX = padX + groupIndex * groupW + 4
+          return groups.map((group, seriesIndex) => {
+            const value = group.data[groupIndex]?.value ?? 0
+            const h = Math.max(2, (value / max) * chartH)
+            const x = groupX + seriesIndex * (barW + barGap)
+            const y = padTop + chartH - h
+            return (
+              <Rect
+                key={`${label}-${group.name}`}
+                x={x}
+                y={y}
+                width={barW}
+                height={h}
+                fill={group.color ?? PIE_FALLBACK[seriesIndex % PIE_FALLBACK.length]}
+              />
+            )
+          })
+        })}
+      </Svg>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+        {groups.map((group, index) => (
+          <View key={group.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: group.color ?? PIE_FALLBACK[index % PIE_FALLBACK.length],
+              }}
+            />
+            <Text style={{ fontSize: 8, color: HILM.body }}>{group.name}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        {labels.map((label) => (
+          <Text
+            key={label}
+            style={{
+              fontSize: 6.5,
+              color: HILM.muted,
+              width: `${100 / Math.max(labels.length, 1)}%`,
+              textAlign: 'center',
+            }}
+          >
+            {label.length > 12 ? `${label.slice(0, 11)}…` : label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function renderChartVisual({
+  kind,
+  data,
+  series,
+  styles,
+  accent,
+}: {
+  kind: ReportChartKind
+  data: ChartDatum[]
+  series?: ChartSeries[]
+  styles: ReturnType<typeof stylesFor>
+  accent: string
+}) {
+  if (kind === 'pie') return <PieChart data={data} styles={styles} />
+  if (kind === 'line') return <LineChart data={data} series={series} accent={accent} />
+  if (kind === 'column') return <ColumnChart data={data} accent={accent} />
+  if (kind === 'comparison') {
+    return <ComparisonChart data={data} series={series} accent={accent} />
+  }
+  return <BarChart data={data} styles={styles} accent={accent} />
 }
 
 function PieLegend({ data, styles }: { data: ChartDatum[]; styles: ReturnType<typeof stylesFor> }) {
@@ -439,7 +709,6 @@ function PieChart({
   )
 }
 
-const PIE_FALLBACK = ['#18181b', '#52525b', '#a1a1aa', '#3f3f46', '#71717a', '#d4d4d8']
 
 function safeLogoUrl(url?: string | null) {
   if (!url?.trim()) return null
@@ -574,11 +843,13 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
           ? snapshot.charts.map((chart) => (
               <View key={chart.title} style={styles.chartBlock} wrap={false}>
                 <Text style={styles.chartTitle}>{chart.title}</Text>
-                {chart.kind === 'pie' ? (
-                  <PieChart data={chart.data} styles={styles} />
-                ) : (
-                  <BarChart data={chart.data} styles={styles} accent={accent} />
-                )}
+                {renderChartVisual({
+                  kind: chart.kind,
+                  data: chart.data,
+                  series: chart.series,
+                  styles,
+                  accent,
+                })}
               </View>
             ))
           : null}

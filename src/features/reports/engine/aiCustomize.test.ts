@@ -21,7 +21,38 @@ describe('customizeReportFromPrompt charts', () => {
       'Please include charts and graphs in the report',
     )
     expect(config.charts?.map((chart) => chart.id)).toEqual(
-      expect.arrayContaining(['tasks_by_status', 'tasks_by_priority', 'effort_by_project']),
+      expect.arrayContaining([
+        'tasks_by_status',
+        'tasks_by_priority',
+        'effort_by_project',
+        'completion_trend',
+        'project_comparison',
+      ]),
+    )
+  })
+
+  it('selects line and comparison visuals from natural language', () => {
+    const { config } = customizeReportFromPrompt(
+      'workspace',
+      'Show a line graph of created vs completed and a market comparison across projects',
+    )
+    expect(config.charts?.some((chart) => chart.id === 'completion_trend' && chart.kind === 'line')).toBe(
+      true,
+    )
+    expect(
+      config.charts?.some((chart) => chart.id === 'project_comparison' && chart.kind === 'comparison'),
+    ).toBe(true)
+  })
+
+  it('regenerates chart kinds when the prompt is re-applied without also/keep', () => {
+    const first = customizeReportFromPrompt('personal', 'pie chart by priority')
+    const second = customizeReportFromPrompt(
+      'personal',
+      'Use a line chart for the completion trend instead',
+      first.config,
+    )
+    expect(second.config.charts?.some((chart) => chart.id === 'completion_trend' && chart.kind === 'line')).toBe(
+      true,
     )
   })
 })

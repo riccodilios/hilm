@@ -4,6 +4,7 @@ import { localizedMetricLabel, localizedPdfCopy } from '@/features/reports/i18n'
 import type {
   ChartDatum,
   MetricId,
+  ReportChartKind,
   ReportConfig,
   ReportMetric,
   ReportOs,
@@ -63,6 +64,37 @@ function inPeriod(iso: string | null | undefined, start: string, end: string) {
 
 function countBy(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1)
+}
+
+/** Inclusive calendar-day keys between start/end (YYYY-MM-DD), capped for chart readability. */
+function enumerateDayKeys(start: string, end: string, maxPoints = 14): string[] {
+  const keys: string[] = []
+  const cursor = new Date(`${start}T12:00:00`)
+  const last = new Date(`${end}T12:00:00`)
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime())) return keys
+  while (cursor <= last && keys.length < 62) {
+    keys.push(cursor.toISOString().slice(0, 10))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  if (keys.length <= maxPoints) return keys
+  // Downsample evenly so long months still fit a line chart.
+  const step = Math.ceil(keys.length / maxPoints)
+  const sampled = keys.filter((_, index) => index % step === 0)
+  if (sampled[sampled.length - 1] !== keys[keys.length - 1]) {
+    sampled.push(keys[keys.length - 1]!)
+  }
+  return sampled
+}
+
+function shortDayLabel(iso: string, locale: string) {
+  try {
+    return new Date(`${iso}T12:00:00`).toLocaleDateString(locale.startsWith('ar') ? 'ar' : 'en', {
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return iso.slice(5)
+  }
 }
 
 function metricLabel(id: MetricId, t: ReturnType<typeof i18n.getFixedT>) {
@@ -232,11 +264,15 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
     input.config.charts?.length
       ? input.config.charts
       : ([
-          { id: 'tasks_by_status' as const, kind: 'bar' as const },
-          { id: 'tasks_by_priority' as const, kind: 'pie' as const },
-          { id: 'effort_by_project' as const, kind: 'bar' as const },
+          { id: 'tasks_by_status' as const, kind: 'bar' as ReportChartKind },
+          { id: 'tasks_by_priority' as const, kind: 'pie' as ReportChartKind },
+          { id: 'effort_by_project' as const, kind: 'column' as ReportChartKind },
+          { id: 'completion_trend' as const, kind: 'line' as ReportChartKind },
           ...(input.os === 'workspace' || memberLoad.size
-            ? [{ id: 'open_by_member' as const, kind: 'bar' as const }]
+            ? [{ id: 'open_by_member' as const, kind: 'bar' as ReportChartKind }]
+            : []),
+          ...(projects.length > 1
+            ? [{ id: 'project_comparison' as const, kind: 'comparison' as ReportChartKind }]
             : []),
         ] as const)
 
@@ -291,6 +327,98 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
           .sort((a, b) => b.value - a.value)
           .slice(0, 8),
       })
+    }
+    if (spec.id === 'completion_trend') {
+      const dayKeys = enumerateDayKeys(period.start, period.end)
+      if (dayKeys.length) {
+        const createdByDay = new Map<string, number>()
+        const completedByDay = new Map<string, number>()
+        for (const key of dayKeys) {
+          createdByDay.set(key, 0)
+          completedByDay.set(key, 0)
+        }
+        for (const task of tasks) {
+          const createdKey = task.created_at?.slice(0, 10)
+          if (createdKey && createdByDay.has(createdKey)) {
+            createdByDay.set(createdKey, (createdByDay.get(createdKey) ?? 0) + 1)
+          }
+          const doneKey = task.completed_at?.slice(0, 10)
+          if (task.status === 'done' && doneKey && completedByDay.has(doneKey)) {
+            completedByDay.set(doneKey, (completedByDay.get(doneKey) ?? 0) + 1)
+          }
+        }
+        const createdSeries = dayKeys.map((key) => ({
+          label: shortDayLabel(key, lng),
+          value: createdByDay.get(key) ?? 0,
+        }))
+        const completedSeries = dayKeys.map((key) => ({
+          label: shortDayLabel(key, lng),
+          value: completedByDay.get(key) ?? 0,
+        }))
+        charts.push({
+          title: t('reports.pdf.completionTrend', {
+            defaultValue: 'Created vs completed over time',
+          }),
+          kind: spec.kind === 'bar' || spec.kind === 'pie' ? 'line' : spec.kind,
+          data: completedSeries,
+          series: [
+            {
+              name: t('reports.pdf.seriesCreated', { defaultValue: 'Created' }),
+              color: '#71717a',
+              data: createdSeries,
+            },
+            {
+              name: t('reports.pdf.seriesCompleted', { defaultValue: 'Completed' }),
+              color: '#18181b',
+              data: completedSeries,
+            },
+          ],
+        })
+      }
+    }
+    if (spec.id === 'project_comparison' && projects.length) {
+      const openByProject = new Map<string, number>()
+      const doneByProject = new Map<string, number>()
+      for (const task of tasks) {
+        if (!task.project_id) continue
+        if (task.status === 'done') countBy(doneByProject, task.project_id)
+        else countBy(openByProject, task.project_id)
+      }
+      const ranked = projects
+        .map((project) => ({
+          id: project.id,
+          name: project.name,
+          open: openByProject.get(project.id) ?? 0,
+          done: doneByProject.get(project.id) ?? 0,
+          completion: Number(project.completion_pct ?? 0),
+        }))
+        .sort((a, b) => b.open + b.done - (a.open + a.done))
+        .slice(0, 8)
+      if (ranked.some((row) => row.open + row.done > 0 || row.completion > 0)) {
+        charts.push({
+          title: t('reports.pdf.projectComparison', {
+            defaultValue: 'Project comparison (open vs completed)',
+          }),
+          kind: spec.kind === 'pie' ? 'comparison' : spec.kind,
+          data: ranked.map((row, index) => ({
+            label: row.name,
+            value: row.completion || row.done,
+            color: PIE_COLORS[index % PIE_COLORS.length],
+          })),
+          series: [
+            {
+              name: t('reports.pdf.seriesOpen', { defaultValue: 'Open' }),
+              color: '#a1a1aa',
+              data: ranked.map((row) => ({ label: row.name, value: row.open })),
+            },
+            {
+              name: t('reports.pdf.seriesCompleted', { defaultValue: 'Completed' }),
+              color: '#18181b',
+              data: ranked.map((row) => ({ label: row.name, value: row.done })),
+            },
+          ],
+        })
+      }
     }
   }
 

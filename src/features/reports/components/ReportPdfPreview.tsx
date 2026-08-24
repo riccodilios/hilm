@@ -22,7 +22,12 @@ export function ReportPdfPreview({
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const previewKey = `${snapshot.generatedAt}:${snapshot.title}:${snapshot.charts.length}:${snapshot.metrics.length}`
+  const previewKey = [
+    snapshot.generatedAt,
+    snapshot.title,
+    snapshot.charts.map((chart) => `${chart.kind}:${chart.title}:${chart.data.length}:${chart.series?.length ?? 0}`).join('|'),
+    snapshot.metrics.map((metric) => `${metric.id}:${metric.value}`).join('|'),
+  ].join('::')
 
   useEffect(() => {
     let cancelled = false

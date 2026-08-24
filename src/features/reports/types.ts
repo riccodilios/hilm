@@ -81,16 +81,27 @@ export type ReportConfig = {
 
 export type ChartDatum = { label: string; value: number; color?: string }
 
+/** Visual rendering kinds supported in PDF + Studio. */
+export type ReportChartKind = 'bar' | 'column' | 'pie' | 'line' | 'comparison'
+
+export type ChartSeries = {
+  name: string
+  color?: string
+  data: ChartDatum[]
+}
+
 /** Selectable chart builders for AI / Studio customization. */
 export type ReportChartId =
   | 'tasks_by_status'
   | 'tasks_by_priority'
   | 'effort_by_project'
   | 'open_by_member'
+  | 'completion_trend'
+  | 'project_comparison'
 
 export type ReportChartSpec = {
   id: ReportChartId
-  kind: 'bar' | 'pie'
+  kind: ReportChartKind
 }
 
 export type ReportMetric = {
@@ -124,7 +135,13 @@ export type ReportSnapshot = {
   }
   executiveSummary: string
   metrics: ReportMetric[]
-  charts: Array<{ title: string; kind: 'bar' | 'pie'; data: ChartDatum[] }>
+  charts: Array<{
+    title: string
+    kind: ReportChartKind
+    data: ChartDatum[]
+    /** Multi-series overlays for line / comparison charts. */
+    series?: ChartSeries[]
+  }>
   tables: ReportTable[]
   insights: string[]
   recommendations: string[]

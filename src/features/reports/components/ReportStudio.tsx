@@ -19,6 +19,7 @@ import type {
   DateRangePreset,
   MetricId,
   ReportChartId,
+  ReportChartKind,
   ReportConfig,
   ReportOs,
   ReportSnapshot,
@@ -58,18 +59,38 @@ const CHART_OPTIONS: Array<{ id: ReportChartId; label: string }> = [
   { id: 'tasks_by_priority', label: 'Tasks by priority' },
   { id: 'effort_by_project', label: 'Effort by project' },
   { id: 'open_by_member', label: 'Open by member' },
+  { id: 'completion_trend', label: 'Created vs completed (trend)' },
+  { id: 'project_comparison', label: 'Project comparison' },
 ]
 
+const CHART_KINDS: ReportChartKind[] = ['bar', 'column', 'pie', 'line', 'comparison']
+
 type Step = 'type' | 'configure' | 'preview'
+
+function defaultChartKind(id: ReportChartId): ReportChartKind {
+  if (id === 'tasks_by_priority') return 'pie'
+  if (id === 'completion_trend') return 'line'
+  if (id === 'project_comparison') return 'comparison'
+  if (id === 'effort_by_project') return 'column'
+  return 'bar'
+}
 
 export function ReportStudio(props: ReportStudioProps) {
   const { t, i18n } = useTranslation()
   const [step, setStep] = useState<Step>(props.reopenSnapshot ? 'preview' : 'type')
-  const [config, setConfig] = useState<ReportConfig>(() => ({
-    ...defaultConfig(props.os),
-    locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
-  }))
-  const [aiPrompt, setAiPrompt] = useState('')
+  const [config, setConfig] = useState<ReportConfig>(() => {
+    if (props.reopenSnapshot?.config) {
+      return {
+        ...props.reopenSnapshot.config,
+        locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
+      }
+    }
+    return {
+      ...defaultConfig(props.os),
+      locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
+    }
+  })
+  const [aiPrompt, setAiPrompt] = useState(props.reopenSnapshot?.config.aiPrompt ?? '')
   const [aiNotes, setAiNotes] = useState<string[]>([])
   const [snapshot, setSnapshot] = useState<ReportSnapshot | null>(props.reopenSnapshot ?? null)
   const [busy, setBusy] = useState(false)
@@ -78,9 +99,14 @@ export function ReportStudio(props: ReportStudioProps) {
   useEffect(() => {
     if (props.reopenSnapshot) {
       setSnapshot(props.reopenSnapshot)
+      setConfig({
+        ...props.reopenSnapshot.config,
+        locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
+      })
+      setAiPrompt(props.reopenSnapshot.config.aiPrompt ?? '')
       setStep('preview')
     }
-  }, [props.reopenSnapshot])
+  }, [props.reopenSnapshot, i18n.language])
 
   const types = useMemo(() => listLocalizedReportTypes(props.os, t), [props.os, t])
   const typeDef = localizedReportType(props.os, config.typeId, t)
@@ -113,12 +139,43 @@ export function ReportStudio(props: ReportStudioProps) {
     setStep('configure')
   }
 
-  function applyAiCustomize() {
+  async function generatePreview(nextConfig?: ReportConfig, nextNotes?: string[]) {
+    const activeConfig = nextConfig ?? config
+    const notes = nextNotes ?? aiNotes
+    const activeType = getReportType(props.os, activeConfig.typeId)
+    setBusy(true)
+    try {
+      const built = buildReportSnapshot({
+        os: props.os,
+        config: {
+          ...activeConfig,
+          metrics: activeConfig.metrics.length ? activeConfig.metrics : activeType.defaultMetrics,
+          locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
+        },
+        generatedBy: props.generatedBy,
+        workspaceName: props.workspaceName,
+        workspaceId: props.workspaceId,
+        logoUrl: props.logoUrl,
+        projects: props.projects,
+        tasks: props.tasks,
+        members: props.members,
+        aiPromptNotes: notes,
+      })
+      setSnapshot(built)
+      setStep('preview')
+      props.onClearReopen?.()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function applyAiCustomize() {
     if (!aiPrompt.trim()) return
     const result = customizeReportFromPrompt(props.os, aiPrompt, config)
     setConfig(result.config)
     setAiNotes(result.notes)
     setAiPrompt(result.config.aiPrompt ?? aiPrompt)
+    await generatePreview(result.config, result.notes)
   }
 
   function toggleMetric(id: MetricId) {
@@ -140,12 +197,12 @@ export function ReportStudio(props: ReportStudioProps) {
       }
       return {
         ...prev,
-        charts: [...current, { id, kind: id === 'tasks_by_priority' ? 'pie' : 'bar' }],
+        charts: [...current, { id, kind: defaultChartKind(id) }],
       }
     })
   }
 
-  function setChartKind(id: ReportChartId, kind: 'bar' | 'pie') {
+  function setChartKind(id: ReportChartId, kind: ReportChartKind) {
     setConfig((prev) => {
       const current = prev.charts ?? []
       if (!current.some((chart) => chart.id === id)) {
@@ -175,33 +232,6 @@ export function ReportStudio(props: ReportStudioProps) {
     })
   }
 
-  async function generatePreview() {
-    setBusy(true)
-    try {
-      const next = buildReportSnapshot({
-        os: props.os,
-        config: {
-          ...config,
-          metrics: config.metrics.length ? config.metrics : typeDef.defaultMetrics,
-          locale: i18n.language?.startsWith('ar') ? 'ar' : 'en',
-        },
-        generatedBy: props.generatedBy,
-        workspaceName: props.workspaceName,
-        workspaceId: props.workspaceId,
-        logoUrl: props.logoUrl,
-        projects: props.projects,
-        tasks: props.tasks,
-        members: props.members,
-        aiPromptNotes: aiNotes,
-      })
-      setSnapshot(next)
-      setStep('preview')
-      props.onClearReopen?.()
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function saveAndKeep() {
     if (!snapshot) return
     await props.onGenerate(snapshot)
@@ -223,6 +253,19 @@ export function ReportStudio(props: ReportStudioProps) {
     { id: 'preview', label: t('reports.stepPreview', { defaultValue: 'Preview' }) },
   ]
 
+  const configDirty =
+    Boolean(snapshot) &&
+    JSON.stringify({
+      ...config,
+      locale: undefined,
+      aiPrompt: config.aiPrompt ?? '',
+    }) !==
+      JSON.stringify({
+        ...snapshot!.config,
+        locale: undefined,
+        aiPrompt: snapshot!.config.aiPrompt ?? '',
+      })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -231,7 +274,14 @@ export function ReportStudio(props: ReportStudioProps) {
             key={item.id}
             type="button"
             onClick={() => {
-              if (item.id === 'preview' && !snapshot) return
+              if (item.id === 'preview') {
+                if (configDirty || !snapshot) {
+                  void generatePreview()
+                  return
+                }
+                setStep('preview')
+                return
+              }
               if (item.id === 'configure' && !config.typeId) return
               setStep(item.id)
             }}
@@ -413,8 +463,8 @@ export function ReportStudio(props: ReportStudioProps) {
                           {t(`reports.chart.${option.id}`, { defaultValue: option.label })}
                         </button>
                         {active ? (
-                          <div className="flex gap-1">
-                            {(['bar', 'pie'] as const).map((kind) => (
+                          <div className="flex flex-wrap gap-1">
+                            {CHART_KINDS.map((kind) => (
                               <button
                                 key={kind}
                                 type="button"
@@ -445,7 +495,9 @@ export function ReportStudio(props: ReportStudioProps) {
                   <Wand2 className="size-4" />
                   {busy
                     ? t('reports.generating', { defaultValue: 'Generating…' })
-                    : t('reports.generatePreview', { defaultValue: 'Generate preview' })}
+                    : snapshot && configDirty
+                      ? t('reports.regeneratePreview', { defaultValue: 'Regenerate preview' })
+                      : t('reports.generatePreview', { defaultValue: 'Generate preview' })}
                 </Button>
               </div>
             </CardContent>
@@ -467,17 +519,27 @@ export function ReportStudio(props: ReportStudioProps) {
                   props.os === 'workspace'
                     ? t('reports.aiPlaceholderWorkspace', {
                         defaultValue:
-                          'Create an executive report with a pie chart of priority, bar charts for status and member workload, overdue tasks, and project progress this week.',
+                          'Create an executive report with a pie chart of priority, line trend of created vs completed, a project comparison, and overdue tasks this week.',
                       })
                     : t('reports.aiPlaceholderPersonal', {
                         defaultValue:
-                          'Create a weekly productivity report with charts for status and priority, where I spent time, what I completed, what I’m behind on, and what to prioritize next week.',
+                          'Create a weekly productivity report with a line graph of created vs completed, a pie chart for priority, bar charts for status, and a project comparison.',
                       })
                 }
               />
-              <Button type="button" size="sm" variant="secondary" onClick={applyAiCustomize}>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={busy || !aiPrompt.trim()}
+                onClick={() => void applyAiCustomize()}
+              >
                 <Sparkles className="size-4" />
-                {t('reports.applyAi', { defaultValue: 'Apply AI customization' })}
+                {busy
+                  ? t('reports.generating', { defaultValue: 'Generating…' })
+                  : t('reports.applyAi', {
+                      defaultValue: 'Apply AI & regenerate',
+                    })}
               </Button>
               {aiNotes.length ? (
                 <ul className="space-y-1 text-xs text-muted">
@@ -489,7 +551,7 @@ export function ReportStudio(props: ReportStudioProps) {
               <p className="text-[11px] text-muted">
                 {t('reports.aiDisclaimer', {
                   defaultValue:
-                    'AI only configures structure and emphasis. All numbers come from your Hilm data.',
+                    'AI configures structure and chart types, then regenerates the report from your Hilm data.',
                 })}
               </p>
             </CardContent>

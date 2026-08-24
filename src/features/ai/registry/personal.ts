@@ -773,15 +773,17 @@ export function registerPersonalActions() {
               'tasks_by_priority',
               'effort_by_project',
               'open_by_member',
+              'completion_trend',
+              'project_comparison',
             ]),
-            kind: z.enum(['bar', 'pie']),
+            kind: z.enum(['bar', 'column', 'pie', 'line', 'comparison']),
           }),
         )
         .max(8)
         .optional(),
     }),
     promptFields:
-      'title, body (describe desired metrics/charts/fields in natural language), projectId?, projectName?, datePreset?, metrics?, charts:[{id,kind}]?',
+      'title, body (describe desired metrics/charts/fields in natural language), projectId?, projectName?, datePreset?, metrics?, charts:[{id:tasks_by_status|tasks_by_priority|effort_by_project|open_by_member|completion_trend|project_comparison, kind:bar|column|pie|line|comparison}]?',
     execute: async (input) => {
       const userId = await requireUserId()
       const [{ data: profile }, projects, tasks] = await Promise.all([

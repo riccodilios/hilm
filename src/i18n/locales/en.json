@@ -1095,12 +1095,22 @@
       "ai_insights": "AI insights"
     },
     "askAi": "Ask AI to customize this report",
-    "applyAi": "Apply AI customization",
-    "aiDisclaimer": "AI only configures structure and emphasis. All numbers come from your Hilm data.",
-    "aiPlaceholderPersonal": "Create a weekly productivity report showing where I spent most of my time, what I completed, what I’m behind on, and what to prioritize next week.",
-    "aiPlaceholderWorkspace": "Create an executive report showing Engineering workload, overdue tasks, project progress, and bottlenecks this week.",
+    "applyAi": "Apply AI & regenerate",
+    "aiDisclaimer": "AI configures structure and chart types, then regenerates the report from your Hilm data.",
+    "aiPlaceholderPersonal": "Create a weekly productivity report with a line graph of created vs completed, a pie chart for priority, bar charts for status, and a project comparison.",
+    "aiPlaceholderWorkspace": "Create an executive report with a pie chart of priority, line trend of created vs completed, a project comparison, and overdue tasks this week.",
     "generatePreview": "Generate preview",
+    "regeneratePreview": "Regenerate preview",
     "generating": "Generating…",
+    "charts": "Charts & graphs",
+    "chart": {
+      "tasks_by_status": "Tasks by status",
+      "tasks_by_priority": "Tasks by priority",
+      "effort_by_project": "Effort by project",
+      "open_by_member": "Open by member",
+      "completion_trend": "Created vs completed (trend)",
+      "project_comparison": "Project comparison"
+    },
     "saving": "Saving…",
     "saveHistory": "Save to history",
     "editConfig": "Edit configuration",
@@ -1223,6 +1233,11 @@
       "scopePersonal": "Scope: Personal OS",
       "effortByProject": "Estimated effort by project",
       "openByMember": "Open tasks by member",
+      "completionTrend": "Created vs completed over time",
+      "projectComparison": "Project comparison (open vs completed)",
+      "seriesCreated": "Created",
+      "seriesCompleted": "Completed",
+      "seriesOpen": "Open",
       "memberWorkload": "Member workload"
     },
     "period": {
