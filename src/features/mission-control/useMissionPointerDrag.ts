@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 
 type GhostPos = { x: number; y: number }
@@ -40,7 +40,8 @@ export function useMissionPointerDrag(opts: DragOpts) {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [ghost, setGhost] = useState<GhostPos | null>(null)
   const [hoverKey, setHoverKey] = useState<string | null>(null)
-  const didDragRef = useRef(false)
+  /** Suppress clicks only until this timestamp (avoids permanently locking day navigation). */
+  const suppressUntilRef = useRef(0)
   const sessionRef = useRef<Session | null>(null)
   const pendingListenersRef = useRef<WindowListeners | null>(null)
   const activeListenersRef = useRef<WindowListeners | null>(null)
@@ -49,6 +50,11 @@ export function useMissionPointerDrag(opts: DragOpts) {
     document.body.style.userSelect = ''
     document.body.style.touchAction = ''
     document.documentElement.style.overflow = ''
+    document.documentElement.style.touchAction = ''
+  }, [])
+
+  const armClickSuppress = useCallback((ms = 120) => {
+    suppressUntilRef.current = Date.now() + ms
   }, [])
 
   const detachListeners = useCallback((bucket: 'pending' | 'active') => {
@@ -66,6 +72,7 @@ export function useMissionPointerDrag(opts: DragOpts) {
 
   const cleanup = useCallback(() => {
     const session = sessionRef.current
+    const wasActivated = Boolean(session?.activated)
     if (session?.timer != null) window.clearTimeout(session.timer)
     if (session?.target) {
       try {
@@ -85,7 +92,26 @@ export function useMissionPointerDrag(opts: DragOpts) {
     setGhost(null)
     setHoverKey(null)
     clearBodyLock()
-  }, [clearBodyLock, detachListeners])
+    // After a real drag, briefly ignore the click that often follows pointerup.
+    // Always expire — never leave Mission Control unable to change days.
+    if (wasActivated) armClickSuppress(150)
+    else suppressUntilRef.current = 0
+  }, [armClickSuppress, clearBodyLock, detachListeners])
+
+  // If the browser drops the gesture (tab switch, OS gesture), unlock navigation.
+  useEffect(() => {
+    const abort = () => {
+      if (!sessionRef.current) return
+      cleanup()
+    }
+    window.addEventListener('blur', abort)
+    document.addEventListener('visibilitychange', abort)
+    return () => {
+      window.removeEventListener('blur', abort)
+      document.removeEventListener('visibilitychange', abort)
+      if (sessionRef.current) cleanup()
+    }
+  }, [cleanup])
 
   const attachActiveListeners = useCallback(() => {
     if (activeListenersRef.current) return
@@ -137,12 +163,13 @@ export function useMissionPointerDrag(opts: DragOpts) {
       }
       // Drop passive watchers; active drag owns the gesture from here.
       detachListeners('pending')
-      didDragRef.current = true
+      armClickSuppress(60_000) // active until cleanup expires it
       setActiveTaskId(taskId)
       setGhost({ x: clientX, y: clientY })
       document.body.style.userSelect = 'none'
       document.body.style.touchAction = 'none'
       document.documentElement.style.overflow = 'hidden'
+      document.documentElement.style.touchAction = 'none'
       if (session.target) {
         session.target.style.pointerEvents = 'none'
         session.target.style.touchAction = 'none'
@@ -164,7 +191,7 @@ export function useMissionPointerDrag(opts: DragOpts) {
         }
       }
     },
-    [attachActiveListeners, detachListeners],
+    [armClickSuppress, attachActiveListeners, detachListeners],
   )
 
   const bindTask = useCallback(
@@ -174,7 +201,7 @@ export function useMissionPointerDrag(opts: DragOpts) {
         if (event.button !== 0 && event.pointerType === 'mouse') return
         if (sessionRef.current) return
 
-        didDragRef.current = false
+        suppressUntilRef.current = 0
         const pointerType = event.pointerType || 'mouse'
         const isTouch = pointerType === 'touch' || pointerType === 'pen'
         const startX = event.clientX
@@ -228,12 +255,9 @@ export function useMissionPointerDrag(opts: DragOpts) {
         window.addEventListener('pointercancel', listeners.onUp)
       },
       onClickCapture: (event: React.MouseEvent) => {
-        if (!didDragRef.current) return
+        if (Date.now() >= suppressUntilRef.current) return
         event.preventDefault()
         event.stopPropagation()
-        window.setTimeout(() => {
-          didDragRef.current = false
-        }, 0)
       },
     }),
     [activate, cleanup],
@@ -246,7 +270,7 @@ export function useMissionPointerDrag(opts: DragOpts) {
     setHoverKey,
     bindTask,
     isDragging: Boolean(activeTaskId),
-    suppressClick: () => didDragRef.current,
+    suppressClick: () => Date.now() < suppressUntilRef.current,
   }
 }
 

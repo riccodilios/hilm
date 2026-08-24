@@ -2,6 +2,7 @@ import { getReportType } from '@/features/reports/catalog'
 import { resolveReportPeriod } from '@/features/reports/date-ranges'
 import { localizedMetricLabel, localizedPdfCopy } from '@/features/reports/i18n'
 import type {
+  ChartDatum,
   MetricId,
   ReportConfig,
   ReportMetric,
