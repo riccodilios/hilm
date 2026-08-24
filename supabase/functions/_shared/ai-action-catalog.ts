@@ -75,7 +75,7 @@ export const personalActionCatalog =
 - daily_log.upsert {logDate?, workedOn?, blockers?, hours?, wins?, tomorrow?, aiSummary?}
 - activity.note {summary, entityType?, entityId?, projectId?}
 - idea.create {title, description?, projectId?, impact?, effort?}
-- report.generate {title, body, projectId?}
+- report.generate {title, body, projectId?, projectName?, datePreset?, metrics?, charts:[{id:tasks_by_status|tasks_by_priority|effort_by_project|open_by_member, kind:bar|pie}]?}  // body should describe fields/charts needed; engine computes real numbers from Hilm data
 - mission.schedule_day {assignments:[{taskId, dueAt}]}`
 
 export const workspaceActionCatalog =
@@ -110,7 +110,7 @@ export const workspaceActionCatalog =
 - meeting.summarize {title, summary, projectId?}
 - release.notes {title, body, projectId?}
 - milestone.create {title, projectId?, dueAt?}
-- report.generate {title, body, projectId?}
+- report.generate {title, body, projectId?, projectName?, datePreset?, metrics?, charts:[{id:tasks_by_status|tasks_by_priority|effort_by_project|open_by_member, kind:bar|pie}]?}  // body should describe fields/charts needed; engine computes real numbers from Hilm data
 - mission.rebalance {assignments:[{taskId, dueAt, assigneeId?}]}
 - analytics.workload {focus?}
 - analytics.delivery_risk {}`

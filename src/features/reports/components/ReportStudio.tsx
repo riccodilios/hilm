@@ -18,6 +18,7 @@ import { downloadReportPdf } from '@/features/reports/pdf/exportPdf'
 import type {
   DateRangePreset,
   MetricId,
+  ReportChartId,
   ReportConfig,
   ReportOs,
   ReportSnapshot,
@@ -50,6 +51,13 @@ const DATE_PRESETS: DateRangePreset[] = [
   'this_month',
   'last_month',
   'custom',
+]
+
+const CHART_OPTIONS: Array<{ id: ReportChartId; label: string }> = [
+  { id: 'tasks_by_status', label: 'Tasks by status' },
+  { id: 'tasks_by_priority', label: 'Tasks by priority' },
+  { id: 'effort_by_project', label: 'Effort by project' },
+  { id: 'open_by_member', label: 'Open by member' },
 ]
 
 type Step = 'type' | 'configure' | 'preview'
@@ -119,6 +127,33 @@ export function ReportStudio(props: ReportStudioProps) {
       return {
         ...prev,
         metrics: has ? prev.metrics.filter((m) => m !== id) : [...prev.metrics, id],
+      }
+    })
+  }
+
+  function toggleChart(id: ReportChartId) {
+    setConfig((prev) => {
+      const current = prev.charts ?? []
+      const existing = current.find((chart) => chart.id === id)
+      if (existing) {
+        return { ...prev, charts: current.filter((chart) => chart.id !== id) }
+      }
+      return {
+        ...prev,
+        charts: [...current, { id, kind: id === 'tasks_by_priority' ? 'pie' : 'bar' }],
+      }
+    })
+  }
+
+  function setChartKind(id: ReportChartId, kind: 'bar' | 'pie') {
+    setConfig((prev) => {
+      const current = prev.charts ?? []
+      if (!current.some((chart) => chart.id === id)) {
+        return { ...prev, charts: [...current, { id, kind }] }
+      }
+      return {
+        ...prev,
+        charts: current.map((chart) => (chart.id === id ? { ...chart, kind } : chart)),
       }
     })
   }
@@ -352,6 +387,56 @@ export function ReportStudio(props: ReportStudioProps) {
                 </div>
               </div>
 
+              <div>
+                <p className="mb-2 text-xs text-muted">
+                  {t('reports.charts', { defaultValue: 'Charts & graphs' })}
+                </p>
+                <div className="space-y-2">
+                  {CHART_OPTIONS.filter(
+                    (option) => option.id !== 'open_by_member' || props.os === 'workspace',
+                  ).map((option) => {
+                    const active = config.charts?.find((chart) => chart.id === option.id)
+                    return (
+                      <div
+                        key={option.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-subtle bg-surface-2/50 px-3 py-2"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleChart(option.id)}
+                          className={cn(
+                            'text-start text-[12px]',
+                            active ? 'font-medium text-foreground' : 'text-muted',
+                          )}
+                        >
+                          {active ? '✓ ' : ''}
+                          {t(`reports.chart.${option.id}`, { defaultValue: option.label })}
+                        </button>
+                        {active ? (
+                          <div className="flex gap-1">
+                            {(['bar', 'pie'] as const).map((kind) => (
+                              <button
+                                key={kind}
+                                type="button"
+                                onClick={() => setChartKind(option.id, kind)}
+                                className={cn(
+                                  'rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide',
+                                  active.kind === kind
+                                    ? 'bg-accent/20 text-foreground'
+                                    : 'bg-surface text-muted',
+                                )}
+                              >
+                                {kind}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setStep('type')}>
                   {t('common.back', { defaultValue: 'Back' })}
@@ -382,11 +467,11 @@ export function ReportStudio(props: ReportStudioProps) {
                   props.os === 'workspace'
                     ? t('reports.aiPlaceholderWorkspace', {
                         defaultValue:
-                          'Create an executive report showing Engineering workload, overdue tasks, project progress, and bottlenecks this week.',
+                          'Create an executive report with a pie chart of priority, bar charts for status and member workload, overdue tasks, and project progress this week.',
                       })
                     : t('reports.aiPlaceholderPersonal', {
                         defaultValue:
-                          'Create a weekly productivity report showing where I spent most of my time, what I completed, what I’m behind on, and what to prioritize next week.',
+                          'Create a weekly productivity report with charts for status and priority, where I spent time, what I completed, what I’m behind on, and what to prioritize next week.',
                       })
                 }
               />

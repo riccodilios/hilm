@@ -704,15 +704,36 @@ export function registerPersonalActions() {
     type: 'report.generate',
     os: 'personal',
     title: 'Generate report',
-    description: 'Generate a branded Personal OS report and store it in report history',
+    description:
+      'Generate a branded Personal OS report with metrics/charts from live Hilm data and store it in report history',
     risk: 'safe',
     inputSchema: z.object({
       type: z.literal('report.generate'),
       title: z.string().min(1),
       body: z.string().min(1),
       projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
+      datePreset: z
+        .enum(['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'])
+        .optional(),
+      metrics: z.array(z.string()).max(20).optional(),
+      charts: z
+        .array(
+          z.object({
+            id: z.enum([
+              'tasks_by_status',
+              'tasks_by_priority',
+              'effort_by_project',
+              'open_by_member',
+            ]),
+            kind: z.enum(['bar', 'pie']),
+          }),
+        )
+        .max(8)
+        .optional(),
     }),
-    promptFields: 'title, body, projectId?',
+    promptFields:
+      'title, body (describe desired metrics/charts/fields in natural language), projectId?, projectName?, datePreset?, metrics?, charts:[{id,kind}]?',
     execute: async (input) => {
       const userId = await requireUserId()
       const [{ data: profile }, projects, tasks] = await Promise.all([
@@ -724,11 +745,18 @@ export function registerPersonalActions() {
       const { customizeReportFromPrompt } = await import('@/features/reports/engine/aiCustomize')
       const { buildReportSnapshot } = await import('@/features/reports/engine/buildSnapshot')
       const { savePersonalReport } = await import('@/features/reports/api')
+      let projectIds: string[] | 'all' = input.projectId ? [input.projectId] : 'all'
+      if (!input.projectId && input.projectName?.trim()) {
+        const needle = input.projectName.trim().toLowerCase()
+        const match = projects.find((project) => project.name.trim().toLowerCase() === needle)
+        if (match) projectIds = [match.id]
+      }
       const customized = customizeReportFromPrompt('personal', `${input.title}. ${input.body}`, {
         title: input.title,
-        projectIds: input.projectId ? [input.projectId] : 'all',
-        datePreset: 'this_week',
-        metrics: [],
+        projectIds,
+        datePreset: input.datePreset ?? 'this_week',
+        metrics: (input.metrics ?? []) as never[],
+        charts: input.charts,
       })
       const snapshot = buildReportSnapshot({
         os: 'personal',

@@ -23,7 +23,7 @@
     Permissions-Policy = "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     Cross-Origin-Opener-Policy = "same-origin"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; frame-src 'self' blob:; child-src 'self' blob:; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.openrouter.ai; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; frame-src 'self' blob:; child-src 'self' blob:; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.openrouter.ai https://cdn.jsdelivr.net; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
 
 [[headers]]
   for = "/api/*"

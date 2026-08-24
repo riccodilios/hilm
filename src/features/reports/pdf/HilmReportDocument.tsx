@@ -6,6 +6,9 @@ import {
   StyleSheet,
   Image,
   Font,
+  Svg,
+  Path,
+  G,
 } from '@react-pdf/renderer'
 import type { ChartDatum, ReportSnapshot } from '@/features/reports/types'
 import i18n from '@/i18n'
@@ -374,6 +377,78 @@ function PieLegend({ data, styles }: { data: ChartDatum[]; styles: ReturnType<ty
   )
 }
 
+function polarToCartesian(cx: number, cy: number, r: number, angle: number) {
+  return {
+    x: cx + r * Math.cos(angle),
+    y: cy + r * Math.sin(angle),
+  }
+}
+
+function slicePath(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(cx, cy, r, endAngle)
+  const end = polarToCartesian(cx, cy, r, startAngle)
+  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`
+}
+
+function PieChart({
+  data,
+  styles,
+}: {
+  data: ChartDatum[]
+  styles: ReturnType<typeof stylesFor>
+}) {
+  const total = data.reduce((sum, row) => sum + Math.max(0, row.value), 0) || 1
+  const size = 120
+  const cx = size / 2
+  const cy = size / 2
+  const r = 52
+  let angle = -Math.PI / 2
+  const slices = data
+    .filter((row) => row.value > 0)
+    .map((row, index) => {
+      const sweep = (row.value / total) * Math.PI * 2
+      const start = angle
+      const end = angle + sweep
+      angle = end
+      // Full circle edge case — draw a ring-ish circle via two halves
+      const path =
+        sweep >= Math.PI * 2 - 0.001
+          ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r} Z`
+          : slicePath(cx, cy, r, start, end)
+      return {
+        key: `${row.label}-${index}`,
+        path,
+        color: row.color ?? PIE_FALLBACK[index % PIE_FALLBACK.length],
+      }
+    })
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+      <Svg width={size} height={size}>
+        <G>
+          {slices.map((slice) => (
+            <Path key={slice.key} d={slice.path} fill={slice.color} />
+          ))}
+        </G>
+      </Svg>
+      <View style={{ flexGrow: 1 }}>
+        <PieLegend data={data} styles={styles} />
+      </View>
+    </View>
+  )
+}
+
+const PIE_FALLBACK = ['#18181b', '#52525b', '#a1a1aa', '#3f3f46', '#71717a', '#d4d4d8']
+
+function safeLogoUrl(url?: string | null) {
+  if (!url?.trim()) return null
+  const trimmed = url.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (trimmed.startsWith('data:image/')) return trimmed
+  return null
+}
+
 function DataTable({
   headers,
   rows,
@@ -414,6 +489,7 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
   const accent = snapshot.branding.accent || HILM.accent
   const styles = stylesFor(accent, arabic)
   const sections = new Set(snapshot.sections)
+  const logoUrl = safeLogoUrl(snapshot.branding.logoUrl)
 
   return (
     <Document
@@ -425,9 +501,7 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
     >
       {sections.has('cover') ? (
         <Page size="A4" style={styles.coverPage}>
-          {snapshot.branding.logoUrl ? (
-            <Image src={snapshot.branding.logoUrl} style={styles.logo} />
-          ) : null}
+          {logoUrl ? <Image src={logoUrl} style={styles.logo} /> : null}
           <Text style={styles.brand}>{snapshot.branding.productName}</Text>
           {snapshot.workspaceName ? <Text style={styles.org}>{snapshot.workspaceName}</Text> : null}
           <View style={styles.coverAccentBar} />
@@ -501,7 +575,7 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
               <View key={chart.title} style={styles.chartBlock} wrap={false}>
                 <Text style={styles.chartTitle}>{chart.title}</Text>
                 {chart.kind === 'pie' ? (
-                  <PieLegend data={chart.data} styles={styles} />
+                  <PieChart data={chart.data} styles={styles} />
                 ) : (
                   <BarChart data={chart.data} styles={styles} accent={accent} />
                 )}

@@ -1296,7 +1296,8 @@ export function registerWorkspaceActions() {
     type: 'report.generate',
     os: 'workspace',
     title: 'Generate report',
-    description: 'Generate a branded workspace report and store it in report history',
+    description:
+      'Generate a branded workspace report with metrics/charts from live Hilm data and store it in report history',
     risk: 'safe',
     permission: editOk,
     inputSchema: z.object({
@@ -1304,8 +1305,28 @@ export function registerWorkspaceActions() {
       title: z.string().min(1),
       body: z.string().min(1),
       projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
+      datePreset: z
+        .enum(['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'])
+        .optional(),
+      metrics: z.array(z.string()).max(20).optional(),
+      charts: z
+        .array(
+          z.object({
+            id: z.enum([
+              'tasks_by_status',
+              'tasks_by_priority',
+              'effort_by_project',
+              'open_by_member',
+            ]),
+            kind: z.enum(['bar', 'pie']),
+          }),
+        )
+        .max(8)
+        .optional(),
     }),
-    promptFields: 'title, body, projectId?',
+    promptFields:
+      'title, body (describe desired metrics/charts/fields), projectId?, projectName?, datePreset?, metrics?, charts:[{id,kind}]?',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
       const userId = await requireUserId()
@@ -1321,11 +1342,18 @@ export function registerWorkspaceActions() {
       const { buildReportSnapshot } = await import('@/features/reports/engine/buildSnapshot')
       const { saveWorkspaceReport } = await import('@/features/reports/api')
       const { resolveMemberDisplayName } = await import('@/features/workspace-os/lib/member-display')
+      let projectIds: string[] | 'all' = input.projectId ? [input.projectId] : 'all'
+      if (!input.projectId && input.projectName?.trim()) {
+        const needle = input.projectName.trim().toLowerCase()
+        const match = projects.find((project) => project.name.trim().toLowerCase() === needle)
+        if (match) projectIds = [match.id]
+      }
       const customized = customizeReportFromPrompt('workspace', `${input.title}. ${input.body}`, {
         title: input.title,
-        projectIds: input.projectId ? [input.projectId] : 'all',
-        datePreset: 'this_week',
-        metrics: [],
+        projectIds,
+        datePreset: input.datePreset ?? 'this_week',
+        metrics: (input.metrics ?? []) as never[],
+        charts: input.charts,
       })
       const snapshot = buildReportSnapshot({
         os: 'workspace',

@@ -2,7 +2,6 @@ import { getReportType } from '@/features/reports/catalog'
 import { resolveReportPeriod } from '@/features/reports/date-ranges'
 import { localizedMetricLabel, localizedPdfCopy } from '@/features/reports/i18n'
 import type {
-  ChartDatum,
   MetricId,
   ReportConfig,
   ReportMetric,
@@ -228,50 +227,77 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
   })
 
   const charts: ReportSnapshot['charts'] = []
-  if (statusMap.size) {
-    charts.push({
-      title: t('reports.pdf.tasksByStatus', { defaultValue: 'Tasks by status' }),
-      kind: 'bar',
-      data: [...statusMap.entries()].map(([label, value]) => ({
-        label: t(`status.${label}`, { defaultValue: label.replaceAll('_', ' ') }),
-        value,
-      })),
-    })
+  const chartSpecs =
+    input.config.charts?.length
+      ? input.config.charts
+      : ([
+          { id: 'tasks_by_status' as const, kind: 'bar' as const },
+          { id: 'tasks_by_priority' as const, kind: 'pie' as const },
+          { id: 'effort_by_project' as const, kind: 'bar' as const },
+          ...(input.os === 'workspace' || memberLoad.size
+            ? [{ id: 'open_by_member' as const, kind: 'bar' as const }]
+            : []),
+        ] as const)
+
+  for (const spec of chartSpecs) {
+    if (spec.id === 'tasks_by_status' && statusMap.size) {
+      charts.push({
+        title: t('reports.pdf.tasksByStatus', { defaultValue: 'Tasks by status' }),
+        kind: spec.kind,
+        data: [...statusMap.entries()].map(([label, value], index) => ({
+          label: t(`status.${label}`, { defaultValue: label.replaceAll('_', ' ') }),
+          value,
+          color: PIE_COLORS[index % PIE_COLORS.length],
+        })),
+      })
+    }
+    if (spec.id === 'tasks_by_priority' && priorityMap.size) {
+      charts.push({
+        title: t('reports.pdf.tasksByPriority', { defaultValue: 'Tasks by priority' }),
+        kind: spec.kind,
+        data: [...priorityMap.entries()].map(([label, value], index) => ({
+          label: t(`priority.${label}`, { defaultValue: label }),
+          value,
+          color: PIE_COLORS[index % PIE_COLORS.length],
+        })),
+      })
+    }
+    if (spec.id === 'effort_by_project' && projectLoad.size) {
+      const projectName = new Map(projects.map((project) => [project.id, project.name]))
+      charts.push({
+        title: t('reports.pdf.effortByProject'),
+        kind: spec.kind,
+        data: [...projectLoad.entries()]
+          .map(([id, value], index) => ({
+            label: projectName.get(id) ?? id.slice(0, 8),
+            value: Math.round(value),
+            color: PIE_COLORS[index % PIE_COLORS.length],
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 8),
+      })
+    }
+    if (spec.id === 'open_by_member' && memberLoad.size) {
+      charts.push({
+        title: t('reports.pdf.openByMember'),
+        kind: spec.kind,
+        data: [...memberLoad.entries()]
+          .map(([id, value], index) => ({
+            label: memberMap.get(id) ?? id.slice(0, 8),
+            value,
+            color: PIE_COLORS[index % PIE_COLORS.length],
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 8),
+      })
+    }
   }
-  if (priorityMap.size) {
-    charts.push({
-      title: t('reports.pdf.tasksByPriority', { defaultValue: 'Tasks by priority' }),
-      kind: 'pie',
-      data: [...priorityMap.entries()].map(([label, value], index) => ({
-        label: t(`priority.${label}`, { defaultValue: label }),
-        value,
-        color: PIE_COLORS[index % PIE_COLORS.length],
-      })),
-    })
-  }
-  if (projectLoad.size) {
-    const projectName = new Map(projects.map((project) => [project.id, project.name]))
-    charts.push({
-      title: t('reports.pdf.effortByProject'),
-      kind: 'bar',
-      data: [...projectLoad.entries()]
-        .map(([id, value]) => ({
-          label: projectName.get(id) ?? id.slice(0, 8),
-          value: Math.round(value),
-        }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8),
-    })
-  }
-  if (memberLoad.size) {
-    charts.push({
-      title: t('reports.pdf.openByMember'),
-      kind: 'bar',
-      data: [...memberLoad.entries()]
-        .map(([id, value]) => ({ label: memberMap.get(id) ?? id.slice(0, 8), value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8),
-    })
+
+  // Always keep charts section when we produced chart data
+  const sections = [...def.sections]
+  if (charts.length && !sections.includes('charts')) sections.push('charts')
+  if (input.config.metrics.includes('ai_insights') && !sections.includes('ai_insights')) {
+    sections.push('ai_insights')
   }
 
   const tables: ReportTable[] = []
@@ -384,7 +410,7 @@ export function buildReportSnapshot(input: ReportBuildInput): ReportSnapshot {
     tables,
     insights,
     recommendations,
-    sections: def.sections,
+    sections,
     config: input.config,
   }
 }

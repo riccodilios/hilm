@@ -73,11 +73,25 @@ export type ReportConfig = {
   teamIds?: string[] | 'all'
   memberIds?: string[] | 'all'
   metrics: MetricId[]
+  /** Optional explicit charts; when omitted the engine picks defaults for the report type. */
+  charts?: ReportChartSpec[]
   aiPrompt?: string
   locale?: 'en' | 'ar'
 }
 
 export type ChartDatum = { label: string; value: number; color?: string }
+
+/** Selectable chart builders for AI / Studio customization. */
+export type ReportChartId =
+  | 'tasks_by_status'
+  | 'tasks_by_priority'
+  | 'effort_by_project'
+  | 'open_by_member'
+
+export type ReportChartSpec = {
+  id: ReportChartId
+  kind: 'bar' | 'pie'
+}
 
 export type ReportMetric = {
   id: MetricId
