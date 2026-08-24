@@ -69,6 +69,28 @@ async function ensurePersonalProjectId(preferred?: string) {
   return created.id
 }
 
+async function resolvePersonalProjectId(opts?: {
+  projectId?: string
+  projectName?: string
+}) {
+  if (opts?.projectId) {
+    const projects = await listProjects()
+    if (projects.some((project) => project.id === opts.projectId)) return opts.projectId
+  }
+  const name = opts?.projectName?.trim().toLowerCase()
+  if (name) {
+    const projects = await listProjects()
+    const exact = projects.find((project) => project.name.trim().toLowerCase() === name)
+    if (exact) return exact.id
+    const partial = projects.find((project) =>
+      project.name.trim().toLowerCase().includes(name) ||
+      name.includes(project.name.trim().toLowerCase()),
+    )
+    if (partial) return partial.id
+  }
+  return null
+}
+
 export function registerPersonalActions() {
   registerAction({
     type: 'task.complete',
@@ -166,7 +188,7 @@ export function registerPersonalActions() {
     type: 'task.update',
     os: 'personal',
     title: 'Update task',
-    description: 'Update task fields',
+    description: 'Update task fields or move the task to another project',
     risk: 'safe',
     parallelSafe: true,
     inputSchema: z.object({
@@ -176,8 +198,11 @@ export function registerPersonalActions() {
       description: z.string().optional(),
       priority: optionalPriority,
       dueAt: z.string().nullable().optional(),
+      projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
     }),
-    promptFields: 'taskId, title?, description?, priority?, dueAt?',
+    promptFields:
+      'taskId, title?, description?, priority?, dueAt?, projectId?, projectName? (to move the task to another project)',
     execute: async (input) => {
       // Do NOT look up by input.title — that field is the NEW title when renaming.
       // Never create a new task from an update request (that caused duplicates/untitled tasks).
@@ -192,6 +217,23 @@ export function registerPersonalActions() {
         }
       }
 
+      let projectId: string | undefined
+      if (input.projectId || input.projectName) {
+        const resolved = await resolvePersonalProjectId({
+          projectId: input.projectId,
+          projectName: input.projectName,
+        })
+        if (!resolved) {
+          return {
+            ok: false,
+            summary: input.projectName
+              ? `Could not find project “${input.projectName}”.`
+              : 'Could not find that project.',
+          }
+        }
+        projectId = resolved
+      }
+
       const updated = await updateTask(taskId, {
         title: input.title,
         description: input.description,
@@ -200,11 +242,17 @@ export function registerPersonalActions() {
         ...(input.dueAt !== undefined
           ? { due_date: input.dueAt ? input.dueAt.slice(0, 10) : null }
           : {}),
+        ...(projectId ? { project_id: projectId } : {}),
       })
       return {
         ok: true,
-        summary: `Updated task ${updated.title ?? taskId}`,
-        entities: [{ type: 'task', id: taskId }],
+        summary: projectId
+          ? `Moved task ${updated.title ?? taskId} to ${updated.projects?.name ?? 'another project'}`
+          : `Updated task ${updated.title ?? taskId}`,
+        entities: [
+          { type: 'task', id: taskId },
+          ...(projectId ? [{ type: 'project' as const, id: projectId }] : []),
+        ],
         data: updated,
       }
     },

@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Check, ChevronLeft, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { getTask, listSubtasks, tasksKeys, updateTask } from '@/features/tasks/api'
+import { listProjects, projectsKeys } from '@/features/projects/api'
 import { homeKeys } from '@/features/home/api'
 import { activityKeys } from '@/features/activity/api'
 import { supabase } from '@/lib/supabase/client'
@@ -47,11 +48,16 @@ export function TaskDetailPage() {
     queryFn: () => getTask(id!),
     enabled: Boolean(id),
   })
+  const { data: projects } = useQuery({
+    queryKey: projectsKeys.list(),
+    queryFn: listProjects,
+  })
   const { data: subtasks } = useQuery({
     queryKey: [...tasksKeys.detail(id ?? ''), 'subtasks'],
     queryFn: () => listSubtasks(id!),
     enabled: Boolean(id),
   })
+
   const attachments = useQuery({
     queryKey: [...tasksKeys.detail(id ?? ''), 'attachments'],
     queryFn: () => listTaskAttachments(id!),
@@ -64,13 +70,16 @@ export function TaskDetailPage() {
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateTask>[1]) => updateTask(id!, patch),
-    onSuccess: () => {
+    onSuccess: (_data, patch) => {
       void Promise.all([
         qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: projectsKeys.all }),
         qc.invalidateQueries({ queryKey: homeKeys.all }),
         qc.invalidateQueries({ queryKey: activityKeys.all }),
       ])
-      toast.success(t('tasks.updated'))
+      toast.success(
+        patch.project_id !== undefined ? t('tasks.movedProject') : t('tasks.updated'),
+      )
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -215,6 +224,32 @@ export function TaskDetailPage() {
               }
             />
             <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2 sm:col-span-3">
+                <Label htmlFor="project">{t('tasks.project')}</Label>
+                <select
+                  id="project"
+                  value={task.project_id}
+                  disabled={save.isPending || !(projects?.length)}
+                  onChange={(event) => {
+                    const nextProjectId = event.target.value
+                    if (!nextProjectId || nextProjectId === task.project_id) return
+                    save.mutate({ project_id: nextProjectId })
+                  }}
+                  className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+                >
+                  {(projects ?? []).map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                  {task.project_id &&
+                  !(projects ?? []).some((project) => project.id === task.project_id) ? (
+                    <option value={task.project_id}>
+                      {task.projects?.name ?? t('tasks.currentProject')}
+                    </option>
+                  ) : null}
+                </select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="status">{t('tasks.status')}</Label>
                 <select

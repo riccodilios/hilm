@@ -544,7 +544,7 @@ export function registerWorkspaceActions() {
     type: 'task.update',
     os: 'workspace',
     title: 'Update task',
-    description: 'Update workspace task fields',
+    description: 'Update workspace task fields or move the task to another project',
     risk: 'safe',
     parallelSafe: true,
     permission: editOk,
@@ -555,8 +555,11 @@ export function registerWorkspaceActions() {
       description: z.string().optional(),
       priority: optionalPriority,
       dueAt: z.string().nullable().optional(),
+      projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
     }),
-    promptFields: 'taskId (UUID, KEY-N, or exact title), title?, description?, priority?, dueAt?',
+    promptFields:
+      'taskId (UUID, KEY-N, or exact title), title?, description?, priority?, dueAt?, projectId?, projectName? (to move the task to another project)',
     execute: async (input, ctx) => {
       const resolved = await resolveTaskOrFail(
         ctx.workspaceId!,
@@ -565,20 +568,39 @@ export function registerWorkspaceActions() {
       )
       if (!resolved.ok) return { ok: false, summary: resolved.reason }
       const dueAt = input.dueAt
+
+      let projectId: string | undefined
+      if (input.projectId || input.projectName) {
+        const project = await resolveWorkspaceProjectForAction(ctx.workspaceId!, {
+          projectId: input.projectId,
+          projectName: input.projectName,
+        })
+        if (!project.ok) {
+          return { ok: false, summary: project.reason }
+        }
+        projectId = project.project.id
+      }
+
       const updated = await updateWorkspaceTask(ctx.workspaceId!, resolved.task.id, {
         title: input.title,
         description: input.description,
         priority: input.priority as Priority | undefined,
         due_date: dueAt === undefined ? undefined : dueAt ? dueAt.slice(0, 10) : null,
         due_at: dueAt,
+        ...(projectId ? { project_id: projectId } : {}),
       })
       const ws = await getWorkspace(ctx.workspaceId!)
       const ref =
         formatWorkspaceTaskRef(ws.task_key, resolved.task.task_number) ?? resolved.task.id
       return {
         ok: true,
-        summary: `Updated ${ref}${input.title?.trim() ? ` — “${input.title.trim()}”` : ''}`,
-        entities: [{ type: 'task', id: resolved.task.id }],
+        summary: projectId
+          ? `Moved ${ref} to another project`
+          : `Updated ${ref}${input.title?.trim() ? ` — “${input.title.trim()}”` : ''}`,
+        entities: [
+          { type: 'task', id: resolved.task.id },
+          ...(projectId ? [{ type: 'project' as const, id: projectId }] : []),
+        ],
         data: updated,
       }
     },

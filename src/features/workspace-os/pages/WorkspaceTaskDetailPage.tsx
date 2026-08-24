@@ -7,6 +7,7 @@ import {
   deleteWorkspaceTask,
   getWorkspaceTask,
   listAssignmentEvents,
+  listWorkspaceProjects,
   updateWorkspaceTask,
   workspaceKeys,
 } from '@/features/workspace-os/api'
@@ -46,6 +47,10 @@ export function WorkspaceTaskDetailPage() {
     queryKey: workspaceKeys.task(workspaceId, taskId),
     queryFn: () => getWorkspaceTask(workspaceId, taskId),
   })
+  const projects = useQuery({
+    queryKey: workspaceKeys.projects(workspaceId),
+    queryFn: () => listWorkspaceProjects(workspaceId),
+  })
   const resolvedTaskId = task.data?.id ?? taskId
   const attachments = useQuery({
     queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
@@ -78,13 +83,16 @@ export function WorkspaceTaskDetailPage() {
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
       updateWorkspaceTask(workspaceId, resolvedTaskId, patch),
-    onSuccess: async () => {
+    onSuccess: async (_data, patch) => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
+      await qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) })
       await qc.invalidateQueries({
         queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'assignment-events'],
       })
-      toast.success(t('workspace.taskUpdated'))
+      toast.success(
+        patch.project_id !== undefined ? t('tasks.movedProject') : t('workspace.taskUpdated'),
+      )
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -124,6 +132,34 @@ export function WorkspaceTaskDetailPage() {
         <span className="text-muted">{t('workspace.assignedTo')}</span>
         <TaskAssigneeLabel assignee={task.data.assignee} assignment={task.data.assignment} />
       </div>
+      {canEdit ? (
+        <div className="space-y-2">
+          <Label htmlFor="workspace-task-project">{t('tasks.project')}</Label>
+          <select
+            id="workspace-task-project"
+            value={task.data.project_id ?? ''}
+            disabled={save.isPending || !(projects.data?.length)}
+            onChange={(event) => {
+              const nextProjectId = event.target.value
+              if (!nextProjectId || nextProjectId === task.data?.project_id) return
+              save.mutate({ project_id: nextProjectId })
+            }}
+            className="h-10 w-full max-w-md rounded-lg border border-border bg-surface px-3 text-sm"
+          >
+            {(projects.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+            {task.data.project_id &&
+            !(projects.data ?? []).some((project) => project.id === task.data?.project_id) ? (
+              <option value={task.data.project_id}>
+                {task.data.workspace_projects?.name ?? t('tasks.currentProject')}
+              </option>
+            ) : null}
+          </select>
+        </div>
+      ) : null}
       <div className="space-y-2">
         <Label>{t('projects.desc')}</Label>
         <RichTextEditor

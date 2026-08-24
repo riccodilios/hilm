@@ -291,26 +291,40 @@ export async function updateTask(id: string, patch: Updates<'tasks'> & {
     )
   }
 
+  const movedProject =
+    patch.project_id !== undefined && patch.project_id !== current.project_id
+
   await recordActivity({
     userId,
     entityType: 'task',
     entityId: id,
     projectId: data.project_id,
-    action: patch.status === 'done' ? 'completed' : 'updated',
+    action: patch.status === 'done' ? 'completed' : movedProject ? 'moved' : 'updated',
     summary:
       patch.status === 'done'
         ? `Completed task ${data.title}`
-        : `Updated task ${data.title}`,
+        : movedProject
+          ? `Moved task ${data.title} to another project`
+          : `Updated task ${data.title}`,
     metadata: patch as import('@/types/database').Json,
   })
-  if (data.project_id) {
+
+  const projectIdsToRefresh = new Set<string>()
+  if (current.project_id) projectIdsToRefresh.add(current.project_id)
+  if (data.project_id) projectIdsToRefresh.add(data.project_id)
+  for (const projectId of projectIdsToRefresh) {
     try {
-      await refreshProjectCompletion(data.project_id)
+      await refreshProjectCompletion(projectId)
     } catch (refreshError) {
       console.error('Failed to refresh project completion', refreshError)
     }
   }
   return data
+}
+
+/** Move a task to another personal project. */
+export async function moveTaskToProject(id: string, projectId: string) {
+  return updateTask(id, { project_id: projectId })
 }
 
 export async function moveTask(id: string, status: TaskStatus, position?: number) {

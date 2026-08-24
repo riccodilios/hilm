@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Archive, Check, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { Archive, Check, ExternalLink, FolderInput, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { archiveTask, deleteTask, tasksKeys, updateTask } from '@/features/tasks/api'
+import { listProjects, projectsKeys } from '@/features/projects/api'
 import { homeKeys } from '@/features/home/api'
 import { activityKeys } from '@/features/activity/api'
 import {
@@ -14,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { PriorityBadge, StatusBadge } from '@/components/ui/badge'
 import type { TaskWithProject } from '@/features/tasks/reminders'
 
@@ -27,10 +29,16 @@ export function TaskActionsDialog({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { data: projects } = useQuery({
+    queryKey: projectsKeys.list(),
+    queryFn: listProjects,
+    enabled: Boolean(task),
+  })
 
   const invalidate = () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: tasksKeys.all }),
+      qc.invalidateQueries({ queryKey: projectsKeys.all }),
       qc.invalidateQueries({ queryKey: homeKeys.all }),
       qc.invalidateQueries({ queryKey: activityKeys.all }),
     ])
@@ -41,6 +49,17 @@ export function TaskActionsDialog({
       await invalidate()
       onClose()
       toast.success(t('tasks.completed'))
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const moveProject = useMutation({
+    mutationFn: ({ id, projectId }: { id: string; projectId: string }) =>
+      updateTask(id, { project_id: projectId }),
+    onSuccess: async () => {
+      await invalidate()
+      onClose()
+      toast.success(t('tasks.movedProject'))
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -64,6 +83,8 @@ export function TaskActionsDialog({
     },
     onError: (error: Error) => toast.error(error.message),
   })
+
+  const otherProjects = (projects ?? []).filter((project) => project.id !== task?.project_id)
 
   return (
     <Dialog open={Boolean(task)} onOpenChange={(next) => !next && onClose()}>
@@ -103,6 +124,33 @@ export function TaskActionsDialog({
           >
             <Pencil className="size-4" /> {t('tasks.edit')}
           </Button>
+          {task && otherProjects.length > 0 ? (
+            <div className="space-y-2 rounded-lg border border-border-subtle bg-surface/40 p-3">
+              <Label htmlFor="move-project" className="flex items-center gap-2 text-xs">
+                <FolderInput className="size-3.5" /> {t('tasks.moveToProject')}
+              </Label>
+              <select
+                id="move-project"
+                defaultValue=""
+                disabled={moveProject.isPending}
+                onChange={(event) => {
+                  const projectId = event.target.value
+                  if (!task || !projectId) return
+                  moveProject.mutate({ id: task.id, projectId })
+                }}
+                className="h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm"
+              >
+                <option value="" disabled>
+                  {t('tasks.chooseProject')}
+                </option>
+                {otherProjects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           {task && task.status !== 'done' ? (
             <Button
               variant="secondary"

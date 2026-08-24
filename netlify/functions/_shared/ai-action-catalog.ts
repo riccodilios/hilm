@@ -6,6 +6,7 @@ export const personalActionInstruction =
 CRITICAL entity rules:
 - If Conversation focus lists lastCreatedTaskId / lastModifiedTaskId, treat follow-ups like "make the title shorter", "add details to the description", "move it to Monday 10:30", "change the priority" as UPDATES to that taskId.
 - Use task.update or task.schedule with the existing taskId. NEVER call task.create for refinements of an existing task.
+- To move a task to another project, use task.update with projectId or projectName — never recreate the task.
 - Only use task.create when the user explicitly asks to create/add a NEW task.
 - Never create an untitled/unnamed task to apply a schedule change — always update the focused/existing task.
 - If Tasks / WorkSummary show a title as workState=done or recentCreatedTitles already lists it, do not recreate it — report it as already done or update it.
@@ -53,7 +54,7 @@ export const personalActionCatalog =
 - task.complete {taskId}
 - task.create {title, description?, projectId?, priority?, status?, dueAt?}
 - task.move {taskId, status}
-- task.update {taskId, title?, description?, priority?, dueAt?}
+- task.update {taskId, title?, description?, priority?, dueAt?, projectId?, projectName?}
 - task.delete {taskId}
 - task.archive {taskId}
 - task.schedule {taskId, dueAt}
@@ -84,7 +85,7 @@ export const workspaceActionCatalog =
 - task.create {title, description?, projectId?, projectName?, priority?, status? (backlog|todo|in_progress|waiting|testing|done — not "completed"), dueAt?, assigneeId?, departmentId?, teamId?}  // 1–3 tasks; projectId must be a real workspace_projects.id from focus/search; prefer projectName for named projects
 - task.create_many {projectId?, projectName?, items:[{title, description?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?}]}  // REQUIRED for 4+ tasks (max 40). One compact action — not N task.create rows. Omit status to use default todo.
 - task.move {taskId, status}
-- task.update {taskId, title?, description?, priority?, dueAt?}
+- task.update {taskId, title?, description?, priority?, dueAt?, projectId?, projectName?}
 - task.schedule {taskId, dueAt}  // dueAt ISO or null to clear
 - task.assign {taskId, assigneeId?, assigneeName?, teamId?, teamName?}
 - task.delete {taskId}
