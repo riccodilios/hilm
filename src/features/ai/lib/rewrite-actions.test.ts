@@ -93,6 +93,18 @@ describe('rewriteActionsForConversationFocus', () => {
     expect(next[0]?.projectName).toBe('IMED')
   })
 
+  it('does not rewrite multi-task lists into an update of the focused task', () => {
+    const next = rewriteActionsForConversationFocus(
+      [
+        { type: 'task.create', title: 'Alpha' },
+        { type: 'task.create', title: 'Beta' },
+      ],
+      { userMessage: 'Here are two more: Alpha and Beta', focus },
+    )
+    expect(next[0]?.type).toBe('task.create')
+    expect(next[1]?.type).toBe('task.create')
+  })
+
   it('stamps created project id onto following task actions', () => {
     const actions = [
       { type: 'project.create', name: 'IMED' },

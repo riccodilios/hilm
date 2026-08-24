@@ -8,6 +8,8 @@ CRITICAL entity rules:
 - Use task.update or task.schedule with the existing taskId. NEVER call task.create for refinements of an existing task.
 - Only use task.create when the user explicitly asks to create/add a NEW task.
 - Never create an untitled/unnamed task to apply a schedule change — always update the focused/existing task.
+- If Tasks / WorkSummary show a title as workState=done or recentCreatedTitles already lists it, do not recreate it — report it as already done or update it.
+- Match project names from the Projects list; ignore filler words like "project"/"app". Prefer exact/prefix name matches.
 - Resolve relative dates (today, tomorrow, next Monday, Friday at 3pm, in two days) using the system temporal context into explicit ISO dueAt values.
 - Prefer IDs from Conversation focus and the Tasks context pack over inventing UUIDs.`
 
@@ -35,6 +37,9 @@ CRITICAL entity rules (tasks):
 - If Conversation focus lists lastCreatedTaskId / lastModifiedTaskId, follow-ups that refine "that task" / "it" MUST use task.update / task.schedule / task.assign with that taskId — never task.create.
 - Only create when the user explicitly asks for a new task.
 - Never create an untitled task just to set a due date/time.
+- If Tasks / WorkSummary show a title as workState=done or recentCreatedTitles already lists it, do not recreate it — say it is already done/created or update the existing task.
+- Match project names/keywords from the Projects list (ignore trailing "project"/"app"). Prefer exact or prefix matches; ask when ambiguous.
+- Prefer lastReferencedProjectName together with lastReferencedProjectId from Conversation focus.
 - Resolve relative dates from the system temporal context into explicit ISO dueAt values.
 - BATCH CREATES (critical): When the user asks for 4+ new tasks (especially 10–40), emit ONE task.create_many with items[] — do NOT emit many separate task.create objects and do NOT narrate every title in prose. Keep the markdown reply short; put every task title inside items.
 - Workspace tasks have short IDs like IMED-24. When the user says "Update IMED-24", pass taskId: "IMED-24" (not a fabricated UUID). You may also pass the exact task title from the Tasks context pack as taskId — the runtime resolves it.

@@ -2,6 +2,7 @@ import {
   focusTaskId,
   messageLooksLikeCreate,
   messageLooksLikeEdit,
+  messageLooksLikeMultiCreate,
   type ConversationEntityFocus,
 } from '@/features/ai/lib/conversation-focus'
 import type { ParsedRegistryAction } from '@/features/ai/registry/types'
@@ -90,18 +91,26 @@ export function rewriteActionsForConversationFocus(
   const focus = opts.focus ?? {}
   const focusedId = focusTaskId(focus)
   const message = opts.userMessage?.trim() ?? ''
-  const preferUpdate = Boolean(focusedId) && (messageLooksLikeEdit(message) || !messageLooksLikeCreate(message))
+  const createLikeCount = actions.filter((action) => {
+    const type = typeof action.type === 'string' ? action.type : ''
+    return type === 'task.create' || type === 'task.create_many'
+  }).length
+  const hasCreateMany = actions.some((action) => action.type === 'task.create_many')
+  // Only convert create→update on clear single-task edit intent.
+  // Never rewrite batches / multi-create lists into updates of the last focused task.
+  const preferUpdate =
+    Boolean(focusedId) &&
+    messageLooksLikeEdit(message) &&
+    !messageLooksLikeCreate(message) &&
+    !messageLooksLikeMultiCreate(message) &&
+    !hasCreateMany &&
+    createLikeCount <= 1
 
   return actions.map((action) => {
     const type = typeof action.type === 'string' ? action.type : ''
     if (!type) return action
 
-    if (
-      type === 'task.create' &&
-      preferUpdate &&
-      focusedId &&
-      !messageLooksLikeCreate(message)
-    ) {
+    if (type === 'task.create' && preferUpdate && focusedId) {
       const title = typeof action.title === 'string' ? action.title : undefined
       const description = typeof action.description === 'string' ? action.description : undefined
       const priority = action.priority

@@ -110,6 +110,20 @@ export function registerPersonalActions() {
     promptFields: 'title, description?, projectId?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?',
     execute: async (input) => {
       const projectId = await ensurePersonalProjectId(input.projectId)
+      const existing = (await listTasks({ projectId })).find(
+        (task) =>
+          task.status !== 'done' &&
+          task.status !== 'archived' &&
+          task.title.trim().toLowerCase() === input.title.trim().toLowerCase(),
+      )
+      if (existing) {
+        return {
+          ok: true,
+          summary: `Already have “${existing.title}”`,
+          entities: [{ type: 'task', id: existing.id }],
+          data: { ...existing, reused: true },
+        }
+      }
       const task = await createTask({
         title: input.title,
         description: input.description,
@@ -368,10 +382,23 @@ export function registerPersonalActions() {
     }),
     promptFields: 'name, description?, color?, icon?',
     execute: async (input) => {
-      const project = await createProject(input)
+      const name = input.name.trim()
+      const projects = await listProjects()
+      const existing = projects.find(
+        (project) => project.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+      if (existing) {
+        return {
+          ok: true,
+          summary: `Using existing project “${existing.name}”`,
+          entities: [{ type: 'project', id: existing.id }],
+          data: { ...existing, reused: true },
+        }
+      }
+      const project = await createProject({ ...input, name })
       return {
         ok: true,
-        summary: `Created project ${input.name}`,
+        summary: `Created project ${name}`,
         entities: [{ type: 'project', id: project.id }],
         data: project,
       }

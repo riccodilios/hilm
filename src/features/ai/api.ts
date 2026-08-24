@@ -219,8 +219,11 @@ export async function* streamChat(input: {
     lastCreatedTaskId?: string | null
     lastModifiedTaskId?: string | null
     lastReferencedProjectId?: string | null
+    lastReferencedProjectName?: string | null
     lastReferencedWorkspaceId?: string | null
     lastTaskTitle?: string | null
+    lastTaskRef?: string | null
+    recentCreatedTitles?: string[] | null
   }
 }): AsyncGenerator<ChatStreamEvent> {
   const {

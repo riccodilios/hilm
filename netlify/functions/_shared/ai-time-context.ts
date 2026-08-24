@@ -131,12 +131,72 @@ export function annotateTasksForAi<T extends DueTaskLike>(tasks: T[], clock: Res
       else if (dueLocalDate === clock.tomorrowDate) dueStatus = 'tomorrow'
       else dueStatus = 'upcoming'
     }
+    const workState = task.status === 'done' ? ('done' as const) : ('open' as const)
     return {
       ...task,
       dueLocalDate,
       dueStatus,
+      workState,
       // Help the model: ISO due_at alone is easy to misread across timezones.
       todayLocalDate: clock.localDate,
     }
   })
+}
+
+const DUE_RANK: Record<string, number> = {
+  overdue: 0,
+  today: 1,
+  tomorrow: 2,
+  upcoming: 3,
+  none: 4,
+}
+
+/**
+ * Prefer open/overdue work, then a small slice of recently completed tasks,
+ * so the model can tell what is already done vs still open.
+ */
+export function packTasksForAiContext<T extends DueTaskLike>(
+  tasks: T[],
+  clock: ResolvedAiClock,
+  opts?: { openLimit?: number; doneLimit?: number },
+) {
+  const openLimit = opts?.openLimit ?? 30
+  const doneLimit = opts?.doneLimit ?? 10
+  const annotated = annotateTasksForAi(tasks, clock)
+  const open = annotated
+    .filter((task) => task.workState === 'open')
+    .sort((a, b) => (DUE_RANK[a.dueStatus] ?? 9) - (DUE_RANK[b.dueStatus] ?? 9))
+  const done = annotated.filter((task) => task.workState === 'done')
+  const packed = [...open.slice(0, openLimit), ...done.slice(0, doneLimit)]
+
+  const byProject = new Map<
+    string,
+    { projectId: string; open: number; done: number; overdue: number }
+  >()
+  for (const task of annotated) {
+    const projectId =
+      typeof task.project_id === 'string' && task.project_id ? task.project_id : 'unassigned'
+    const row = byProject.get(projectId) ?? {
+      projectId,
+      open: 0,
+      done: 0,
+      overdue: 0,
+    }
+    if (task.workState === 'done') row.done += 1
+    else {
+      row.open += 1
+      if (task.dueStatus === 'overdue') row.overdue += 1
+    }
+    byProject.set(projectId, row)
+  }
+
+  return {
+    tasks: packed,
+    workSummary: {
+      open: open.length,
+      done: done.length,
+      overdue: open.filter((task) => task.dueStatus === 'overdue').length,
+      byProject: [...byProject.values()],
+    },
+  }
 }

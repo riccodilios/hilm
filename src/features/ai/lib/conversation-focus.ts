@@ -8,6 +8,8 @@ export type ConversationEntityFocus = {
   lastReferencedWorkspaceId?: string | null
   lastTaskTitle?: string | null
   lastTaskRef?: string | null
+  /** Recent task titles created in this conversation (newest last). Helps avoid recreating work. */
+  recentCreatedTitles?: string[] | null
   updatedAt?: string
 }
 
@@ -38,10 +40,16 @@ export function writeConversationFocus(
   patch: ConversationEntityFocus,
 ) {
   if (!conversationId) return
+  const prev = readConversationFocus(conversationId)
   const next: ConversationEntityFocus = {
-    ...readConversationFocus(conversationId),
+    ...prev,
     ...patch,
     updatedAt: new Date().toISOString(),
+  }
+  if (patch.recentCreatedTitles?.length) {
+    next.recentCreatedTitles = mergeRecentTitles(prev.recentCreatedTitles, patch.recentCreatedTitles)
+  } else if (prev.recentCreatedTitles?.length) {
+    next.recentCreatedTitles = prev.recentCreatedTitles
   }
   memory.set(conversationId, next)
   if (typeof sessionStorage !== 'undefined') {
@@ -51,6 +59,22 @@ export function writeConversationFocus(
       /* ignore quota */
     }
   }
+}
+
+function mergeRecentTitles(
+  prev: string[] | null | undefined,
+  incoming: string[] | null | undefined,
+) {
+  if (!incoming?.length && !prev?.length) return undefined
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const title of [...(prev ?? []), ...(incoming ?? [])]) {
+    const key = title.trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(title.trim())
+  }
+  return out.slice(-24)
 }
 
 export function focusTaskId(focus: ConversationEntityFocus) {
@@ -70,13 +94,19 @@ export function formatFocusForPrompt(focus: ConversationEntityFocus) {
   if (focus.lastReferencedWorkspaceId) {
     lines.push(`lastReferencedWorkspaceId=${focus.lastReferencedWorkspaceId}`)
   }
+  if (focus.recentCreatedTitles?.length) {
+    lines.push(`recentCreatedTitles=${JSON.stringify(focus.recentCreatedTitles.slice(-12))}`)
+  }
   if (!lines.length) return ''
   return `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):
-${lines.join('\n')}`
+${lines.join('\n')}
+If a task title is already in recentCreatedTitles or the Tasks pack (especially workState=done), do not recreate it — update or skip.`
 }
 
 const CREATE_HINT =
   /\b(create|add|new|make a|make an|start a|start an|open a|open an)\b/i
+const MULTI_CREATE_HINT =
+  /\b(these tasks|these items|list of|batch|several|multiple|a few|another (set|batch)|also create|also add)\b/i
 const EDIT_HINT =
   /\b(update|edit|change|rename|shorten|longer|move|reschedule|set|make (it|the|this|that)|put|add (more |the )?detail|description|title|due|priority|assign|label|complete|finish|archive|delete|remove)\b/i
 const REF_HINT =
@@ -86,9 +116,15 @@ export function messageLooksLikeCreate(message: string) {
   return CREATE_HINT.test(message) && !EDIT_HINT.test(message)
 }
 
+export function messageLooksLikeMultiCreate(message: string) {
+  return MULTI_CREATE_HINT.test(message)
+}
+
 export function messageLooksLikeEdit(message: string) {
-  if (EDIT_HINT.test(message)) return true
-  if (REF_HINT.test(message) && !messageLooksLikeCreate(message)) return true
+  if (EDIT_HINT.test(message) && !MULTI_CREATE_HINT.test(message)) return true
+  if (REF_HINT.test(message) && !messageLooksLikeCreate(message) && !MULTI_CREATE_HINT.test(message)) {
+    return true
+  }
   return false
 }
 

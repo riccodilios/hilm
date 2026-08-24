@@ -117,10 +117,12 @@ export function registerWorkspaceActions() {
       'title, description?, projectId?, projectName?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
+      const workspace = await getWorkspace(workspaceId)
       const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
         projectId: input.projectId,
         projectName: input.projectName,
         preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+        workspaceName: workspace.name,
       })
       if (!resolved.ok) {
         const hint = resolved.candidates?.length
@@ -130,6 +132,37 @@ export function registerWorkspaceActions() {
       }
 
       let project = resolved.project
+      const existingOpen = (await listWorkspaceTasks(workspaceId)).find(
+        (task) =>
+          task.project_id === project.id &&
+          task.status !== 'done' &&
+          task.status !== 'archived' &&
+          task.title.trim().toLowerCase() === input.title.trim().toLowerCase(),
+      )
+      if (existingOpen) {
+        const taskRef = formatWorkspaceTaskRef(workspace.task_key, existingOpen.task_number)
+        return {
+          ok: true,
+          summary: taskRef
+            ? `Already have ${taskRef} “${existingOpen.title}” in ${project.name}`
+            : `Already have “${existingOpen.title}” in ${project.name}`,
+          entities: [
+            { type: 'task', id: existingOpen.id },
+            { type: 'project', id: project.id },
+          ],
+          data: {
+            ...existingOpen,
+            id: existingOpen.id,
+            title: existingOpen.title,
+            project_id: project.id,
+            project_name: project.name,
+            workspace_id: workspaceId,
+            task_ref: taskRef,
+            reused: true,
+          },
+        }
+      }
+
       const dueAt = input.dueAt?.trim() || null
       const payload = {
         projectId: project.id,
@@ -165,6 +198,7 @@ export function registerWorkspaceActions() {
           projectId: null,
           projectName: input.projectName ?? project.name,
           preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+          workspaceName: workspace.name,
         })
         if (!retry.ok || retry.project.id === project.id) {
           return {
@@ -180,8 +214,7 @@ export function registerWorkspaceActions() {
         })
       }
 
-      const ws = await getWorkspace(workspaceId)
-      const taskRef = formatWorkspaceTaskRef(ws.task_key, task.task_number)
+      const taskRef = formatWorkspaceTaskRef(workspace.task_key, task.task_number)
       return {
         ok: true,
         summary: taskRef
@@ -227,10 +260,12 @@ export function registerWorkspaceActions() {
       'projectId?, projectName?, items:[{title, description?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, assigneeId?, departmentId?, teamId?}] (max 40)',
     execute: async (input, ctx) => {
       const workspaceId = ctx.workspaceId!
+      const workspace = await getWorkspace(workspaceId)
       const resolved = await resolveWorkspaceProjectForAction(workspaceId, {
         projectId: input.projectId,
         projectName: input.projectName,
         preferProjectId: ctx.conversationFocus?.lastReferencedProjectId,
+        workspaceName: workspace.name,
       })
       if (!resolved.ok) {
         const hint = resolved.candidates?.length
@@ -240,7 +275,16 @@ export function registerWorkspaceActions() {
       }
 
       const project = resolved.project
-      const workspace = await getWorkspace(workspaceId)
+      const existingByTitle = new Map(
+        (await listWorkspaceTasks(workspaceId))
+          .filter(
+            (task) =>
+              task.project_id === project.id &&
+              task.status !== 'done' &&
+              task.status !== 'archived',
+          )
+          .map((task) => [task.title.trim().toLowerCase(), task]),
+      )
       const seen = new Set<string>()
 
       type PreparedItem = {
@@ -250,6 +294,7 @@ export function registerWorkspaceActions() {
       }
       const prepared: PreparedItem[] = []
       const preFailures: BatchItemResult[] = []
+      const reused: BatchItemResult[] = []
 
       input.items.forEach((raw, index) => {
         const parsed = taskCreateFieldsSchema.safeParse(raw)
@@ -280,6 +325,19 @@ export function registerWorkspaceActions() {
           return
         }
         seen.add(key)
+        const existing = existingByTitle.get(parsed.data.title.trim().toLowerCase())
+        if (existing) {
+          const taskRef = formatWorkspaceTaskRef(workspace.task_key, existing.task_number)
+          reused.push({
+            index,
+            title: parsed.data.title,
+            ok: true,
+            summary: taskRef ? `Already have ${taskRef}` : `Already have “${parsed.data.title}”`,
+            taskId: existing.id,
+            taskRef: taskRef ?? undefined,
+          })
+          return
+        }
         prepared.push({ index, fields: parsed.data, clientKey: key })
       })
 
@@ -325,14 +383,20 @@ export function registerWorkspaceActions() {
         },
       )
 
-      const results = [...preFailures, ...createResults].sort((a, b) => a.index - b.index)
+      const results = [...preFailures, ...reused, ...createResults].sort((a, b) => a.index - b.index)
       const succeeded = results.filter((row) => row.ok)
       const failed = results.filter((row) => !row.ok)
+      const createdCount = createResults.filter((row) => row.ok).length
+      const reusedCount = reused.length
       const ok = succeeded.length > 0
       const summary =
         failed.length === 0
-          ? `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
-          : `Created ${succeeded.length}/${results.length} tasks in ${project.name} (${failed.length} failed)`
+          ? reusedCount && createdCount
+            ? `Created ${createdCount} and reused ${reusedCount} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
+            : reusedCount
+              ? `Already had ${reusedCount} task${reusedCount === 1 ? '' : 's'} in ${project.name}`
+              : `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
+          : `Created ${createdCount}/${results.length} tasks in ${project.name} (${failed.length} failed)`
 
       return {
         ok,
@@ -349,6 +413,7 @@ export function registerWorkspaceActions() {
           succeeded: succeeded.length,
           failed: failed.length,
           total: results.length,
+          reused: reusedCount,
         },
       }
     },
@@ -770,11 +835,14 @@ export function registerWorkspaceActions() {
       )
       if (existing) {
         return {
-          ok: false,
-          summary: `A project named “${existing.name}” already exists in this workspace.`,
+          ok: true,
+          summary: `Using existing project “${existing.name}”`,
+          entities: [{ type: 'project', id: existing.id }],
           data: {
-            existing_project_id: existing.id,
-            existing_project_name: existing.name,
+            ...existing,
+            project_id: existing.id,
+            project_name: existing.name,
+            reused: true,
           },
         }
       }

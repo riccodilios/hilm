@@ -6,22 +6,36 @@ import {
 function normalizeName(value: string) {
   return value
     .normalize('NFKC')
+    .replace(/[''`´]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06FF\s]/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase()
 }
 
+/** Strip entity-type words so "Wasl project" / "Wasl app" still match "Wasl". */
+function stripEntityNoise(value: string) {
+  return normalizeName(value)
+    .replace(/\b(the|a|an)\b/g, ' ')
+    .replace(/\b(project|projects|app|apps|product|products|workspace|initiative|program|tool)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function scoreNameMatch(projectName: string, query: string) {
   const name = normalizeName(projectName)
-  const q = normalizeName(query)
+  const qRaw = normalizeName(query)
+  const q = stripEntityNoise(query) || qRaw
   if (!q || !name) return 0
-  if (name === q) return 100
-  if (name.startsWith(q) || q.startsWith(name)) return 80
-  if (name.includes(q) || q.includes(name)) return 60
+  if (name === q || name === qRaw) return 100
+  if (name.startsWith(q) || q.startsWith(name) || name.startsWith(qRaw) || qRaw.startsWith(name)) {
+    return 80
+  }
   const nameTokens = new Set(name.split(' ').filter(Boolean))
   const queryTokens = q.split(' ').filter(Boolean)
   const hits = queryTokens.filter((token) => nameTokens.has(token)).length
   if (hits && hits === queryTokens.length) return 70
+  if (name.includes(q) || q.includes(name) || name.includes(qRaw) || qRaw.includes(name)) return 55
   if (hits) return 40 + hits * 5
   return 0
 }
@@ -45,6 +59,8 @@ export async function resolveWorkspaceProjectForAction(
     projectId?: string | null
     projectName?: string | null
     preferProjectId?: string | null
+    /** When set, weak includes-only matches against the workspace name are rejected. */
+    workspaceName?: string | null
   },
 ): Promise<WorkspaceProjectResolveResult> {
   const projects = await listWorkspaceProjects(workspaceId)
@@ -76,8 +92,12 @@ export async function resolveWorkspaceProjectForAction(
     }
 
     const top = ranked[0]!
-    const ties = ranked.filter((row) => row.score === top.score && row.score >= 60)
-    if (ties.length > 1) {
+    const strong = ranked.filter((row) => row.score >= 70)
+    const ties = (strong.length ? strong : ranked.filter((row) => row.score === top.score && row.score >= 55)).filter(
+      (row, index, arr) => arr.findIndex((other) => other.project.id === row.project.id) === index,
+    )
+
+    if (ties.length > 1 && ties[0]!.score === ties[1]!.score) {
       return {
         ok: false,
         reason: `I found multiple projects matching “${name}”. Which one should I use?`,
@@ -85,7 +105,27 @@ export async function resolveWorkspaceProjectForAction(
       }
     }
 
-    if (top.score >= 60) return { ok: true, project: top.project }
+    // Reject weak includes-only hits when the query is just the workspace name
+    // and no project shares that exact/prefix name.
+    const workspaceName = opts?.workspaceName?.trim()
+    if (
+      workspaceName &&
+      top.score < 70 &&
+      stripEntityNoise(name) === stripEntityNoise(workspaceName) &&
+      !projects.some((project) => scoreNameMatch(project.name, name) >= 80)
+    ) {
+      return {
+        ok: false,
+        reason: `“${name}” is the workspace name. Which project inside this workspace should I use?`,
+        candidates: projects.slice(0, 8).map((project) => ({ id: project.id, name: project.name })),
+      }
+    }
+
+    // Accept strong matches (exact/prefix/token) or a single medium includes match.
+    if (top.score >= 70) return { ok: true, project: top.project }
+    if (top.score >= 55 && ranked.filter((row) => row.score >= 55).length === 1) {
+      return { ok: true, project: top.project }
+    }
 
     return {
       ok: false,

@@ -571,6 +571,7 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   ok: boolean
                   summary: string
                   taskId?: string
+                  taskRef?: string
                   error?: string
                 }>
                 project_id?: string
@@ -609,7 +610,10 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                 lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
                 lastReferencedProjectId: batchData.project_id,
                 lastReferencedProjectName: batchData.project_name,
-                lastTaskRef: firstOk.taskId,
+                lastTaskRef: firstOk.taskRef || firstOk.taskId,
+                recentCreatedTitles: batchData.items
+                  .filter((item) => item.ok && item.title)
+                  .map((item) => item.title),
               })
             }
           } else if (result?.success) {
@@ -652,10 +656,11 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
 
             if (selectedId && (entityProject || taskId)) {
               const isCreate = String(action.type) === 'task.create'
+              const titleForFocus = titleFromData ?? titleFromAction
               writeConversationFocus(selectedId, {
                 ...(taskId && isCreate ? { lastCreatedTaskId: taskId } : {}),
                 ...(taskId ? { lastModifiedTaskId: taskId } : {}),
-                lastTaskTitle: titleFromData ?? titleFromAction ?? undefined,
+                lastTaskTitle: titleForFocus ?? undefined,
                 lastReferencedWorkspaceId: isWorkspace ? workspaceId : null,
                 lastReferencedProjectId:
                   entityProject?.id ?? projectIdFromData ?? undefined,
@@ -670,6 +675,9 @@ export function AiPage({ mode = 'personal', workspaceId, workspaceRole }: AiPage
                   typeof (result.data as { task_ref?: unknown }).task_ref === 'string'
                     ? (result.data as { task_ref: string }).task_ref
                     : undefined,
+                ...(isCreate && titleForFocus
+                  ? { recentCreatedTitles: [titleForFocus] }
+                  : {}),
               })
             }
             setActionRun((prev) =>

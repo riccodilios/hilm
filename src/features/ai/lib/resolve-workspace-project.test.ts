@@ -66,6 +66,28 @@ describe('resolveWorkspaceProjectForAction', () => {
     if (result.ok) expect(result.project.id).toBe(WASL.id)
   })
 
+  it('matches “Wasl project” keyword noise to Wasl', async () => {
+    listWorkspaceProjects.mockResolvedValue([WASL, ACME])
+    const result = await resolveWorkspaceProjectForAction('ws-1', {
+      projectName: 'Wasl project',
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.project.id).toBe(WASL.id)
+  })
+
+  it('does not treat the workspace name alone as a weak project match', async () => {
+    listWorkspaceProjects.mockResolvedValue([
+      ACME,
+      { id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', name: 'Primed Ops', workspace_id: 'ws-1' },
+    ])
+    const result = await resolveWorkspaceProjectForAction('ws-1', {
+      projectName: 'IMED',
+      workspaceName: 'IMED',
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toMatch(/workspace name/i)
+  })
+
   it('does not invent a project when none match', async () => {
     listWorkspaceProjects.mockResolvedValue([ACME])
     const result = await resolveWorkspaceProjectForAction('ws-1', {

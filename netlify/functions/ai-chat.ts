@@ -22,7 +22,7 @@ import {
 } from './_shared/ai-action-catalog'
 import { actionsFromContent } from './_shared/actions-parse'
 import {
-  annotateTasksForAi,
+  packTasksForAiContext,
   buildAiTimeContextPrompt,
   resolveAiClock,
 } from './_shared/ai-time-context'
@@ -104,8 +104,11 @@ export default async (request: Request) => {
         lastCreatedTaskId?: string | null
         lastModifiedTaskId?: string | null
         lastReferencedProjectId?: string | null
+        lastReferencedProjectName?: string | null
         lastReferencedWorkspaceId?: string | null
         lastTaskTitle?: string | null
+        lastTaskRef?: string | null
+        recentCreatedTitles?: string[] | null
       }
     }
     if (!body.conversationId || !body.message?.trim()) {
@@ -208,11 +211,11 @@ export default async (request: Request) => {
           .limit(20),
         userClient
           .from('workspace_tasks')
-          .select('id, title, status, priority, due_date, due_at, project_id, assignee_id, task_number')
+          .select('id, title, status, priority, due_date, due_at, project_id, assignee_id, task_number, updated_at')
           .eq('workspace_id', activeWorkspaceId)
           .neq('status', 'archived')
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .limit(40),
+          .order('updated_at', { ascending: false })
+          .limit(80),
         userClient
           .from('workspace_members')
           .select('user_id, role')
@@ -242,17 +245,24 @@ export default async (request: Request) => {
       }))
 
       const taskKey = (workspace as { task_key?: string } | null)?.task_key ?? 'TASK'
-      const scopedTasks = annotateTasksForAi(
-        activeProjectId
-          ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
-          : (tasks ?? []),
-        clock,
-      ).map((task) => {
+      const filteredTasks = activeProjectId
+        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+        : (tasks ?? [])
+      const packed = packTasksForAiContext(filteredTasks, clock, { openLimit: 30, doneLimit: 10 })
+      const projectNameById = new Map((projects ?? []).map((project) => [project.id, project.name]))
+      const workSummary = {
+        ...packed.workSummary,
+        byProject: packed.workSummary.byProject.map((row) => ({
+          ...row,
+          projectName: projectNameById.get(row.projectId) ?? null,
+        })),
+      }
+      const scopedTasks = packed.tasks.map((task) => {
         const number = (task as { task_number?: number }).task_number
         return {
           ...task,
-          ref:
-            typeof number === 'number' ? `${taskKey}-${number}` : undefined,
+          projectName: projectNameById.get(String(task.project_id ?? '')) ?? null,
+          ref: typeof number === 'number' ? `${taskKey}-${number}` : undefined,
         }
       })
 
@@ -275,10 +285,12 @@ Never access or invent Personal OS data. Never invent or switch workspace IDs.
 ENTITY NAMESPACES: Workspace name and Project names are independent. A project MAY be named exactly "${workspaceName}" inside this workspace — that is valid. Never refuse project.create because the workspace has the same name. Only conflict when Projects already lists a project with that name.
 When the user says "create a project called X", emit project.create with name X immediately (current workspace). Do not ask for the name or whether they meant the workspace.
 When referencing an existing task, set taskId to the task's id UUID OR its ref (e.g. ${taskKey}-12) OR the exact title from Tasks. Never invent UUIDs.
-Project lookup is always scoped to this workspaceId.
+Project lookup is always scoped to this workspaceId. Match project names/keywords from the Projects list (ignore trailing words like "project"/"app"). Prefer exact or prefix matches over weak substring matches.
+WORK STATE: Each task has workState "open" or "done". WorkSummary counts what is already finished vs still open. Do NOT recreate titles that already appear in Tasks (especially workState=done) or Conversation focus recentCreatedTitles — update existing work or skip.
 Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId, task_key: taskKey })}
 Members: ${JSON.stringify(memberContext)}
 Projects: ${JSON.stringify(projects ?? [])}
+WorkSummary: ${JSON.stringify(workSummary)}
 Tasks: ${JSON.stringify(scopedTasks)}
 Labels: ${JSON.stringify(wsLabels ?? [])}
 Recent activity: ${JSON.stringify(activity ?? [])}`
@@ -292,22 +304,34 @@ Recent activity: ${JSON.stringify(activity ?? [])}`
           .limit(12),
         userClient
           .from('tasks')
-          .select('id, title, status, priority, due_at, project_id')
+          .select('id, title, status, priority, due_at, project_id, updated_at')
           .eq('user_id', user.id)
           .neq('status', 'archived')
-          .order('due_at', { ascending: true, nullsFirst: false })
-          .limit(20),
+          .order('updated_at', { ascending: false })
+          .limit(50),
         userClient.from('tags').select('id, name, color').eq('user_id', user.id).order('name').limit(40),
       ])
-      const scopedTasks = annotateTasksForAi(
-        activeProjectId
-          ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
-          : (tasks ?? []),
-        clock,
-      )
+      const filteredTasks = activeProjectId
+        ? (tasks ?? []).filter((task) => task.project_id === activeProjectId)
+        : (tasks ?? [])
+      const packed = packTasksForAiContext(filteredTasks, clock, { openLimit: 18, doneLimit: 6 })
+      const projectNameById = new Map((projects ?? []).map((project) => [project.id, project.name]))
+      const workSummary = {
+        ...packed.workSummary,
+        byProject: packed.workSummary.byProject.map((row) => ({
+          ...row,
+          projectName: projectNameById.get(row.projectId) ?? null,
+        })),
+      }
+      const scopedTasks = packed.tasks.map((task) => ({
+        ...task,
+        projectName: projectNameById.get(String(task.project_id ?? '')) ?? null,
+      }))
       actionCatalog = personalActionCatalog
       contextPack = `You are operating strictly inside Personal OS. Never access workspace/team data.
+WORK STATE: Each task has workState "open" or "done". Do NOT recreate titles that already appear in Tasks or Conversation focus recentCreatedTitles.
 Projects: ${JSON.stringify(projects ?? [])}
+WorkSummary: ${JSON.stringify(workSummary)}
 Tasks: ${JSON.stringify(scopedTasks)}
 Labels: ${JSON.stringify(labels ?? [])}`
     }
@@ -324,14 +348,21 @@ Labels: ${JSON.stringify(labels ?? [])}`
     if (focus?.lastCreatedTaskId) focusLines.push(`lastCreatedTaskId=${focus.lastCreatedTaskId}`)
     if (focus?.lastModifiedTaskId) focusLines.push(`lastModifiedTaskId=${focus.lastModifiedTaskId}`)
     if (focus?.lastTaskTitle) focusLines.push(`lastTaskTitle=${JSON.stringify(focus.lastTaskTitle)}`)
+    if (focus?.lastTaskRef) focusLines.push(`lastTaskRef=${JSON.stringify(focus.lastTaskRef)}`)
     if (focus?.lastReferencedProjectId) {
       focusLines.push(`lastReferencedProjectId=${focus.lastReferencedProjectId}`)
+    }
+    if (focus?.lastReferencedProjectName) {
+      focusLines.push(`lastReferencedProjectName=${JSON.stringify(focus.lastReferencedProjectName)}`)
     }
     if (focus?.lastReferencedWorkspaceId) {
       focusLines.push(`lastReferencedWorkspaceId=${focus.lastReferencedWorkspaceId}`)
     }
+    if (focus?.recentCreatedTitles?.length) {
+      focusLines.push(`recentCreatedTitles=${JSON.stringify(focus.recentCreatedTitles.slice(-12))}`)
+    }
     const focusBlock = focusLines.length
-      ? `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):\n${focusLines.join('\n')}`
+      ? `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):\n${focusLines.join('\n')}\nIf a task title is already in recentCreatedTitles or Tasks (especially workState=done), do not recreate it — update or skip.`
       : ''
 
     const systemPrompt = `You are Hilm AI (${modeLabel}). ${agentInstruction}
