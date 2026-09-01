@@ -50,6 +50,10 @@ export function TaskListItem({
       {...longPress}
     >
       <div className="min-w-0">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <StatusBadge status={task.status} />
+          <PriorityBadge priority={task.priority} />
+        </div>
         <p className={cn('truncate font-medium', task.status === 'done' && 'text-muted line-through')}>
           {task.title}
         </p>
@@ -61,10 +65,6 @@ export function TaskListItem({
               : t('home.noDueDate')}
           </span>
         </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <PriorityBadge priority={task.priority} />
-        <StatusBadge status={task.status} />
       </div>
     </div>
   )

@@ -5,10 +5,20 @@ import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-dis
 import type { Tables, Updates } from '@/types/database'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 import {
+  normalizePagePermissions,
+  type MemberPagePermissions,
+} from '@/features/workspace-os/lib/page-permissions'
+import {
   formatWorkspaceTaskRef,
   looksLikeWorkspaceTaskRef,
   parseWorkspaceTaskRef,
 } from '@/features/workspace-os/lib/task-refs'
+import { refreshWorkspaceProjectCompletion } from '@/features/workspace-os/lib/project-health'
+
+export type WorkspaceWithMembership = Workspace & {
+  my_role: WorkspaceRole
+  my_page_permissions: MemberPagePermissions
+}
 
 export const workspaceKeys = {
   all: ['workspace-os'] as const,
@@ -31,6 +41,7 @@ export type WorkspaceMember = Tables<'workspace_members'> & {
   email?: string | null
   display_name_override?: string | null
   last_active_at?: string | null
+  page_permissions?: MemberPagePermissions
   profiles?: {
     display_name: string | null
     avatar_url: string | null
@@ -98,7 +109,7 @@ export async function getWorkspace(id: string) {
   const userId = await requireUserId()
   const { data: membership, error: memError } = await supabase
     .from('workspace_members')
-    .select('role')
+    .select('role, page_permissions')
     .eq('workspace_id', id)
     .eq('user_id', userId)
     .maybeSingle()
@@ -107,7 +118,11 @@ export async function getWorkspace(id: string) {
 
   const { data, error } = await supabase.from('workspaces').select('*').eq('id', id).single()
   if (error) throw error
-  return { ...(data as Workspace), my_role: membership.role as WorkspaceRole }
+  return {
+    ...(data as Workspace),
+    my_role: membership.role as WorkspaceRole,
+    my_page_permissions: normalizePagePermissions(membership.page_permissions),
+  }
 }
 
 export async function createWorkspace(input: {
@@ -172,6 +187,16 @@ export async function listWorkspaceMembers(workspaceId: string) {
   })
 
   if (!error && data) {
+    const { data: permRows } = await supabase
+      .from('workspace_members')
+      .select('user_id, page_permissions')
+      .eq('workspace_id', workspaceId)
+    const permMap = new Map(
+      (permRows ?? []).map((row) => [
+        row.user_id,
+        normalizePagePermissions(row.page_permissions),
+      ]),
+    )
     return (data as Array<{
       user_id: string
       role: WorkspaceRole
@@ -189,6 +214,7 @@ export async function listWorkspaceMembers(workspaceId: string) {
       email: row.email,
       display_name_override: row.display_name_override,
       last_active_at: row.last_active_at,
+      page_permissions: permMap.get(row.user_id) ?? {},
       profiles: {
         display_name: row.display_name,
         avatar_url: row.avatar_url,
@@ -200,7 +226,7 @@ export async function listWorkspaceMembers(workspaceId: string) {
   // Fallback if directory RPC is unavailable
   const { data: rows, error: membersError } = await supabase
     .from('workspace_members')
-    .select('workspace_id, user_id, role, joined_at')
+    .select('workspace_id, user_id, role, joined_at, page_permissions')
     .eq('workspace_id', workspaceId)
     .order('joined_at')
   if (membersError) throw membersError
@@ -212,6 +238,7 @@ export async function listWorkspaceMembers(workspaceId: string) {
   const map = new Map((profiles ?? []).map((p) => [p.id, p]))
   return memberRows.map((row) => ({
     ...row,
+    page_permissions: normalizePagePermissions(row.page_permissions),
     email: null,
     display_name_override: null,
     last_active_at: null,
@@ -244,6 +271,45 @@ export async function updateMemberRole(
     entityId: userId,
     payload: { role },
   })
+}
+
+export async function updateMemberPagePermissions(
+  workspaceId: string,
+  userId: string,
+  permissions: MemberPagePermissions,
+) {
+  const { error } = await supabase
+    .from('workspace_members')
+    .update({ page_permissions: permissions as unknown as import('@/types/database').Json })
+    .eq('workspace_id', workspaceId)
+    .eq('user_id', userId)
+  if (error) throw error
+  await recordWsActivity({
+    workspaceId,
+    eventType: 'member.permissions_updated',
+    summary: 'Member page permissions updated',
+    entityType: 'member',
+    entityId: userId,
+  })
+}
+
+async function maybeRefreshWorkspaceProject(
+  workspaceId: string,
+  projectId: string | null | undefined,
+) {
+  if (!projectId) return
+  try {
+    await refreshWorkspaceProjectCompletion(workspaceId, projectId)
+  } catch {
+    /* health refresh is best-effort */
+  }
+}
+
+export async function refreshAllWorkspaceProjects(workspaceId: string) {
+  const projects = await listWorkspaceProjects(workspaceId)
+  await Promise.all(
+    projects.map((project) => refreshWorkspaceProjectCompletion(workspaceId, project.id)),
+  )
 }
 
 export async function removeMember(workspaceId: string, userId: string) {
@@ -610,6 +676,7 @@ export async function createWorkspaceTask(
     entityType: 'task',
     entityId: created.id,
   })
+  await maybeRefreshWorkspaceProject(workspaceId, input.projectId)
   return created
 }
 
@@ -819,10 +886,17 @@ export async function updateWorkspaceTask(
     entityType: 'task',
     entityId: taskId,
   })
+  const nextProjectId =
+    (patch.project_id as string | undefined) ?? before.project_id
+  await maybeRefreshWorkspaceProject(workspaceId, before.project_id)
+  if (nextProjectId && nextProjectId !== before.project_id) {
+    await maybeRefreshWorkspaceProject(workspaceId, nextProjectId)
+  }
   return getWorkspaceTask(workspaceId, taskId)
 }
 
 export async function deleteWorkspaceTask(workspaceId: string, taskId: string) {
+  const before = await getWorkspaceTask(workspaceId, taskId).catch(() => null)
   const { error } = await supabase
     .from('workspace_tasks')
     .delete()
@@ -836,6 +910,7 @@ export async function deleteWorkspaceTask(workspaceId: string, taskId: string) {
     entityType: 'task',
     entityId: taskId,
   })
+  await maybeRefreshWorkspaceProject(workspaceId, before?.project_id)
 }
 
 export async function recordWorkspaceActivityNote(

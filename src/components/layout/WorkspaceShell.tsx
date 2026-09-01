@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -22,7 +22,9 @@ import { useOnline } from '@/hooks/useOnline'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { WorkspaceCommandPalette } from '@/features/workspace-os/components/WorkspaceCommandPalette'
 import { WorkspaceProvider, useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { WorkspaceOsRealtime } from '@/features/workspace-os/components/WorkspaceOsRealtime'
 import { OrgVisibilityProvider } from '@/features/workspace-os/context/OrgVisibilityProvider'
+import { WorkspacePageGate } from '@/features/workspace-os/components/RequireWorkspacePage'
 import { listMyWorkspaces, workspaceKeys } from '@/features/workspace-os/api'
 import { getSettings, settingsKeys } from '@/features/settings/api'
 import { Button } from '@/components/ui/button'
@@ -128,39 +130,33 @@ function WorkspaceShellInner() {
   const online = useOnline()
   const { t } = useTranslation()
   useIosNavigationViewportFix()
-  const { workspaceId } = useParams()
+  const { workspaceId, canReadPage } = useWorkspace()
   const base = `/workspace/${workspaceId}`
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const hidePersonal = settings.data?.hide_personal_os ?? false
 
-  const nav: Array<{
-    to: string
-    label: string
-    icon: typeof Home
-    end?: boolean
-    group: 'work' | 'people' | 'account'
-  }> = [
-    { to: base, label: t('nav.home'), icon: Home, end: true, group: 'work' },
-    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban, group: 'work' },
-    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare, group: 'work' },
-    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain, group: 'work' },
-    { to: `${base}/team`, label: t('nav.team'), icon: Users, group: 'people' },
-    { to: `${base}/org`, label: t('nav.org'), icon: Network, group: 'people' },
-    { to: `${base}/crm`, label: t('nav.crm'), icon: Building2, group: 'people' },
+  const nav = [
+    { to: base, label: t('nav.home'), icon: Home, end: true, group: 'work' as const, page: 'home' as const },
+    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban, group: 'work' as const, page: 'projects' as const },
+    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare, group: 'work' as const, page: 'tasks' as const },
+    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain, group: 'work' as const, page: 'ai' as const },
+    { to: `${base}/team`, label: t('nav.team'), icon: Users, group: 'people' as const, page: 'team' as const },
+    { to: `${base}/org`, label: t('nav.org'), icon: Network, group: 'people' as const, page: 'org' as const },
+    { to: `${base}/crm`, label: t('nav.crm'), icon: Building2, group: 'people' as const, page: 'crm' as const },
     ...(!hidePersonal
-      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid, group: 'account' as const }]
+      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid, group: 'account' as const, page: 'home' as const }]
       : []),
-    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound, group: 'account' },
-  ]
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound, group: 'account' as const, page: 'profile' as const },
+  ].filter((item) => item.to === '/personal' || canReadPage(item.page))
 
   const mobileNav = [
-    { to: base, label: t('nav.home'), icon: Home, end: true },
-    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban },
-    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare },
-    { to: `${base}/team`, label: t('nav.team'), icon: Users },
-    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain },
-    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound },
-  ]
+    { to: base, label: t('nav.home'), icon: Home, end: true, page: 'home' as const },
+    { to: `${base}/projects`, label: t('nav.projects'), icon: FolderKanban, page: 'projects' as const },
+    { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare, page: 'tasks' as const },
+    { to: `${base}/team`, label: t('nav.team'), icon: Users, page: 'team' as const },
+    { to: `${base}/ai`, label: t('nav.ai'), icon: Brain, page: 'ai' as const },
+    { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound, page: 'profile' as const },
+  ].filter((item) => canReadPage(item.page))
 
   const navGroups: Array<{ id: 'work' | 'people' | 'account'; label: string }> = [
     { id: 'work', label: t('nav.work') },
@@ -170,6 +166,7 @@ function WorkspaceShellInner() {
 
   return (
     <div className="relative min-h-dvh bg-background">
+      <WorkspaceOsRealtime />
       <WorkspaceCommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(96,165,250,0.06),_transparent_40%),radial-gradient(ellipse_at_bottom_left,_rgba(255,255,255,0.03),_transparent_45%)]" />
 
@@ -241,7 +238,9 @@ function WorkspaceShellInner() {
         >
           <RouteErrorBoundary title={t('common.pageError')}>
             <div className="w-full min-w-0">
-              <Outlet />
+              <WorkspacePageGate>
+                <Outlet />
+              </WorkspacePageGate>
             </div>
           </RouteErrorBoundary>
         </main>

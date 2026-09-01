@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { formatDueRemaining } from '@/lib/dates'
+import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
 import { cn } from '@/lib/utils'
 
 const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
@@ -46,7 +47,8 @@ const EMPTY_ASSIGNMENT: TaskAssignmentValue = {
 
 export function WorkspaceTasksPage() {
   const { t, i18n } = useTranslation()
-  const { workspaceId, workspace, canEdit } = useWorkspace()
+  const { workspaceId, workspace, canWritePage } = useWorkspace()
+  const canEdit = canWritePage('tasks')
   const { filterTasks, selectedDepartmentIds } = useOrgVisibility()
   const [params, setSearchParams] = useSearchParams()
   const projectFilter = params.get('project')
@@ -121,9 +123,20 @@ export function WorkspaceTasksPage() {
   const complete = useMutation({
     mutationFn: (taskId: string) =>
       updateWorkspaceTask(workspaceId, taskId, { status: 'done' }),
+    onMutate: async (taskId) => {
+      await qc.cancelQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
+      const completedAt = new Date().toISOString()
+      patchWorkspaceTasksCache(qc, workspaceId, taskId, {
+        status: 'done',
+        completed_at: completedAt,
+      })
+    },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
-      await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) }),
+        qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
+        qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) }),
+      ])
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -187,6 +200,10 @@ export function WorkspaceTasksPage() {
                   className="flex min-w-0 flex-1 items-center justify-between gap-4"
                 >
                   <div className="min-w-0">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      <StatusBadge status={task.status} />
+                      <PriorityBadge priority={task.priority} />
+                    </div>
                     <div className="flex min-w-0 items-baseline gap-2">
                       <WorkspaceTaskRefBadge
                         workspaceId={workspaceId}
@@ -219,10 +236,6 @@ export function WorkspaceTasksPage() {
                           : t('home.noDueDate')}
                       </span>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <PriorityBadge priority={task.priority} />
-                    <StatusBadge status={task.status} />
                   </div>
                 </Link>
               </motion.div>

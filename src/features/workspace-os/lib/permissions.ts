@@ -26,3 +26,11 @@ export function canDeleteWorkspace(role: WorkspaceRole | null | undefined) {
 export function canTransferOwnership(role: WorkspaceRole | null | undefined) {
   return role === 'owner'
 }
+
+export function isWorkspaceOwner(role: WorkspaceRole | null | undefined) {
+  return role === 'owner'
+}
+
+export function seesAllWorkspaceData(role: WorkspaceRole | null | undefined) {
+  return role === 'owner' || role === 'admin'
+}

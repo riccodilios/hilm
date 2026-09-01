@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import {
   createWorkspaceProject,
   listWorkspaceProjects,
+  listWorkspaceTasks,
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { ProjectIcon, ProjectIconPicker } from '@/shared/project-icons'
@@ -40,7 +42,9 @@ import { PROJECT_COLORS } from '@/types/domain'
 
 export function WorkspaceProjectsPage() {
   const { t } = useTranslation()
-  const { workspaceId, canEdit, canManage } = useWorkspace()
+  const { workspaceId, canWritePage, canManage } = useWorkspace()
+  const canEdit = canWritePage('projects')
+  const { filterProjects } = useOrgVisibility()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -53,6 +57,10 @@ export function WorkspaceProjectsPage() {
   const projects = useQuery({
     queryKey: workspaceKeys.projects(workspaceId),
     queryFn: () => listWorkspaceProjects(workspaceId),
+  })
+  const tasks = useQuery({
+    queryKey: workspaceKeys.tasks(workspaceId),
+    queryFn: () => listWorkspaceTasks(workspaceId),
   })
 
   const labelsQuery = useQuery({
@@ -106,7 +114,9 @@ export function WorkspaceProjectsPage() {
     onError: (error: Error) => toast.error(error.message),
   })
 
-  const filtered = (projects.data ?? []).filter((project) => {
+  const visibleProjects = filterProjects(projects.data ?? [], tasks.data ?? [])
+
+  const filtered = visibleProjects.filter((project) => {
     if (labelFilter === 'all') return true
     return projectLinks.data?.ids?.[project.id]?.includes(labelFilter)
   })

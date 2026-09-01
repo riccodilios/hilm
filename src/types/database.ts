@@ -792,15 +792,18 @@ export type Database = {
           user_id: string
           role: Database['public']['Enums']['workspace_role']
           joined_at: string
+          page_permissions: Json
         },
         {
           workspace_id: string
           user_id: string
           role?: Database['public']['Enums']['workspace_role']
           joined_at?: string
+          page_permissions?: Json
         },
         {
           role?: Database['public']['Enums']['workspace_role']
+          page_permissions?: Json
         }
       >
       workspace_projects: Table<
@@ -816,6 +819,7 @@ export type Database = {
           priority: Database['public']['Enums']['priority']
           completion_pct: number
           health: Database['public']['Enums']['health_status']
+          health_explanation: string | null
           team_id: string | null
           created_at: string
           updated_at: string
@@ -832,6 +836,7 @@ export type Database = {
           priority?: Database['public']['Enums']['priority']
           completion_pct?: number
           health?: Database['public']['Enums']['health_status']
+          health_explanation?: string | null
           team_id?: string | null
           created_at?: string
           updated_at?: string
@@ -845,6 +850,7 @@ export type Database = {
           priority?: Database['public']['Enums']['priority']
           completion_pct?: number
           health?: Database['public']['Enums']['health_status']
+          health_explanation?: string | null
           team_id?: string | null
           updated_at?: string
         }

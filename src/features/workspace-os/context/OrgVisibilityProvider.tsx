@@ -20,6 +20,11 @@ import {
   resolveVisibleDepartmentIds,
   taskPassesDepartmentFilter,
 } from '@/features/workspace-os/lib/org-visibility'
+import {
+  filterProjectsForMember,
+  filterTasksForMember,
+} from '@/features/workspace-os/lib/member-visibility'
+import type { WorkspaceProject } from '@/features/workspace-os/api'
 
 type OrgVisibilityContextValue = {
   homeDepartmentId: string | null
@@ -30,6 +35,7 @@ type OrgVisibilityContextValue = {
   selectAllVisible: () => void
   selectHomeOnly: () => void
   filterTasks: (tasks: WorkspaceTask[]) => WorkspaceTask[]
+  filterProjects: (projects: WorkspaceProject[], tasks: WorkspaceTask[]) => WorkspaceProject[]
   leadTeamIds: Set<string>
   canSeeAll: boolean
 }
@@ -143,28 +149,31 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
 
   const filterTasks = useCallback(
     (tasks: WorkspaceTask[]) => {
+      const memberScoped = filterTasksForMember(tasks, user?.id, role)
       const selected = new Set(selectedDepartmentIds)
       const allVisibleSelected =
         selected.size > 0 &&
         selected.size === visibleDepartmentIds.length &&
         visibleDepartmentIds.every((id) => selected.has(id))
 
-      // Admin + every visible department selected → no further narrowing.
-      if (canSeeAll && allVisibleSelected) return tasks
+      if (canSeeAll && allVisibleSelected) return memberScoped
 
-      return tasks.filter((task) =>
+      return memberScoped.filter((task) =>
         taskPassesDepartmentFilter(task, {
           selectedDepartmentIds: selected,
           userId: user?.id ?? null,
           leadTeamIds,
-          // Empty selection: admins still see unscoped tasks (prior behavior).
-          // All-visible selected (member): include unscoped within their tree.
-          // Partial selection: only tasks in the active department chips.
           includeUnscoped: selected.size === 0 ? canSeeAll : allVisibleSelected,
         }),
       )
     },
-    [selectedDepartmentIds, canSeeAll, visibleDepartmentIds, user?.id, leadTeamIds],
+    [selectedDepartmentIds, canSeeAll, visibleDepartmentIds, user?.id, leadTeamIds, role],
+  )
+
+  const filterProjects = useCallback(
+    (projects: WorkspaceProject[], tasks: WorkspaceTask[]) =>
+      filterProjectsForMember(projects, tasks, user?.id, role),
+    [user?.id, role],
   )
 
   const value = useMemo(
@@ -178,6 +187,7 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
         selectAllVisible,
         selectHomeOnly,
         filterTasks,
+        filterProjects,
         leadTeamIds,
         canSeeAll,
       }) satisfies OrgVisibilityContextValue,
@@ -190,6 +200,7 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
       selectAllVisible,
       selectHomeOnly,
       filterTasks,
+      filterProjects,
       leadTeamIds,
       canSeeAll,
     ],

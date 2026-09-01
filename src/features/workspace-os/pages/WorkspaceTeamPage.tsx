@@ -19,6 +19,7 @@ import {
   resolveMemberDisplayName,
 } from '@/features/workspace-os/lib/member-display'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
+import { MemberPagePermissionsEditor } from '@/features/workspace-os/components/MemberPagePermissionsEditor'
 import { Button } from '@/components/ui/button'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
@@ -183,6 +184,13 @@ export function WorkspaceTeamPage() {
                       date: new Date(member.joined_at).toLocaleDateString(i18n.language),
                     })}
                   </p>
+                  {role === 'owner' ? (
+                    <MemberPagePermissionsEditor
+                      workspaceId={workspaceId}
+                      member={member}
+                      disabled={!canManageTeam}
+                    />
+                  ) : null}
                 </div>
                 {canManageTeam && member.role !== 'owner' ? (
                   <>

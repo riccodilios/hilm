@@ -31,6 +31,7 @@ import { formatDueRemaining } from '@/lib/dates'
 import { rtlMirrorClass } from '@/lib/rtl'
 import { cn, formatRelative } from '@/lib/utils'
 import type { TaskStatus } from '@/types/domain'
+import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
 
 function DueTaskRow({
   task,
@@ -137,7 +138,8 @@ function pickFocus(tasks: WorkspaceTask[]) {
 export function WorkspaceHomePage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
-  const { workspaceId, workspace, canEdit } = useWorkspace()
+  const { workspaceId, workspace, canWritePage } = useWorkspace()
+  const canEdit = canWritePage('tasks')
   const { filterTasks } = useOrgVisibility()
   const qc = useQueryClient()
   const locale = i18n.language
@@ -154,11 +156,19 @@ export function WorkspaceHomePage() {
   const completeFocus = useMutation({
     mutationFn: (taskId: string) =>
       updateWorkspaceTask(workspaceId, taskId, { status: 'done' }),
+    onMutate: async (taskId) => {
+      await qc.cancelQueries({ queryKey: workspaceKeys.home(workspaceId) })
+      patchWorkspaceTasksCache(qc, workspaceId, taskId, {
+        status: 'done',
+        completed_at: new Date().toISOString(),
+      })
+    },
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) }),
         qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) }),
         qc.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
+        qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) }),
       ])
       toast.success(t('workspace.focusCompleted'))
     },

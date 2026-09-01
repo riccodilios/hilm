@@ -12,7 +12,9 @@
     "audit-auth": "node scripts/audit-auth-config.mjs",
     "check:boundaries": "node scripts/check-os-boundaries.mjs --fail",
     "check:extraction": "node scripts/simulate-company-extraction.mjs",
-    "check:architecture": "npm run check:boundaries && npm run check:extraction"
+    "check:architecture": "npm run check:boundaries && npm run check:extraction",
+    "smoke:production": "node scripts/smoke-production.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -93,6 +95,7 @@
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^3.2.7",
     "workbox-core": "^7.4.1",
     "workbox-expiration": "^7.4.1",
     "workbox-precaching": "^7.4.1",

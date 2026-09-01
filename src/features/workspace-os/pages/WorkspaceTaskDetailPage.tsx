@@ -10,6 +10,7 @@ import {
   listWorkspaceProjects,
   updateWorkspaceTask,
   workspaceKeys,
+  type WorkspaceTask,
 } from '@/features/workspace-os/api'
 import {
   downloadWorkspaceTaskAttachment,
@@ -30,12 +31,18 @@ import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { memberCanSeeTask } from '@/features/workspace-os/lib/member-visibility'
+import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
+import { StatusBadge } from '@/components/ui/badge'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 
 export function WorkspaceTaskDetailPage() {
   const { t } = useTranslation()
   const { taskId = '' } = useParams()
-  const { workspaceId, workspace, canEdit } = useWorkspace()
+  const { workspaceId, workspace, canWritePage, role } = useWorkspace()
+  const canEdit = canWritePage('tasks')
+  const { user } = useAuth()
   const qc = useQueryClient()
   const [description, setDescription] = useState('')
   const [assignment, setAssignment] = useState<TaskAssignmentValue>({
@@ -83,6 +90,10 @@ export function WorkspaceTaskDetailPage() {
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
       updateWorkspaceTask(workspaceId, resolvedTaskId, patch),
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
+      patchWorkspaceTasksCache(qc, workspaceId, resolvedTaskId, patch as Partial<WorkspaceTask>)
+    },
     onSuccess: async (_data, patch) => {
       await qc.invalidateQueries({ queryKey: workspaceKeys.task(workspaceId, taskId) })
       await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
@@ -109,14 +120,20 @@ export function WorkspaceTaskDetailPage() {
 
   if (task.isLoading) return <Skeleton className="h-40" />
   if (!task.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
+  if (!memberCanSeeTask(task.data, user?.id, role)) {
+    return <p className="text-sm text-danger">{t('common.notFound')}</p>
+  }
 
   const shortRef = formatWorkspaceTaskRef(workspace.task_key, task.data.task_number)
 
   return (
     <div className="max-w-3xl space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge status={task.data.status} />
+      </div>
       <PageHeader
         title={task.data.title}
-        description={`${task.data.workspace_projects?.name ?? '—'} · ${task.data.status}`}
+        description={task.data.workspace_projects?.name ?? '—'}
       />
       {shortRef ? (
         <WorkspaceTaskRefBadge

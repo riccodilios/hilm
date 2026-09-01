@@ -2,20 +2,32 @@ import type { ReactNode } from 'react'
 import { createContext, useContext, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getWorkspace, workspaceKeys, type Workspace } from '@/features/workspace-os/api'
+import { getWorkspace, workspaceKeys, type WorkspaceWithMembership } from '@/features/workspace-os/api'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
 import {
   canDeleteWorkspace,
   canEditContent,
   canManageMembers,
   canManageWorkspace,
+  seesAllWorkspaceData,
 } from '@/features/workspace-os/lib/permissions'
+import {
+  canReadWorkspacePage,
+  canWriteWorkspacePage,
+  type MemberPagePermissions,
+  type WorkspacePageKey,
+} from '@/features/workspace-os/lib/page-permissions'
 import { Skeleton } from '@/components/ui/page'
 
 type WorkspaceContextValue = {
   workspaceId: string
-  workspace: Workspace & { my_role: WorkspaceRole }
+  workspace: WorkspaceWithMembership
   role: WorkspaceRole
+  pagePermissions: MemberPagePermissions
+  seesAllData: boolean
+  canReadPage: (page: WorkspacePageKey) => boolean
+  canWritePage: (page: WorkspacePageKey) => boolean
+  /** @deprecated Prefer canWritePage for the active page */
   canEdit: boolean
   canManage: boolean
   canManageTeam: boolean
@@ -41,10 +53,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => {
     if (!query.data) return null
     const role = query.data.my_role
+    const pagePermissions = query.data.my_page_permissions
+    const canReadPage = (page: WorkspacePageKey) =>
+      canReadWorkspacePage(role, page, pagePermissions)
+    const canWritePage = (page: WorkspacePageKey) =>
+      canWriteWorkspacePage(role, page, pagePermissions)
+
     return {
       workspaceId,
       workspace: query.data,
       role,
+      pagePermissions,
+      seesAllData: seesAllWorkspaceData(role),
+      canReadPage,
+      canWritePage,
       canEdit: canEditContent(role),
       canManage: canManageWorkspace(role),
       canManageTeam: canManageMembers(role),
