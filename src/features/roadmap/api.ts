@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
-import { recordActivity, requireUserId } from '@/lib/supabase/activity'
+import { recordActivity } from '@/features/activity/record'
+import { requireUserId } from '@/lib/supabase/activity'
 import type { Inserts, Tables } from '@/types/database'
 import type { RoadmapHorizon } from '@/types/domain'
 

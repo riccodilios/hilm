@@ -57,6 +57,16 @@ export function getAuthConfirmUrl(next = '/onboarding'): string {
   return getAuthCallbackUrl(next)
 }
 
+export function getWorkspaceTaskDeepLink(
+  workspaceId: string,
+  taskId: string,
+  projectId?: string | null,
+): string {
+  const base = getAppUrl()
+  if (projectId) return `${base}/workspace/${workspaceId}/projects/${projectId}?task=${taskId}`
+  return `${base}/workspace/${workspaceId}/tasks/${taskId}`
+}
+
 export function getTaskDeepLink(taskId: string, projectId?: string | null): string {
   const base = getAppUrl()
   if (projectId) return `${base}/personal/projects/${projectId}?task=${taskId}`

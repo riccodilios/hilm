@@ -10,7 +10,7 @@ import {
   listWorkspaceProjects,
   workspaceKeys,
 } from '@/features/workspace-os/api'
-import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
+import { ProjectIcon, ProjectIconPicker } from '@/shared/project-icons'
 import {
   createWorkspaceLabel,
   deleteWorkspaceLabel,

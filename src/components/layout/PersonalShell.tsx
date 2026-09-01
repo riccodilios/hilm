@@ -15,7 +15,7 @@ import { OfflineBanner } from '@/components/layout/OfflineBanner'
 import { RouteErrorBoundary } from '@/components/layout/RouteErrorBoundary'
 import { useOnline } from '@/hooks/useOnline'
 import { useIosNavigationViewportFix } from '@/hooks/useIosNavigationViewportFix'
-import { CommandPalette } from '@/features/command-palette/CommandPalette'
+import { PersonalCommandPalette } from '@/features/command-palette/PersonalCommandPalette'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { getSettings, settingsKeys } from '@/features/settings/api'
 
@@ -39,7 +39,7 @@ export function PersonalShell() {
 
   return (
     <div className="relative min-h-dvh bg-background">
-      <CommandPalette />
+      <PersonalCommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(255,255,255,0.03),_transparent_40%),radial-gradient(ellipse_at_bottom_right,_rgba(96,165,250,0.05),_transparent_45%)]" />
 
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-60 flex-col border-e border-border-subtle bg-surface/60 px-3 pb-5 pt-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-xl lg:flex">

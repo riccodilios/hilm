@@ -19,13 +19,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthProvider'
-import {
-  getProfile,
-  getSettings,
-  settingsKeys,
-  updateProfile,
-  updateSettings,
-} from '@/features/settings/api'
+import { getSettings, settingsKeys, updateSettings } from '@/shared/user-settings'
+import { getProfile, profileKeys, updateProfile } from '@/shared/user-profile'
 import {
   deleteWorkspace,
   getWorkspaceMemberSettings,
@@ -54,7 +49,7 @@ export function WorkspaceProfilePage() {
   const qc = useQueryClient()
   const { workspaceId, workspace, role, canManage, canManageTeam, canDelete } = useWorkspace()
 
-  const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
+  const profile = useQuery({ queryKey: profileKeys.me(), queryFn: getProfile })
   const accountSettings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const memberSettings = useQuery({
     queryKey: workspaceKeys.memberSettings(workspaceId),
@@ -179,7 +174,7 @@ export function WorkspaceProfilePage() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: workspaceKeys.memberSettings(workspaceId) }),
         qc.invalidateQueries({ queryKey: settingsKeys.all }),
-        qc.invalidateQueries({ queryKey: settingsKeys.profile() }),
+        qc.invalidateQueries({ queryKey: profileKeys.me() }),
       ])
       toast.success(t('workspace.profileSaved'))
     },

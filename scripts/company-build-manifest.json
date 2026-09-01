@@ -1,0 +1,43 @@
+{
+  "description": "Throwaway verification manifest for future company repo extraction. Not a deployable tree — used by simulate-company-extraction.mjs.",
+  "roots": [
+    "src/features/workspace-os",
+    "src/shared",
+    "src/features/auth",
+    "src/components",
+    "src/lib",
+    "src/types",
+    "src/hooks",
+    "src/features/ai/agents.ts",
+    "src/features/ai/api.ts",
+    "src/features/ai/AiMarkdown.tsx",
+    "src/features/ai/components",
+    "src/features/ai/lib",
+    "src/features/ai/registry/index.ts",
+    "src/features/ai/registry/schemas.ts",
+    "src/features/ai/registry/types.ts"
+  ],
+  "excludedPersonal": [
+    "src/features/tasks",
+    "src/features/projects",
+    "src/features/home",
+    "src/features/notes",
+    "src/features/ideas",
+    "src/features/daily-log",
+    "src/features/search",
+    "src/features/activity",
+    "src/features/reports/personal-api.ts",
+    "src/features/reports/PersonalReportsPage.tsx",
+    "src/features/ai/registry/personal.ts",
+    "src/features/ai/PersonalAiPage.tsx",
+    "netlify/functions/send-task-reminders",
+    "netlify/functions/ai-daily-log"
+  ],
+  "documentedBridges": [
+    {
+      "file": "src/features/workspace-os/pages/WorkspacePersonalSettingsPage.tsx",
+      "imports": "src/features/settings/SettingsPage.tsx",
+      "note": "Reuses personal settings UI shell; extract shared SettingsShell before company fork."
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+import type { Database } from '@/types/database'
+
 export type TaskStatus =
   | 'backlog'
   | 'todo'
@@ -21,6 +23,9 @@ export type HealthStatus =
   | 'critical'
 export type RoadmapHorizon = 'now' | 'next' | 'later' | 'future'
 export type IdeaStatus = 'inbox' | 'exploring' | 'accepted' | 'rejected' | 'converted'
+
+export type WorkspaceRole = Database['public']['Enums']['workspace_role']
+export type StartupMode = Database['public']['Enums']['startup_mode']
 
 export const TASK_STATUSES: TaskStatus[] = [
   'backlog',

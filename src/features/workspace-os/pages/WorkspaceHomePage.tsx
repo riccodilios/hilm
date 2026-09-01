@@ -17,7 +17,7 @@ import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { DepartmentFilterBar } from '@/features/workspace-os/components/DepartmentFilterBar'
-import { ProjectIcon } from '@/features/projects/icons'
+import { ProjectIcon } from '@/shared/project-icons'
 import {
   memberInitials,
   resolveMemberDisplayName,

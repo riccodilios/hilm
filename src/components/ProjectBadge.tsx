@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { ProjectIcon } from '@/features/projects/icons'
+import { ProjectIcon } from '@/shared/project-icons'
 
 type ProjectBadgeProps = {
   name: string

@@ -49,8 +49,8 @@ import {
   WORKSPACE_BATCH_DEFAULT_CONCURRENCY,
   WORKSPACE_BATCH_MAX_ITEMS,
   type BatchItemResult,
-} from '@/features/ai/lib/batch-engine'
-import { resolveWorkspaceProjectForAction } from '@/features/ai/lib/resolve-workspace-project'
+} from '@/features/workspace-os/lib/batch-engine'
+import { resolveWorkspaceProjectForAction } from '@/features/workspace-os/lib/resolve-workspace-project'
 import { resolveWorkspaceTaskForAction } from '@/features/workspace-os/lib/resolve-workspace-task'
 import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
 import { requireUserId } from '@/lib/supabase/activity'
@@ -1364,7 +1364,7 @@ export function registerWorkspaceActions() {
       const generatedBy = profile?.display_name?.trim() || 'Hilm user'
       const { customizeReportFromPrompt } = await import('@/features/reports/engine/aiCustomize')
       const { buildReportSnapshot } = await import('@/features/reports/engine/buildSnapshot')
-      const { saveWorkspaceReport } = await import('@/features/reports/api')
+      const { saveWorkspaceReport } = await import('@/features/workspace-os/reports-api')
       const { resolveMemberDisplayName } = await import('@/features/workspace-os/lib/member-display')
       let projectIds: string[] | 'all' = input.projectId ? [input.projectId] : 'all'
       if (!input.projectId && input.projectName?.trim()) {

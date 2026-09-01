@@ -18,7 +18,7 @@ import {
 } from '@/features/workspace-os/labels-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
-import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
+import { ProjectIcon, ProjectIconPicker } from '@/shared/project-icons'
 import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

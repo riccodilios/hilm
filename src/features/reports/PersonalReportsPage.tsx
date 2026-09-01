@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { listProjects, projectsKeys } from '@/features/projects/api'
 import { listTasks, tasksKeys } from '@/features/tasks/api'
-import { getProfile, settingsKeys } from '@/features/settings/api'
+import { getProfile, profileKeys } from '@/shared/user-profile'
 import {
   listPersonalReports,
   rowToSnapshot,
   savePersonalReport,
-} from '@/features/reports/api'
-import { ReportStudio } from '@/features/reports/components/ReportStudio'
-import type { ReportSnapshot } from '@/features/reports/types'
+} from '@/features/reports/personal-api'
+import { ReportStudio } from '@/shared/reports/components/ReportStudio'
+import type { ReportSnapshot } from '@/shared/reports/types'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
 
@@ -25,7 +25,7 @@ export function PersonalReportsPage() {
   const qc = useQueryClient()
   const [reopen, setReopen] = useState<ReportSnapshot | null>(null)
 
-  const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
+  const profile = useQuery({ queryKey: profileKeys.me(), queryFn: getProfile })
   const projects = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
   const tasks = useQuery({ queryKey: tasksKeys.list(), queryFn: () => listTasks() })
   const saved = useQuery({ queryKey: personalReportsKeys.list(), queryFn: listPersonalReports })

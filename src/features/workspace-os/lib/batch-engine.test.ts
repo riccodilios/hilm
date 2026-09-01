@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseActionsFromAssistantContent, repairJsonActionsArray } from '@/features/ai/lib/actions-parse'
-import { coalesceWorkspaceTaskCreates } from '@/features/ai/lib/batch-engine'
+import { coalesceWorkspaceTaskCreates } from '@/features/workspace-os/lib/batch-engine'
 
 describe('actions-parse', () => {
   it('recovers truncated actions array', () => {

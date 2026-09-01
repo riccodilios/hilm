@@ -6,14 +6,12 @@ import {
   parseRegistryActions,
   coerceActionsList,
 } from '@/features/ai/registry'
-import { ensureAiRegistry } from '@/features/ai/registry/bootstrap'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
 import { auditAiAction } from '@/features/ai/lib/conversation-focus'
 import {
   applyCreatedProjectToFollowingActions,
   rewriteActionsForConversationFocus,
 } from '@/features/ai/lib/rewrite-actions'
-import { coalesceWorkspaceTaskCreates } from '@/features/ai/lib/batch-engine'
 import type { ActionContext, ActionRisk, ParsedRegistryAction } from '@/features/ai/registry/types'
 
 export type ActionExecutionResult = {
@@ -47,7 +45,15 @@ export type ExecuteAiActionsOptions = {
   }) => void
 }
 
-ensureAiRegistry()
+async function ensureRegistry(os: 'personal' | 'workspace') {
+  if (os === 'personal') {
+    const { ensurePersonalAiRegistry } = await import('@/features/ai/registry/personal-bootstrap')
+    ensurePersonalAiRegistry()
+  } else {
+    const { ensureWorkspaceAiRegistry } = await import('@/features/workspace-os/ai/registry/bootstrap')
+    ensureWorkspaceAiRegistry()
+  }
+}
 
 function actionTaskId(action: ParsedRegistryAction): string | null {
   const value = action['taskId']
@@ -134,7 +140,6 @@ export function parseActionsForOs(
   value: unknown,
   options?: { workspaceId?: string; role?: ActionContext['role'] },
 ) {
-  ensureAiRegistry()
   const os = options?.workspaceId ? 'workspace' : 'personal'
   const ctx: ActionContext = {
     os,
@@ -148,7 +153,6 @@ export function extractActionsFromContent(
   content: string,
   options?: { workspaceId?: string; role?: ActionContext['role'] },
 ) {
-  ensureAiRegistry()
   const os = options?.workspaceId ? 'workspace' : 'personal'
   const ctx: ActionContext = {
     os,
@@ -162,7 +166,6 @@ export function buildOsActionPrompt(
   workspaceId?: string,
   role?: ActionContext['role'],
 ) {
-  ensureAiRegistry()
   const os = workspaceId ? 'workspace' : 'personal'
   return buildActionCatalogPrompt(os, { os, workspaceId, role })
 }
@@ -171,9 +174,9 @@ export async function executeAiActions(
   input: ParsedRegistryAction[],
   options?: ExecuteAiActionsOptions,
 ): Promise<ActionExecutionResult[]> {
-  ensureAiRegistry()
   const workspaceId = options?.workspaceId
   const os = workspaceId ? 'workspace' : 'personal'
+  await ensureRegistry(os)
   const ctx: ActionContext = {
     os,
     workspaceId,
@@ -189,7 +192,7 @@ export async function executeAiActions(
   })
   const list =
     os === 'workspace' && options?.coalesceCreates !== false
-      ? coalesceWorkspaceTaskCreates(rewritten)
+      ? (await import('@/features/workspace-os/lib/batch-engine')).coalesceWorkspaceTaskCreates(rewritten)
       : rewritten
 
   if (!list.length) {

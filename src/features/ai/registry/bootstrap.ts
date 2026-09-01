@@ -1,12 +1,10 @@
-import { registerPersonalActions } from '@/features/ai/registry/personal'
-import { registerWorkspaceActions } from '@/features/ai/registry/workspace'
+/** Lazy personal registry bootstrap — no static import of personal actions. */
+export async function ensurePersonalAiRegistry() {
+  const { ensurePersonalAiRegistry: ensure } = await import('@/features/ai/registry/personal-bootstrap')
+  ensure()
+}
 
-let bootstrapped = false
-
-/** Idempotent registration of all AI actions for both OS surfaces. */
-export function ensureAiRegistry() {
-  if (bootstrapped) return
-  registerPersonalActions()
-  registerWorkspaceActions()
-  bootstrapped = true
+/** @deprecated Prefer personal-bootstrap on Personal OS pages. */
+export async function ensureAiRegistry() {
+  await ensurePersonalAiRegistry()
 }

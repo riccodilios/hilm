@@ -21,7 +21,7 @@ import { DepartmentFilterBar } from '@/features/workspace-os/components/Departme
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
-import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
+import { REMINDER_OPTIONS, combineDueAt, computeRemindAt, type ReminderType } from '@/shared/reminders'
 import { PRIORITIES, type Priority } from '@/types/domain'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

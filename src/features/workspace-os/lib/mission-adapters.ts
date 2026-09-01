@@ -1,6 +1,6 @@
 import type { WorkspaceTask, WorkspaceProject } from '@/features/workspace-os/api'
-import type { TaskWithProject } from '@/features/tasks/reminders'
-import type { ProjectInsight } from '@/features/home/api'
+import type { TaskWithProject } from '@/shared/reminders'
+import type { MissionProjectInsight } from '@/shared/mission-control/types'
 
 /** Map workspace tasks into the shape Mission Control already understands. */
 export function workspaceTaskAsMission(task: WorkspaceTask): TaskWithProject {
@@ -42,26 +42,11 @@ export function workspaceProjectAsInsight(
     overdueCount?: number
     nextDeadline?: string | null
   },
-): ProjectInsight {
+): MissionProjectInsight {
   return {
     id: project.id,
-    user_id: project.created_by,
     name: project.name,
-    description: project.description,
-    icon: project.icon,
     color: project.color,
-    status: project.status,
-    priority: project.priority,
-    completion_pct: project.completion_pct,
-    health: project.health as ProjectInsight['health'],
-    health_explanation: null,
-    created_at: project.created_at,
-    updated_at: project.updated_at,
-    remainingTasks: project.remainingTasks ?? 0,
-    overdueCount: project.overdueCount ?? 0,
-    nextDeadline: project.nextDeadline ?? null,
-    lastActiveAt: project.updated_at,
-    momentum: 'flat',
-    healthExplanation: '',
+    health: project.health as MissionProjectInsight['health'],
   }
 }

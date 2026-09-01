@@ -6,7 +6,7 @@ vi.mock('@/features/workspace-os/api', () => ({
   listWorkspaceProjects: (...args: unknown[]) => listWorkspaceProjects(...args),
 }))
 
-import { resolveWorkspaceProjectForAction } from '@/features/ai/lib/resolve-workspace-project'
+import { resolveWorkspaceProjectForAction } from '@/features/workspace-os/lib/resolve-workspace-project'
 
 const WASL = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',

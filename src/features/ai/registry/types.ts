@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import type { ConversationEntityFocus } from '@/features/ai/lib/conversation-focus'
-import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'
+import type { WorkspaceRole } from '@/types/domain'
 
 export type AiOsMode = 'personal' | 'workspace'
 

@@ -11,15 +11,15 @@ import {
 import { listDepartments, listTeams, orgKeys } from '@/features/workspace-os/org-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
-import { getProfile, settingsKeys } from '@/features/settings/api'
+import { getProfile, profileKeys } from '@/shared/user-profile'
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import {
   listWorkspaceReports,
   rowToSnapshot,
   saveWorkspaceReport,
-} from '@/features/reports/api'
-import { ReportStudio } from '@/features/reports/components/ReportStudio'
-import type { ReportSnapshot } from '@/features/reports/types'
+} from '@/features/workspace-os/reports-api'
+import { ReportStudio } from '@/shared/reports/components/ReportStudio'
+import type { ReportSnapshot } from '@/shared/reports/types'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
 
@@ -35,7 +35,7 @@ export function WorkspaceReportsPage() {
   const qc = useQueryClient()
   const [reopen, setReopen] = useState<ReportSnapshot | null>(null)
 
-  const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
+  const profile = useQuery({ queryKey: profileKeys.me(), queryFn: getProfile })
   const projects = useQuery({
     queryKey: workspaceKeys.projects(workspaceId),
     queryFn: () => listWorkspaceProjects(workspaceId),

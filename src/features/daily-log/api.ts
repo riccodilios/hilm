@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
-import { recordActivity, requireUserId } from '@/lib/supabase/activity'
+import { recordActivity } from '@/features/activity/record'
+import { requireUserId } from '@/lib/supabase/activity'
 import type { Inserts, Tables } from '@/types/database'
 import { todayISO } from '@/lib/utils'
 import { formatAiLimitError } from '@/features/ai/lib/usage-errors'

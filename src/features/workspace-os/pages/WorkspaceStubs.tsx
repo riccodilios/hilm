@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { ScaffoldPage } from '@/features/scaffold/ScaffoldPage'
+import { ScaffoldPage } from '@/components/ScaffoldPage'
 
 export function WorkspaceSprintPage() {
   const { t } = useTranslation()

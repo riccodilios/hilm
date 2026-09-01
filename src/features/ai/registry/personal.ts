@@ -35,7 +35,8 @@ import {
   resolveTaskIdForAction,
   updateTask,
 } from '@/features/tasks/api'
-import { recordActivity, requireUserId } from '@/lib/supabase/activity'
+import { recordActivity } from '@/features/activity/record'
+import { requireUserId } from '@/lib/supabase/activity'
 import { supabase } from '@/lib/supabase/client'
 import type { Priority, TaskStatus } from '@/types/domain'
 

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
-import { combineDueAt, computeRemindAt, type ReminderType } from '@/features/tasks/reminders'
+import { combineDueAt, computeRemindAt, type ReminderType } from '@/shared/reminders'
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import type { Tables, Updates } from '@/types/database'
 import type { WorkspaceRole } from '@/features/workspace-os/lib/permissions'

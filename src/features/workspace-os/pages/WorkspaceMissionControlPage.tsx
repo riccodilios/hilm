@@ -20,16 +20,16 @@ import {
   workspaceProjectAsInsight,
   workspaceTaskAsMission,
 } from '@/features/workspace-os/lib/mission-adapters'
-import { MissionCalendar } from '@/features/mission-control/MissionCalendar'
-import { MissionTimeline } from '@/features/mission-control/MissionTimeline'
-import { MissionOverview } from '@/features/mission-control/MissionOverview'
-import { MissionHorizon } from '@/features/mission-control/MissionHorizon'
+import { MissionCalendar } from '@/shared/mission-control/MissionCalendar'
+import { MissionTimeline } from '@/shared/mission-control/MissionTimeline'
+import { MissionOverview } from '@/shared/mission-control/MissionOverview'
+import { MissionHorizon } from '@/shared/mission-control/MissionHorizon'
 import {
   schedulePatchForDrop,
   suggestBestSlot,
   type CalendarView,
   type HorizonZoom,
-} from '@/features/mission-control/lib/schedule'
+} from '@/shared/mission-control/lib/schedule'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
@@ -414,6 +414,8 @@ export function WorkspaceMissionControlPage() {
               setMobilePane('timeline')
             }}
             onApplyBalance={() => balance.mutate()}
+            resolveTaskHref={(taskId) => `${base}/tasks/${taskId}`}
+            resolveProjectHref={(projectId) => `${base}/projects/${projectId}`}
           />
         </section>
       </div>

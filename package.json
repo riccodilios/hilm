@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run check:architecture && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "configure-auth": "node scripts/configure-auth-urls.mjs",
-    "audit-auth": "node scripts/audit-auth-config.mjs"
+    "audit-auth": "node scripts/audit-auth-config.mjs",
+    "check:boundaries": "node scripts/check-os-boundaries.mjs --fail",
+    "check:extraction": "node scripts/simulate-company-extraction.mjs",
+    "check:architecture": "npm run check:boundaries && npm run check:extraction"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

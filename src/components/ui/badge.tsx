@@ -1,7 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import type { ProjectHealth } from '@/features/projects/health'
 import type { HealthStatus, Priority, TaskStatus } from '@/types/domain'
+
+type ProjectHealthBadge = Extract<
+  HealthStatus,
+  'unengaged' | 'started' | 'active' | 'healthy' | 'near_completion' | 'blocked' | 'stalled'
+>
 
 const healthStyles: Record<string, string> = {
   unengaged: 'bg-zinc-500/15 text-zinc-400',
@@ -38,7 +42,7 @@ export function Badge({
   )
 }
 
-export function HealthBadge({ health }: { health?: HealthStatus | ProjectHealth | null }) {
+export function HealthBadge({ health }: { health?: HealthStatus | ProjectHealthBadge | null }) {
   const { t } = useTranslation()
   const key = health || 'unengaged'
   const label =

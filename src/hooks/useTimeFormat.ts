@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { format } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
-import { getSettings, settingsKeys } from '@/features/settings/api'
+import { getSettings, settingsKeys } from '@/shared/user-settings'
 
 export type TimeFormat = '12h' | '24h'
 
