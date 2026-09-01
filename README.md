@@ -48,6 +48,25 @@ Never hardcode localhost in production.
 
 Signup / resend / magic-link / password-reset all call `getAuthCallbackUrl()` which reads `VITE_APP_URL` (and falls back to `window.location.origin`, never emitting localhost while on a production host).
 
+### Auth email delivery (critical for signup)
+
+**Signup / verification / password-reset emails are sent by Supabase Auth**, not by Hilm’s Resend integration (Resend is only for task reminders).
+
+If new users never receive verification email:
+
+1. **Supabase → Authentication → SMTP Settings** — configure custom SMTP (Resend, SendGrid, etc.). The default Supabase mailer is rate-limited and often blocked.
+2. **Supabase → Authentication → URL Configuration** — Site URL must be `https://hillm.netlify.app` (not `localhost:3000`).
+3. **Email templates** — use `{{ .ConfirmationURL }}`; see [docs/auth-email-templates.md](docs/auth-email-templates.md).
+
+Audit helpers:
+
+```bash
+npm run configure-auth   # print/patch Site URL + redirect list
+npm run audit-auth       # live SMTP check (needs SUPABASE_ACCESS_TOKEN)
+```
+
+Dev auth logs: open browser console — messages prefixed `[HILM AUTH DEBUG]` when running `npm run dev`.
+
 ## Scripts
 
 - `npm run dev` / `npm run build` / `npm run preview`

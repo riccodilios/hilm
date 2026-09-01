@@ -42,6 +42,20 @@ console.log('Redirect URLs:')
 for (const url of redirectUrls) console.log(' -', url)
 console.log('\nNetlify must set VITE_APP_URL=' + siteUrl)
 
+console.log('\n=== Email delivery (Supabase Dashboard — NOT in this repo) ===')
+console.log('Auth signup / verification / password-reset emails are sent by Supabase Auth.')
+console.log('Resend (RESEND_API_KEY in this repo) is used ONLY for task reminder emails.')
+console.log('')
+console.log('If users never receive signup emails, configure:')
+console.log('  Authentication → SMTP Settings → custom SMTP (Resend, SendGrid, etc.)')
+console.log('  Default Supabase mailer is rate-limited and unreliable for production.')
+console.log('')
+console.log('Email templates (Authentication → Email Templates):')
+console.log('  Confirm signup should use {{ .ConfirmationURL }} — do NOT hardcode localhost.')
+console.log('  Optional OTP template uses {{ .Token }} — Hilm verifies via link/code callback.')
+console.log('')
+console.log('Run: node scripts/audit-auth-config.mjs (with SUPABASE_ACCESS_TOKEN) for live SMTP check.')
+
 const token = env.SUPABASE_ACCESS_TOKEN
 const ref =
   env.SUPABASE_PROJECT_REF ||

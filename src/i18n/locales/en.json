@@ -341,8 +341,14 @@
       "invalidEmail": "Enter a valid email address.",
       "passwordMismatch": "Passwords don’t match.",
       "signupDisabled": "New signups are temporarily disabled.",
-      "invalidRequest": "Please check your details and try again."
-    }
+      "invalidRequest": "Please check your details and try again.",
+      "expiredToken": "This verification link or code has expired. Request a new email.",
+      "invalidToken": "This verification link or code is invalid. Request a new email.",
+      "alreadyVerified": "This email is already verified. You can sign in."
+    },
+    "alreadyVerifiedTitle": "Already verified",
+    "alreadyVerifiedBody": "Your email is already verified. You can continue to Hilm.",
+    "resendEmailPlaceholder": "you@example.com"
   },
   "landing": {
     "heroSubtitle": "The AI Personal Operating System.",

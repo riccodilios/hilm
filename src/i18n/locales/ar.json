@@ -341,8 +341,14 @@
       "invalidEmail": "أدخل بريداً إلكترونياً صالحاً.",
       "passwordMismatch": "كلمتا المرور غير متطابقتين.",
       "signupDisabled": "التسجيل الجديد متوقف مؤقتاً.",
-      "invalidRequest": "تحقق من بياناتك ثم حاول مجدداً."
-    }
+      "invalidRequest": "تحقق من بياناتك ثم حاول مجدداً.",
+      "expiredToken": "انتهت صلاحية رابط أو رمز التحقق. اطلب رسالة جديدة.",
+      "invalidToken": "رابط أو رمز التحقق غير صالح. اطلب رسالة جديدة.",
+      "alreadyVerified": "تم التحقق من هذا البريد مسبقاً. يمكنك تسجيل الدخول."
+    },
+    "alreadyVerifiedTitle": "تم التحقق مسبقاً",
+    "alreadyVerifiedBody": "بريدك مُحقَّق بالفعل. يمكنك المتابعة إلى حلم.",
+    "resendEmailPlaceholder": "you@example.com"
   },
   "landing": {
     "heroSubtitle": "نظام التشغيل الشخصي بالذكاء الاصطناعي.",

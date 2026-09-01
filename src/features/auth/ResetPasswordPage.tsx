@@ -47,12 +47,13 @@ export function ResetPasswordPage() {
             <Input
               id="password"
               type="password"
-              minLength={6}
+              minLength={8}
               required
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <p className="text-xs text-muted">{t('auth.passwordHint')}</p>
           </div>
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? t('common.loading') : t('auth.updatePassword')}

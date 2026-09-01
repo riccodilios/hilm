@@ -74,6 +74,24 @@ export function mapAuthError(error: unknown): AuthErrorInfo {
     return { key: 'auth.errors.emailNotConfirmed' }
   }
 
+  if (
+    msg.includes('expired') ||
+    msg.includes('invalid or has expired') ||
+    msg.includes('otp_expired') ||
+    msg.includes('token has expired') ||
+    msg.includes('link is invalid')
+  ) {
+    return { key: 'auth.errors.expiredToken' }
+  }
+
+  if (msg.includes('invalid otp') || msg.includes('invalid token') || msg.includes('invalid link')) {
+    return { key: 'auth.errors.invalidToken' }
+  }
+
+  if (msg.includes('already confirmed') || msg.includes('already verified')) {
+    return { key: 'auth.errors.alreadyVerified' }
+  }
+
   if (msg.includes('password') && (msg.includes('weak') || msg.includes('least') || msg.includes('short'))) {
     return { key: 'auth.errors.weakPassword' }
   }

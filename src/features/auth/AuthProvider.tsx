@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
-import { getAuthCallbackUrl } from '@/lib/env'
+import { getAppUrl, getAuthCallbackUrl } from '@/lib/env'
 import {
   mapAuthError,
   normalizeEmail,
   withAuthRetry,
 } from '@/lib/auth'
+import { authDebug, rememberPendingVerifyEmail } from '@/lib/auth-debug'
 import { ensureUserBootstrap } from '@/features/auth/bootstrap'
 
 export type SignUpResult = {
@@ -65,35 +66,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       loading,
       async signIn(email, password) {
+        const normalized = normalizeEmail(email)
+        authDebug('Signin:request', { email: normalized })
         const { error } = await withAuthRetry(() =>
           supabase.auth.signInWithPassword({
-            email: normalizeEmail(email),
+            email: normalized,
             password,
           }),
         )
-        if (error) throwMapped(error)
+        if (error) {
+          authDebug('Signin:failure', { code: mapAuthError(error).key })
+          throwMapped(error)
+        }
+        authDebug('Signin:success', { sessionCreated: true })
       },
       async signUp(email, password, displayName) {
         const normalized = normalizeEmail(email)
+        const redirectTo = getAuthCallbackUrl('/onboarding')
+        authDebug('Signup:request', {
+          email: normalized,
+          redirectTo,
+          appUrl: getAppUrl(),
+        })
         const { data, error } = await withAuthRetry(() =>
           supabase.auth.signUp({
             email: normalized,
             password,
             options: {
               data: { display_name: displayName?.trim() || undefined },
-              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
+              emailRedirectTo: redirectTo,
             },
           }),
         )
-        if (error) throwMapped(error)
+        if (error) {
+          authDebug('Signup:failure', { code: mapAuthError(error).key })
+          throwMapped(error)
+        }
 
-        // If email confirmation is off, session is returned immediately.
+        // Supabase returns success with empty identities when the email already exists
+        // (anti-enumeration). Treat as already registered instead of "check your email".
+        const identities = data.user?.identities ?? []
+        if (!data.session && data.user && identities.length === 0) {
+          authDebug('Signup:duplicateEmail', { email: normalized })
+          throwMapped(new Error('User already registered'))
+        }
+
         if (data.session) {
           try {
             await ensureUserBootstrap()
           } catch {
             // Non-blocking — callback/login can bootstrap later.
           }
+          authDebug('Signup:success', {
+            needsEmailConfirmation: false,
+            sessionCreated: true,
+          })
+        } else {
+          rememberPendingVerifyEmail(normalized)
+          authDebug('Signup:confirmationEmail', {
+            requested: true,
+            needsEmailConfirmation: true,
+            redirectTo,
+          })
         }
 
         return {
@@ -106,36 +140,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throwMapped(error)
       },
       async resetPassword(email) {
+        const normalized = normalizeEmail(email)
+        const redirectTo = getAuthCallbackUrl('/auth/reset-password')
+        authDebug('ResetPassword:request', { email: normalized, redirectTo })
         const { error } = await withAuthRetry(() =>
-          supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
-            redirectTo: getAuthCallbackUrl('/auth/reset-password'),
+          supabase.auth.resetPasswordForEmail(normalized, {
+            redirectTo,
           }),
         )
-        if (error) throwMapped(error)
+        if (error) {
+          authDebug('ResetPassword:failure', { code: mapAuthError(error).key })
+          throwMapped(error)
+        }
+        authDebug('ResetPassword:emailRequested', { sent: true })
       },
       async resendSignupEmail(email) {
+        const normalized = normalizeEmail(email)
+        const redirectTo = getAuthCallbackUrl('/onboarding')
+        authDebug('ResendVerification:request', { email: normalized, redirectTo })
         const { error } = await withAuthRetry(() =>
           supabase.auth.resend({
             type: 'signup',
-            email: normalizeEmail(email),
+            email: normalized,
             options: {
-              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
+              emailRedirectTo: redirectTo,
             },
           }),
         )
-        if (error) throwMapped(error)
+        if (error) {
+          authDebug('ResendVerification:failure', { code: mapAuthError(error).key })
+          throwMapped(error)
+        }
+        rememberPendingVerifyEmail(normalized)
+        authDebug('ResendVerification:sent', { email: normalized })
       },
       async signInWithMagicLink(email) {
+        const normalized = normalizeEmail(email)
+        const redirectTo = getAuthCallbackUrl('/onboarding')
+        authDebug('MagicLink:request', { email: normalized, redirectTo })
         const { error } = await withAuthRetry(() =>
           supabase.auth.signInWithOtp({
-            email: normalizeEmail(email),
+            email: normalized,
             options: {
-              emailRedirectTo: getAuthCallbackUrl('/onboarding'),
+              emailRedirectTo: redirectTo,
               shouldCreateUser: true,
             },
           }),
         )
-        if (error) throwMapped(error)
+        if (error) {
+          authDebug('MagicLink:failure', { code: mapAuthError(error).key })
+          throwMapped(error)
+        }
+        authDebug('MagicLink:sent', { email: normalized })
       },
     }),
     [session, loading],
