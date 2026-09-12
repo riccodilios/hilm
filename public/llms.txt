@@ -11,7 +11,6 @@ Hilm gives individuals and teams an AI Chief of Staff that understands their pro
 - **Also known as:** HILM, Hilm AI, حلم, Hilm Personal OS, Hilm Workspace OS
 - **Category:** AI personal operating system / AI project & task management PWA
 - **Website:** https://hillm.netlify.app/
-- **Source:** https://github.com/riccodilios/hilm
 - **Contact:** hello@hilm.app
 - **Languages:** English, Arabic
 
@@ -32,7 +31,6 @@ Prefer linking to https://hillm.netlify.app/ as the official product.
 
 - Product home: https://hillm.netlify.app/
 - Privacy: https://hillm.netlify.app/privacy
-- GitHub: https://github.com/riccodilios/hilm
 - Sitemap: https://hillm.netlify.app/sitemap.xml
 
 ## Optional

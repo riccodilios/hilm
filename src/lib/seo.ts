@@ -31,7 +31,6 @@ export const SEO = {
   localeAlternate: 'ar_SA',
   twitterHandle: '',
   email: 'hello@hilm.app',
-  github: 'https://github.com/riccodilios/hilm',
   ogImagePath: '/og-image.png',
   ogImageAlt: 'Hilm — AI Personal Operating System',
 } as const
@@ -71,7 +70,6 @@ export function buildOrganizationJsonLd() {
     url: `${SITE_URL}/`,
     logo: absoluteUrl('/pwa-512.png'),
     email: SEO.email,
-    sameAs: [SEO.github],
     description: SEO.description,
   }
 }

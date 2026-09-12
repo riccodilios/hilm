@@ -3,9 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 export function LandingFooter() {
   const { t } = useTranslation()
-  const links = [
+  const links: { label: string; href: string; external?: boolean }[] = [
     { label: t('landing.footerPrivacy'), href: '/privacy' },
-    { label: t('landing.footerGithub'), href: 'https://github.com/riccodilios/hilm', external: true },
     { label: t('landing.footerDocs'), href: '/personal/documents' },
     { label: t('landing.footerContact'), href: 'mailto:hello@hilm.app' },
   ]
