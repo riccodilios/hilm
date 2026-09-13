@@ -325,7 +325,7 @@ export function MissionControlPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-xl border border-border-subtle bg-surface/50 p-1 lg:hidden">
+      <div className="flex gap-1 rounded-xl border border-border-subtle bg-surface/50 p-1 xl:hidden">
         {([
           ['calendar', t('mission.calendar')],
           ['timeline', t('mission.timeline')],
@@ -359,11 +359,11 @@ export function MissionControlPage() {
         }}
       />
 
-      <div className="grid min-h-[70dvh] min-w-0 gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
+      <div className="grid min-h-[70dvh] min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
         <section
           className={cn(
             'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
-            mobilePane === 'calendar' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'calendar' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionCalendar
@@ -385,7 +385,7 @@ export function MissionControlPage() {
         <section
           className={cn(
             'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
-            mobilePane === 'timeline' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'timeline' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionTimeline
@@ -408,7 +408,7 @@ export function MissionControlPage() {
         <section
           className={cn(
             'flex min-h-[420px] min-w-0 flex-col overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
-            mobilePane === 'overview' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'overview' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionOverview
@@ -433,7 +433,7 @@ export function MissionControlPage() {
             <DialogTitle>{t('tasks.new')}</DialogTitle>
             <DialogDescription>
               {slotCreate
-                ? `${slotCreate.dayKey} · ${String(Math.floor(slotCreate.hour)).padStart(2, '0')}:${String(
+                ? `${slotCreate.dayKey} Â· ${String(Math.floor(slotCreate.hour)).padStart(2, '0')}:${String(
                     Math.round((slotCreate.hour % 1) * 60),
                   ).padStart(2, '0')}`
                 : null}

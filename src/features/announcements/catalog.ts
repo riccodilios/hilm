@@ -99,6 +99,26 @@ export const ANNOUNCEMENT_TYPE_LABEL: Record<FeatureDropType, string> = {
  */
 export const ANNOUNCEMENTS: FeatureAnnouncement[] = [
   defineFeatureAnnouncement({
+    version: '1.4.0',
+    type: 'ui_redesign',
+    title: 'UI polish · Desktop & tablet',
+    description:
+      'Hilm is updated with smoother create flows, clearer mobile layouts, and proper tablet and iPad support — including a mobile-style bottom navigation on tablet screens.',
+    highlights: [
+      'Tablet and iPad layouts use the same bottom navigation style as mobile',
+      'Create and edit cards close as soon as you save',
+      'Notes and Mission Control overview fit phone and tablet widths cleanly',
+      'Project health badges and icons stay readable on smaller screens',
+      'Desktop installs and large screens keep the full sidebar experience',
+    ],
+    icon: 'sparkles',
+    primaryCta: { label: 'Continue' },
+    secondaryCtas: [
+      { label: 'Open Home', href: '/personal' },
+      { label: 'Mission Control', href: '/personal/mission-control' },
+    ],
+  }),
+  defineFeatureAnnouncement({
     version: '1.3.0',
     type: 'new_feature',
     title: 'Project Labels & Hilm AI',

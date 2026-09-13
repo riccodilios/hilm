@@ -315,7 +315,7 @@ export function WorkspaceMissionControlPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-xl border border-border-subtle bg-surface/50 p-1 lg:hidden">
+      <div className="flex gap-1 rounded-xl border border-border-subtle bg-surface/50 p-1 xl:hidden">
         {([
           ['calendar', t('mission.calendar')],
           ['timeline', t('mission.timeline')],
@@ -349,11 +349,11 @@ export function WorkspaceMissionControlPage() {
         }}
       />
 
-      <div className="grid min-h-[70dvh] min-w-0 gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
+      <div className="grid min-h-[70dvh] min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
         <section
           className={cn(
             'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
-            mobilePane === 'calendar' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'calendar' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionCalendar
@@ -375,7 +375,7 @@ export function WorkspaceMissionControlPage() {
         <section
           className={cn(
             'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
-            mobilePane === 'timeline' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'timeline' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionTimeline
@@ -399,7 +399,7 @@ export function WorkspaceMissionControlPage() {
         <section
           className={cn(
             'flex min-h-[420px] min-w-0 flex-col overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4',
-            mobilePane === 'overview' ? 'flex' : 'hidden lg:flex',
+            mobilePane === 'overview' ? 'flex' : 'hidden xl:flex',
           )}
         >
           <MissionOverview

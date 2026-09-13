@@ -42,7 +42,7 @@ export function PersonalShell() {
       <PersonalCommandPalette />
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(255,255,255,0.03),_transparent_40%),radial-gradient(ellipse_at_bottom_right,_rgba(96,165,250,0.05),_transparent_45%)]" />
 
-      <aside className="fixed inset-y-0 start-0 z-40 hidden w-60 flex-col border-e border-border-subtle bg-surface/60 px-3 pb-5 pt-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-xl lg:flex">
+      <aside className="fixed inset-y-0 start-0 z-40 hidden w-60 flex-col border-e border-border-subtle bg-surface/60 px-3 pb-5 pt-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-xl xl:flex">
         <div className="mb-8 px-3">
           <p className="text-lg font-medium tracking-tight">{t('brand.name')}</p>
           <p className="text-xs text-muted">{t('os.personal')}</p>
@@ -83,7 +83,7 @@ export function PersonalShell() {
         </div>
       </aside>
 
-      <div className="relative lg:ps-60">
+      <div className="relative xl:ps-60">
         {!online ? <OfflineBanner /> : null}
         <main
           className={cn(
@@ -92,7 +92,7 @@ export function PersonalShell() {
             'pt-[calc(1.5rem+env(safe-area-inset-top,0px))]',
             'pb-[max(6rem,calc(4.5rem+env(safe-area-inset-bottom,0px)))]',
             'sm:ps-[max(1.5rem,env(safe-area-inset-left,0px))] sm:pe-[max(1.5rem,env(safe-area-inset-right,0px))]',
-            'lg:pb-10 lg:pt-[calc(2rem+env(safe-area-inset-top,0px))]',
+            'xl:pb-10 xl:pt-[calc(2rem+env(safe-area-inset-top,0px))]',
           )}
         >
           <RouteErrorBoundary title={t('common.pageError')}>
@@ -103,8 +103,8 @@ export function PersonalShell() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-surface/90 px-1 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto flex max-w-lg items-stretch justify-between gap-0.5 overflow-x-auto">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-surface/90 px-1 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-xl xl:hidden">
+        <div className="mx-auto flex w-full max-w-lg items-stretch justify-between gap-0.5 overflow-x-auto md:max-w-3xl md:px-2">
           {nav.map((item) => (
             <NavLink
               key={item.to}
@@ -112,12 +112,12 @@ export function PersonalShell() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex min-w-[3.25rem] flex-1 flex-col items-center gap-1 py-2.5 text-[9px]',
+                  'flex min-w-[3.25rem] flex-1 flex-col items-center gap-1 py-2.5 text-[9px] md:min-w-[4.5rem] md:gap-1.5 md:py-3 md:text-[11px]',
                   isActive ? 'text-foreground' : 'text-muted',
                 )
               }
             >
-              <item.icon className="size-4" />
+              <item.icon className="size-4 md:size-5" />
               <span className="truncate">{item.label}</span>
             </NavLink>
           ))}
