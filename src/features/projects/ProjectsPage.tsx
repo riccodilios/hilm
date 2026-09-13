@@ -285,9 +285,11 @@ export function ProjectsPage() {
         title={showArchived ? t('projects.archivedTitle') : t('projects.title')}
         description={showArchived ? t('projects.archivedHint') : t('projects.description')}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="ms-auto flex flex-nowrap items-center justify-end gap-2">
             <Button
               variant={showArchived ? 'secondary' : 'ghost'}
+              size="sm"
+              className="shrink-0"
               onClick={() => setShowArchived((value) => !value)}
             >
               <Archive className="size-4" />
@@ -296,7 +298,7 @@ export function ProjectsPage() {
             {!showArchived ? (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button className="shrink-0">
                     <Plus className="size-4" /> {t('projects.new')}
                   </Button>
                 </DialogTrigger>
