@@ -174,14 +174,16 @@ export function MissionOverview({
   })
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden pe-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="flex min-w-0 flex-col gap-3 overflow-x-hidden pe-0.5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:gap-4 sm:pe-1">
       <div className="min-w-0 shrink-0">
         <p className="text-xs uppercase tracking-[0.16em] text-muted">{t('mission.overview')}</p>
         <h2 className="mt-1 text-lg font-medium">{t('mission.missionBrief')}</h2>
       </div>
 
-      <div className="flex min-w-0 shrink-0 items-center gap-4 rounded-2xl border border-border-subtle bg-surface/50 p-4">
-        <ProgressRing value={progress} label={t('mission.today')} />
+      <div className="flex min-w-0 shrink-0 items-center gap-3 rounded-2xl border border-border-subtle bg-surface/50 p-3 sm:gap-4 sm:p-4">
+        <div className="shrink-0">
+          <ProgressRing value={progress} label={t('mission.today')} />
+        </div>
         <div className="min-w-0 space-y-1 text-sm">
           <p>
             <span className="tabular-nums text-foreground">{doneToday.length}</span>{' '}
@@ -199,7 +201,7 @@ export function MissionOverview({
       </div>
 
       {focus ? (
-        <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4">
+        <div className="min-w-0 rounded-2xl border border-accent/30 bg-accent/5 p-3 sm:p-4">
           <p className="text-[11px] uppercase tracking-[0.14em] text-accent">{t('mission.currentFocus')}</p>
           <p className="mt-1 truncate font-medium">{focus.title}</p>
           <p className="mt-1 text-xs text-muted">
@@ -211,7 +213,7 @@ export function MissionOverview({
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <p className="mb-3 text-sm font-medium">{t('mission.projectMix')}</p>
         {distribution.length ? (
           <>
@@ -258,9 +260,9 @@ export function MissionOverview({
         )}
       </section>
 
-      <section className="min-w-0 shrink-0 overflow-x-auto rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 shrink-0 overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <p className="mb-3 text-sm font-medium">{t('mission.weeklyLoad')}</p>
-        <div className="min-w-[240px]">
+        <div className="w-full min-w-0">
         <BarSpark
           values={weekValues}
           labels={weekLabels}
@@ -271,7 +273,7 @@ export function MissionOverview({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <p className="mb-3 text-sm font-medium">{t('mission.productivity')}</p>
         <div className="flex h-12 items-end gap-2">
           {monthDoneByWeek.map((count, index) => (
@@ -287,20 +289,20 @@ export function MissionOverview({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 overflow-x-hidden rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <p className="mb-2 text-sm font-medium">{t('mission.workload')}</p>
         <p className="mb-3 text-xs text-muted">{t('mission.workloadHint')}</p>
         <WorkloadHeatmap cells={heat} selectedDay={dayKey} onSelectDay={onSelectDay} />
       </section>
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <p className="mb-3 text-sm font-medium">{t('mission.projectHealth')}</p>
         <div className="space-y-2">
           {projects.slice(0, 5).map((project) => (
             <Link
               key={project.id}
               to={resolveProjectHref(project.id)}
-              className="flex items-center justify-between gap-2 rounded-lg px-1 py-1.5 hover:bg-surface-2"
+              className="flex min-w-0 items-center justify-between gap-2 rounded-lg px-1 py-1.5 hover:bg-surface-2"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: project.color ?? undefined }} />
@@ -313,7 +315,7 @@ export function MissionOverview({
       </section>
 
       {overdue.length ? (
-        <section className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+        <section className="min-w-0 rounded-2xl border border-danger/30 bg-danger/5 p-3 sm:p-4">
           <p className="mb-2 text-sm font-medium text-danger">{t('mission.overdue')}</p>
           <div className="space-y-1">
             {overdue.slice(0, 4).map((task) => (
@@ -329,14 +331,14 @@ export function MissionOverview({
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-border-subtle bg-surface/40 p-4">
+      <section className="min-w-0 rounded-2xl border border-border-subtle bg-surface/40 p-3 sm:p-4">
         <div className="mb-3 flex items-center gap-2 text-accent">
-          <Sparkles className="size-4" />
+          <Sparkles className="size-4 shrink-0" />
           <p className="text-sm font-medium text-foreground">{t('mission.aiPlanning')}</p>
         </div>
         <ul className="space-y-2">
           {tips.map((tip) => (
-            <li key={tip} className="text-sm leading-relaxed text-muted">
+            <li key={tip} className="break-words text-sm leading-relaxed text-muted">
               {tip}
             </li>
           ))}

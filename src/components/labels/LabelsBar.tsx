@@ -60,10 +60,10 @@ export function LabelsBar({
     mutationFn: () => deleteLabel(deleting!.id),
     onSuccess: async () => {
       const deletedId = deleting?.id
-      await invalidate()
       setDeleting(null)
       if (filter === deletedId) onFilterChange('all')
       toast.success(t('labels.deleted'))
+      await invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -88,9 +88,9 @@ export function LabelsBar({
       } else {
         await updateLabel(edit.draft.id, { name: draft.name, color: draft.color })
       }
-      await invalidate()
       setEdit(null)
       toast.success(t('labels.updated'))
+      await invalidate()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('labels.updateFailed'))
     } finally {

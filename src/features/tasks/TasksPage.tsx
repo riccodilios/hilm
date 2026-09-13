@@ -51,10 +51,6 @@ export function TasksPage() {
   const create = useMutation({
     mutationFn: createTask,
     onSuccess: async () => {
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: tasksKeys.all }),
-        qc.invalidateQueries({ queryKey: homeKeys.all }),
-      ])
       setOpen(false)
       setSearchParams({})
       setTitle('')
@@ -63,6 +59,10 @@ export function TasksPage() {
       setDueAt('')
       setReminderType('1h')
       toast.success(t('tasks.new'))
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: tasksKeys.all }),
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+      ])
     },
     onError: (error: Error) => toast.error(error.message),
   })

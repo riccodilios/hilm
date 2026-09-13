@@ -230,7 +230,7 @@ export function ProjectDetailPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <span
-            className="flex size-12 items-center justify-center rounded-2xl text-background"
+            className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-background"
             style={{ backgroundColor: project.color }}
           >
             <ProjectIcon icon={project.icon} size={22} />

@@ -84,15 +84,15 @@ function ProjectCard({
       {...longPress}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <span
-            className="flex size-10 items-center justify-center rounded-xl text-background"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-background"
             style={{ backgroundColor: project.color }}
           >
             <ProjectIcon icon={project.icon} size={18} />
           </span>
-          <div>
-            <h2 className="font-medium tracking-tight">{project.name}</h2>
+          <div className="min-w-0">
+            <h2 className="truncate font-medium tracking-tight">{project.name}</h2>
             <p className="line-clamp-1 text-sm text-muted">
               {project.description || t('projects.noDescription')}
             </p>
@@ -157,7 +157,6 @@ export function ProjectsPage() {
       return project
     },
     onSuccess: async () => {
-      await invalidate()
       setOpen(false)
       setName('')
       setDescription('')
@@ -165,6 +164,7 @@ export function ProjectsPage() {
       setColor(PROJECT_COLORS[0])
       setCreateLabelIds([])
       toast.success(t('projects.created'))
+      await invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -180,9 +180,9 @@ export function ProjectsPage() {
       await setProjectLabels(editProject!.id, editLabelIds)
     },
     onSuccess: async () => {
-      await invalidate()
       setEditProject(null)
       toast.success(t('projects.updated'))
+      await invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -190,9 +190,9 @@ export function ProjectsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => deleteProject(id),
     onSuccess: async () => {
-      await invalidate()
       setMenuProject(null)
       toast.success(t('projects.deleted'))
+      await invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -350,7 +350,7 @@ export function ProjectsPage() {
             <DialogTitle className="flex items-center gap-3">
               {menuProject ? (
                 <span
-                  className="flex size-10 items-center justify-center rounded-xl text-background"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl text-background"
                   style={{ backgroundColor: menuProject.color }}
                 >
                   <ProjectIcon icon={menuProject.icon} size={18} />

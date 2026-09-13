@@ -46,9 +46,9 @@ export function TaskActionsDialog({
   const complete = useMutation({
     mutationFn: (id: string) => updateTask(id, { status: 'done' }),
     onSuccess: async () => {
-      await invalidate()
       onClose()
       toast.success(t('tasks.completed'))
+      await invalidate()
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -57,9 +57,9 @@ export function TaskActionsDialog({
     mutationFn: ({ id, projectId }: { id: string; projectId: string }) =>
       updateTask(id, { project_id: projectId }),
     onSuccess: async () => {
-      await invalidate()
       onClose()
       toast.success(t('tasks.movedProject'))
+      await invalidate()
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -67,9 +67,9 @@ export function TaskActionsDialog({
   const archive = useMutation({
     mutationFn: (id: string) => archiveTask(id),
     onSuccess: async () => {
-      await invalidate()
       onClose()
       toast.success(t('tasks.archived'))
+      await invalidate()
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -77,9 +77,9 @@ export function TaskActionsDialog({
   const remove = useMutation({
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: async () => {
-      await invalidate()
       onClose()
       toast.success(t('tasks.deleted'))
+      await invalidate()
     },
     onError: (error: Error) => toast.error(error.message),
   })

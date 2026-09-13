@@ -48,7 +48,7 @@ export function HealthBadge({ health }: { health?: HealthStatus | ProjectHealthB
   const label =
     typeof health === 'string' ? health.replaceAll('_', ' ') : 'unengaged'
   return (
-    <Badge className={healthStyles[key] ?? healthStyles.unengaged}>
+    <Badge className={cn('max-w-[9.5rem] shrink-0 truncate', healthStyles[key] ?? healthStyles.unengaged)}>
       {t(`health.${key}`, { defaultValue: label })}
     </Badge>
   )

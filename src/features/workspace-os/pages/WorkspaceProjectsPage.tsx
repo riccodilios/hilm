@@ -100,9 +100,6 @@ export function WorkspaceProjectsPage() {
       return project
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) })
-      await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
-      await qc.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) })
       setOpen(false)
       setName('')
       setDescription('')
@@ -110,6 +107,9 @@ export function WorkspaceProjectsPage() {
       setIcon('folder')
       setCreateLabelIds([])
       toast.success(t('workspace.projectCreated'))
+      await qc.invalidateQueries({ queryKey: workspaceKeys.projects(workspaceId) })
+      await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
+      await qc.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) })
     },
     onError: (error: Error) => toast.error(error.message),
   })

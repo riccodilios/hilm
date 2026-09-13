@@ -42,9 +42,10 @@ export function WorkspaceSelectorPage() {
   const create = useMutation({
     mutationFn: () => createWorkspace({ name, description, color }),
     onSuccess: async (ws) => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
+      closeDialogs()
       toast.success(t('workspace.createdToast'))
       navigate(`/workspace/${ws.id}`)
+      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -52,9 +53,10 @@ export function WorkspaceSelectorPage() {
   const join = useMutation({
     mutationFn: () => joinWorkspaceByInvite(code),
     onSuccess: async (ws) => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
+      closeDialogs()
       toast.success(t('workspace.joinedToast'))
       navigate(`/workspace/${ws.id}`)
+      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
     },
     onError: (error: Error) => toast.error(error.message),
   })

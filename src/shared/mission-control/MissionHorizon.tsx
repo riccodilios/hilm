@@ -284,7 +284,7 @@ function HorizonChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-[8.5rem] shrink-0 flex-col gap-1 rounded-xl border px-3 py-2 text-start',
+        'flex w-[7rem] shrink-0 flex-col gap-1 rounded-xl border px-2.5 py-2 text-start sm:w-[8.5rem] sm:px-3',
         active
           ? 'border-accent/40 bg-accent/10'
           : 'border-border-subtle bg-surface/50',

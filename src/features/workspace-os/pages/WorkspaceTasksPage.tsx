@@ -106,8 +106,6 @@ export function WorkspaceTasksPage() {
         assigneeId: assignment.assigneeId,
       }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
-      await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
       setOpen(false)
       resetForm()
       setSearchParams((prev) => {
@@ -116,6 +114,8 @@ export function WorkspaceTasksPage() {
         return next
       })
       toast.success(t('workspace.taskCreated'))
+      await qc.invalidateQueries({ queryKey: workspaceKeys.tasks(workspaceId) })
+      await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
     },
     onError: (error: Error) => toast.error(error.message),
   })
