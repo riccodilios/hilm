@@ -2,13 +2,16 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
+import { Archive, ArchiveRestore, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  archiveProject,
   createProject,
   deleteProject,
+  listArchivedProjects,
   listProjects,
   projectsKeys,
+  unarchiveProject,
   updateProject,
 } from '@/features/projects/api'
 import {
@@ -40,6 +43,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import { PROJECT_COLORS } from '@/types/domain'
 import type { Tables } from '@/types/database'
 
@@ -49,10 +53,12 @@ function ProjectCard({
   project,
   labels,
   onOpenMenu,
+  archived = false,
 }: {
   project: Project
   labels: Array<{ id: string; name: string; color: string }>
   onOpenMenu: (project: Project) => void
+  archived?: boolean
 }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -67,7 +73,10 @@ function ProjectCard({
     <div
       role="link"
       tabIndex={0}
-      className="group cursor-pointer touch-manipulation select-none rounded-2xl border border-border-subtle bg-surface/70 p-5 transition-colors hover:border-border hover:bg-surface"
+      className={cn(
+        'group cursor-pointer touch-manipulation select-none rounded-2xl border border-border-subtle bg-surface/70 p-5 transition-colors hover:border-border hover:bg-surface',
+        archived && 'opacity-55 grayscale-[0.35]',
+      )}
       onClick={() => {
         if (longPressed.current) {
           longPressed.current = false
@@ -98,7 +107,13 @@ function ProjectCard({
             </p>
           </div>
         </div>
-        <HealthBadge health={project.health} />
+        {archived ? (
+          <span className="shrink-0 rounded-md bg-surface-3 px-2 py-0.5 text-xs text-muted">
+            {t('projects.showArchived')}
+          </span>
+        ) : (
+          <HealthBadge health={project.health} />
+        )}
       </div>
       <div className="mt-5 flex items-center justify-between gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
@@ -123,7 +138,13 @@ export function ProjectsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const [showArchived, setShowArchived] = useState(false)
   const { data, isLoading } = useQuery({ queryKey: projectsKeys.list(), queryFn: listProjects })
+  const archivedQuery = useQuery({
+    queryKey: projectsKeys.archived(),
+    queryFn: listArchivedProjects,
+    enabled: showArchived,
+  })
   const labelsQuery = useQuery({
     queryKey: labelKeys.list(),
     queryFn: listLabels,
@@ -187,6 +208,26 @@ export function ProjectsPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const archive = useMutation({
+    mutationFn: (id: string) => archiveProject(id),
+    onSuccess: async () => {
+      setMenuProject(null)
+      toast.success(t('projects.archived'))
+      await invalidate()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const restore = useMutation({
+    mutationFn: (id: string) => unarchiveProject(id),
+    onSuccess: async () => {
+      setMenuProject(null)
+      toast.success(t('projects.unarchived'))
+      await invalidate()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   const remove = useMutation({
     mutationFn: (id: string) => deleteProject(id),
     onSuccess: async () => {
@@ -197,10 +238,14 @@ export function ProjectsPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const activeProjects = data ?? []
+  const archivedProjects = archivedQuery.data ?? []
+  const listSource = showArchived ? archivedProjects : activeProjects
+
   const projectLinks = useQuery({
-    queryKey: [...labelKeys.all, 'links', 'v3'],
+    queryKey: [...labelKeys.all, 'links', 'v3', showArchived ? 'archived' : 'active'],
     queryFn: async () => {
-      const projects = data ?? []
+      const projects = listSource
       const byProject: Record<string, Array<{ id: string; name: string; color: string }>> = {}
       const ids: Record<string, string[]> = {}
       await Promise.all(
@@ -212,7 +257,7 @@ export function ProjectsPage() {
       )
       return { byProject, ids }
     },
-    enabled: Boolean(data?.length),
+    enabled: Boolean(listSource.length),
   })
 
   function openEdit(project: Project) {
@@ -225,112 +270,135 @@ export function ProjectsPage() {
     setEditLabelIds(projectLinks.data?.ids?.[project.id] ?? [])
   }
 
-  const filteredProjects = (data ?? []).filter((project) => {
+  const filteredProjects = listSource.filter((project) => {
+    if (showArchived) return true
     if (labelFilter === 'all') return true
     return projectLinks.data?.ids?.[project.id]?.includes(labelFilter)
   })
 
+  const listLoading = showArchived ? archivedQuery.isLoading : isLoading
+  const menuIsArchived = Boolean(menuProject && menuProject.status === 'archived')
+
   return (
     <div>
       <PageHeader
-        title={t('projects.title')}
-        description={t('projects.description')}
+        title={showArchived ? t('projects.archivedTitle') : t('projects.title')}
+        description={showArchived ? t('projects.archivedHint') : t('projects.description')}
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="size-4" /> {t('projects.new')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t('projects.new')}</DialogTitle>
-                <DialogDescription>{t('projects.description')}</DialogDescription>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  create.mutate()
-                }}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="name">{t('projects.name')}</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="desc">{t('projects.desc')}</Label>
-                  <Textarea
-                    id="desc"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('projects.icon')}</Label>
-                  <ProjectIconPicker value={icon} onChange={setIcon} color={color} />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t('projects.color')}</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {PROJECT_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        className="size-7 rounded-full border-2"
-                        style={{
-                          backgroundColor: c,
-                          borderColor: color === c ? '#fff' : 'transparent',
-                        }}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant={showArchived ? 'secondary' : 'ghost'}
+              onClick={() => setShowArchived((value) => !value)}
+            >
+              <Archive className="size-4" />
+              {showArchived ? t('projects.showActive') : t('projects.showArchived')}
+            </Button>
+            {!showArchived ? (
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="size-4" /> {t('projects.new')}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{t('projects.new')}</DialogTitle>
+                    <DialogDescription>{t('projects.description')}</DialogDescription>
+                  </DialogHeader>
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      create.mutate()
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="name">{t('projects.name')}</Label>
+                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="desc">{t('projects.desc')}</Label>
+                      <Textarea
+                        id="desc"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
                       />
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Labels</Label>
-                  <ProjectLabelPicker
-                    labels={labelsQuery.data ?? []}
-                    selectedIds={createLabelIds}
-                    onChange={setCreateLabelIds}
-                  />
-                </div>
-                <Button type="submit" disabled={create.isPending} className="w-full">
-                  {t('common.create')}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('projects.icon')}</Label>
+                      <ProjectIconPicker value={icon} onChange={setIcon} color={color} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t('projects.color')}</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {PROJECT_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setColor(c)}
+                            className="size-7 rounded-full border-2"
+                            style={{
+                              backgroundColor: c,
+                              borderColor: color === c ? '#fff' : 'transparent',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Labels</Label>
+                      <ProjectLabelPicker
+                        labels={labelsQuery.data ?? []}
+                        selectedIds={createLabelIds}
+                        onChange={setCreateLabelIds}
+                      />
+                    </div>
+                    <Button type="submit" disabled={create.isPending} className="w-full">
+                      {t('common.create')}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            ) : null}
+          </div>
         }
       />
 
-      {isLoading ? (
+      {listLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Skeleton className="h-36" />
           <Skeleton className="h-36" />
         </div>
-      ) : !data?.length ? (
+      ) : !listSource.length ? (
         <EmptyState
-          title={t('projects.emptyTitle')}
-          description={t('projects.emptyBody')}
+          title={showArchived ? t('projects.archivedEmpty') : t('projects.emptyTitle')}
+          description={showArchived ? t('projects.archivedHint') : t('projects.emptyBody')}
           action={
-            <Button onClick={() => setOpen(true)}>
-              <Plus className="size-4" /> {t('projects.new')}
-            </Button>
+            showArchived ? (
+              <Button variant="secondary" onClick={() => setShowArchived(false)}>
+                {t('projects.showActive')}
+              </Button>
+            ) : (
+              <Button onClick={() => setOpen(true)}>
+                <Plus className="size-4" /> {t('projects.new')}
+              </Button>
+            )
           }
         />
       ) : (
         <>
-          <LabelsBar
-            labels={labelsQuery.data ?? []}
-            filter={labelFilter}
-            onFilterChange={setLabelFilter}
-            canManage
-            queryKey={labelKeys.all}
-            createLabel={createLabel}
-            updateLabel={updateLabel}
-            deleteLabel={deleteLabel}
-          />
+          {!showArchived ? (
+            <LabelsBar
+              labels={labelsQuery.data ?? []}
+              filter={labelFilter}
+              onFilterChange={setLabelFilter}
+              canManage
+              queryKey={labelKeys.all}
+              createLabel={createLabel}
+              updateLabel={updateLabel}
+              deleteLabel={deleteLabel}
+            />
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             {filteredProjects.map((project) => (
               <ProjectCard
@@ -338,6 +406,7 @@ export function ProjectsPage() {
                 project={project}
                 labels={projectLinks.data?.byProject?.[project.id] ?? []}
                 onOpenMenu={setMenuProject}
+                archived={showArchived}
               />
             ))}
           </div>
@@ -373,25 +442,52 @@ export function ProjectsPage() {
             >
               <ExternalLink className="size-4" /> {t('projects.open')}
             </Button>
-            <Button
-              variant="secondary"
-              className="justify-start"
-              onClick={() => menuProject && openEdit(menuProject)}
-            >
-              <Pencil className="size-4" /> {t('projects.edit')}
-            </Button>
-            <Button
-              variant="secondary"
-              className="justify-start text-[color:var(--color-danger)]"
-              disabled={remove.isPending}
-              onClick={() => {
-                if (!menuProject) return
-                if (!window.confirm(t('projects.deleteConfirm', { name: menuProject.name }))) return
-                remove.mutate(menuProject.id)
-              }}
-            >
-              <Trash2 className="size-4" /> {t('projects.delete')}
-            </Button>
+            {!menuIsArchived ? (
+              <Button
+                variant="secondary"
+                className="justify-start"
+                onClick={() => menuProject && openEdit(menuProject)}
+              >
+                <Pencil className="size-4" /> {t('projects.edit')}
+              </Button>
+            ) : null}
+            {menuIsArchived ? (
+              <Button
+                variant="secondary"
+                className="justify-start"
+                disabled={restore.isPending}
+                onClick={() => menuProject && restore.mutate(menuProject.id)}
+              >
+                <ArchiveRestore className="size-4" /> {t('projects.unarchive')}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  className="justify-start"
+                  disabled={archive.isPending}
+                  onClick={() => {
+                    if (!menuProject) return
+                    if (!window.confirm(t('projects.archiveConfirm', { name: menuProject.name }))) return
+                    archive.mutate(menuProject.id)
+                  }}
+                >
+                  <Archive className="size-4" /> {t('projects.archive')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="justify-start text-[color:var(--color-danger)]"
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    if (!menuProject) return
+                    if (!window.confirm(t('projects.deleteConfirm', { name: menuProject.name }))) return
+                    remove.mutate(menuProject.id)
+                  }}
+                >
+                  <Trash2 className="size-4" /> {t('projects.delete')}
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

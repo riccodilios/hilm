@@ -13,6 +13,7 @@ import { addDays } from 'date-fns'
 export const projectsKeys = {
   all: ['projects'] as const,
   list: () => [...projectsKeys.all, 'list'] as const,
+  archived: () => [...projectsKeys.all, 'archived'] as const,
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
 }
 
@@ -21,6 +22,16 @@ export async function listProjects() {
     .from('projects')
     .select('*')
     .neq('status', 'archived')
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return data as Tables<'projects'>[]
+}
+
+export async function listArchivedProjects() {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('status', 'archived')
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data as Tables<'projects'>[]
@@ -95,6 +106,27 @@ export async function deleteProject(id: string) {
     projectId: id,
     action: 'archived',
     summary: `Archived project ${data.name}`,
+  })
+  return data
+}
+
+export async function archiveProject(id: string) {
+  return deleteProject(id)
+}
+
+export async function unarchiveProject(id: string) {
+  const userId = await requireUserId()
+  const { error } = await supabase.from('projects').update({ status: 'active' }).eq('id', id)
+  if (error) throw error
+  const data = await getProject(id)
+  await recordActivity({
+    userId,
+    entityType: 'project',
+    entityId: id,
+    projectId: id,
+    action: 'updated',
+    summary: `Restored project ${data.name}`,
+    metadata: { status: 'active' },
   })
   return data
 }
