@@ -40,10 +40,26 @@ export function taskDueInstant(task: {
   due_date?: string | null
   due_at?: string | null
 }): Date | null {
+  if (task.due_at) {
+    const instant = new Date(task.due_at)
+    if (!Number.isNaN(instant.getTime())) return instant
+  }
   const key = taskDueDateKey(task)
   if (!key) return null
   const [y, m, d] = key.split('-').map(Number)
   return new Date(y, m - 1, d, 9, 0, 0, 0)
+}
+
+function formatDueClockTime(due: Date, locale: 'ar' | 'en'): string {
+  return due.toLocaleTimeString(locale === 'ar' ? 'ar' : 'en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function tomorrowAtLabel(due: Date, locale: 'ar' | 'en'): string {
+  const time = formatDueClockTime(due, locale)
+  return locale === 'ar' ? `غداً الساعة ${time}` : `Tomorrow at ${time}`
 }
 
 export function formatDueRemaining(
@@ -66,7 +82,7 @@ export function formatDueRemaining(
   const tomorrowKey = addLocalDays(todayKey, 1)
 
   if (dueKey === tomorrowKey && diffMs > 0) {
-    return locale === 'ar' ? 'غداً الساعة 9:00 ص' : 'Tomorrow at 9:00 AM'
+    return tomorrowAtLabel(due, locale)
   }
 
   if (diffMs < 0) {
@@ -80,7 +96,7 @@ export function formatDueRemaining(
       ? due.toLocaleDateString('ar', { month: 'short', day: 'numeric' })
       : due.toLocaleDateString('en', { month: 'short', day: 'numeric' })
   }
-  if (hours >= 24) return locale === 'ar' ? 'غداً الساعة 9:00 ص' : 'Tomorrow at 9:00 AM'
+  if (hours >= 24) return tomorrowAtLabel(due, locale)
   if (hours >= 1) {
     return locale === 'ar'
       ? `متبقي ${hours}س ${remMins}د`
