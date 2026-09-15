@@ -1,6 +1,11 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { ensureLandingGsap, gsap, useGSAP } from '@/features/landing/gsap-setup'
+import {
+  ensureLandingGsap,
+  refreshLandingScrollTriggers,
+  revealElements,
+  useGSAP,
+} from '@/features/landing/gsap-setup'
 
 ensureLandingGsap()
 
@@ -21,35 +26,14 @@ export function FadeIn({
     () => {
       const el = ref.current
       if (!el) return
-
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (reduce) {
-        gsap.set(el, { opacity: 1, y: 0 })
-        return
-      }
-
-      gsap.fromTo(
-        el,
-        { opacity: 0, y },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.85,
-          delay,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: el,
-            start: 'top 88%',
-            toggleActions: 'play none none none',
-          },
-        },
-      )
+      revealElements(el, { y, delay, start: 'top 90%' })
+      refreshLandingScrollTriggers()
     },
     { scope: ref },
   )
 
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} className={cn('opacity-0 will-change-transform', className)}>
       {children}
     </div>
   )
@@ -64,8 +48,14 @@ export function Section({
   children: React.ReactNode
   className?: string
 }) {
+  const ref = useRef<HTMLElement>(null)
+
+  useLayoutEffect(() => {
+    refreshLandingScrollTriggers()
+  }, [])
+
   return (
-    <section id={id} className={cn('relative px-5 py-20 sm:py-28', className)}>
+    <section id={id} ref={ref} className={cn('relative px-5 py-20 sm:py-28', className)}>
       <div className="mx-auto max-w-6xl">{children}</div>
     </section>
   )

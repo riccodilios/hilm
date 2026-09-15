@@ -1,12 +1,18 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ensureLandingGsap, gsap, useGSAP } from '@/features/landing/gsap-setup'
+import {
+  ensureLandingGsap,
+  refreshLandingScrollTriggers,
+  revealElements,
+  useGSAP,
+} from '@/features/landing/gsap-setup'
 
 ensureLandingGsap()
 
 export function DemoSection() {
   const { t } = useTranslation()
   const sectionRef = useRef<HTMLElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useGSAP(
     () => {
@@ -17,44 +23,47 @@ export function DemoSection() {
       const video = root.querySelector('.demo-video')
       if (!copy.length || !video) return
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        gsap.set([copy, video], { clearProps: 'all' })
-        return
-      }
-
-      gsap
-        .timeline({
-          scrollTrigger: {
-            trigger: root,
-            start: 'top 82%',
-            toggleActions: 'play none none none',
-          },
-        })
-        .from(copy, {
-          opacity: 0,
-          y: 22,
-          duration: 0.7,
-          stagger: 0.08,
-          ease: 'power3.out',
-        })
-        .from(
-          video,
-          {
-            opacity: 0,
-            y: 18,
-            duration: 0.8,
-            ease: 'power3.out',
-          },
-          '-=0.45',
-        )
+      revealElements(copy, { y: 22, stagger: 0.08, start: 'top 90%' })
+      revealElements(video, { y: 18, delay: 0.12, start: 'top 90%' })
+      refreshLandingScrollTriggers()
     },
     { scope: sectionRef },
   )
 
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    video.muted = true
+    video.defaultMuted = true
+    video.playsInline = true
+
+    const tryPlay = () => {
+      void video.play().catch(() => {
+        /* Autoplay can still be blocked; controls remain available. */
+      })
+    }
+
+    tryPlay()
+    video.addEventListener('loadeddata', tryPlay)
+    video.addEventListener('canplay', tryPlay)
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') tryPlay()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      video.removeEventListener('loadeddata', tryPlay)
+      video.removeEventListener('canplay', tryPlay)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
   return (
     <section id="demo" ref={sectionRef} className="relative scroll-mt-8 px-5 py-16 sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-14">
-        <div className="demo-copy">
+        <div className="demo-copy [&>*]:opacity-0">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted">
             {t('landing.demoEyebrow')}
           </p>
@@ -66,12 +75,16 @@ export function DemoSection() {
           </p>
         </div>
 
-        <div className="demo-video overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.65)]">
+        <div className="demo-video opacity-0 overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.65)]">
           <video
+            ref={videoRef}
             className="aspect-video w-full bg-surface-2 object-contain"
             src="/hilm-demo.mp4"
-            controls
+            autoPlay
+            muted
+            loop
             playsInline
+            controls
             preload="auto"
             controlsList="nodownload"
             aria-label={t('landing.demoVideoLabel')}

@@ -1,8 +1,18 @@
-import { lazy, Suspense, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LandingHero } from '@/features/landing/sections/Hero'
+import { DemoSection } from '@/features/landing/sections/Demo'
+import { SystemsSection } from '@/features/landing/sections/Systems'
+import { ProblemSection } from '@/features/landing/sections/Problem'
+import { FeaturesSection } from '@/features/landing/sections/Features'
+import { WorkspaceSection } from '@/features/landing/sections/Workspace'
+import { AutomationSection } from '@/features/landing/sections/Automation'
+import { VoiceSection } from '@/features/landing/sections/Voice'
+import { SecuritySection } from '@/features/landing/sections/Security'
+import { LandingFaqSection } from '@/features/landing/sections/Faq'
+import { CtaSection } from '@/features/landing/sections/Cta'
 import { LandingFooter } from '@/features/landing/sections/Footer'
-import { SectionSkeleton } from '@/features/landing/LandingSkeleton'
+import { ensureLandingGsap, refreshLandingScrollTriggers } from '@/features/landing/gsap-setup'
 import { useDocumentSeo } from '@/hooks/useDocumentSeo'
 import {
   buildFaqJsonLd,
@@ -12,40 +22,7 @@ import {
   SEO,
 } from '@/lib/seo'
 
-const DemoSection = lazy(() =>
-  import('@/features/landing/sections/Demo').then((m) => ({ default: m.DemoSection })),
-)
-const SystemsSection = lazy(() =>
-  import('@/features/landing/sections/Systems').then((m) => ({ default: m.SystemsSection })),
-)
-const ProblemSection = lazy(() =>
-  import('@/features/landing/sections/Problem').then((m) => ({ default: m.ProblemSection })),
-)
-const FeaturesSection = lazy(() =>
-  import('@/features/landing/sections/Features').then((m) => ({ default: m.FeaturesSection })),
-)
-const WorkspaceSection = lazy(() =>
-  import('@/features/landing/sections/Workspace').then((m) => ({ default: m.WorkspaceSection })),
-)
-const AutomationSection = lazy(() =>
-  import('@/features/landing/sections/Automation').then((m) => ({ default: m.AutomationSection })),
-)
-const VoiceSection = lazy(() =>
-  import('@/features/landing/sections/Voice').then((m) => ({ default: m.VoiceSection })),
-)
-const SecuritySection = lazy(() =>
-  import('@/features/landing/sections/Security').then((m) => ({ default: m.SecuritySection })),
-)
-const FaqSection = lazy(() =>
-  import('@/features/landing/sections/Faq').then((m) => ({ default: m.LandingFaqSection })),
-)
-const CtaSection = lazy(() =>
-  import('@/features/landing/sections/Cta').then((m) => ({ default: m.CtaSection })),
-)
-
-function LazyBlock({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<SectionSkeleton />}>{children}</Suspense>
-}
+ensureLandingGsap()
 
 export function LandingPage() {
   const { t } = useTranslation()
@@ -72,39 +49,32 @@ export function LandingPage() {
     jsonLd,
   })
 
+  useEffect(() => {
+    refreshLandingScrollTriggers()
+    const onLoad = () => refreshLandingScrollTriggers()
+    window.addEventListener('load', onLoad)
+    const fontsReady = document.fonts?.ready?.then(() => refreshLandingScrollTriggers())
+    const timer = window.setTimeout(() => refreshLandingScrollTriggers(), 400)
+    return () => {
+      window.removeEventListener('load', onLoad)
+      window.clearTimeout(timer)
+      void fontsReady
+    }
+  }, [])
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <LandingHero />
-      <LazyBlock>
-        <DemoSection />
-      </LazyBlock>
-      <LazyBlock>
-        <SystemsSection />
-      </LazyBlock>
-      <LazyBlock>
-        <ProblemSection />
-      </LazyBlock>
-      <LazyBlock>
-        <FeaturesSection />
-      </LazyBlock>
-      <LazyBlock>
-        <WorkspaceSection />
-      </LazyBlock>
-      <LazyBlock>
-        <AutomationSection />
-      </LazyBlock>
-      <LazyBlock>
-        <VoiceSection />
-      </LazyBlock>
-      <LazyBlock>
-        <SecuritySection />
-      </LazyBlock>
-      <LazyBlock>
-        <FaqSection />
-      </LazyBlock>
-      <LazyBlock>
-        <CtaSection />
-      </LazyBlock>
+      <DemoSection />
+      <SystemsSection />
+      <ProblemSection />
+      <FeaturesSection />
+      <WorkspaceSection />
+      <AutomationSection />
+      <VoiceSection />
+      <SecuritySection />
+      <LandingFaqSection />
+      <CtaSection />
       <LandingFooter />
     </div>
   )

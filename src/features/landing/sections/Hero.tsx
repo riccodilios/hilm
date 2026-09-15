@@ -21,16 +21,16 @@ export function LandingHero() {
     () => {
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       if (reduce) {
-        gsap.set('.hero-anim', { opacity: 1, y: 0 })
+        gsap.set('.hero-anim', { opacity: 1, y: 0, clearProps: 'transform' })
         return
       }
 
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
-      tl.fromTo('.hero-brand', { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.9 })
-        .fromTo('.hero-sub', { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.7 }, '-=0.45')
-        .fromTo('.hero-desc', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65 }, '-=0.4')
-        .fromTo('.hero-cta', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.55 }, '-=0.35')
-        .fromTo('.hero-nav', { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.5 }, 0.15)
+      tl.fromTo('.hero-brand', { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.9, clearProps: 'transform' })
+        .fromTo('.hero-sub', { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.7, clearProps: 'transform' }, '-=0.45')
+        .fromTo('.hero-desc', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65, clearProps: 'transform' }, '-=0.4')
+        .fromTo('.hero-cta', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.55, clearProps: 'transform' }, '-=0.35')
+        .fromTo('.hero-nav', { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.5, clearProps: 'transform' }, 0.15)
     },
     { scope: rootRef },
   )
