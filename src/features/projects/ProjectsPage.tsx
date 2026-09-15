@@ -49,6 +49,12 @@ import type { Tables } from '@/types/database'
 
 type Project = Tables<'projects'>
 
+const PROJECT_FORM_DIALOG_CLASS = cn(
+  'flex flex-col gap-0 overflow-hidden p-0',
+  'left-0 top-auto bottom-0 max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-0.5rem))] w-full max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-3xl',
+  'sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[min(85dvh,40rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl',
+)
+
 function ProjectCard({
   project,
   labels,
@@ -302,62 +308,70 @@ export function ProjectsPage() {
                     <Plus className="size-4" /> {t('projects.new')}
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{t('projects.new')}</DialogTitle>
-                    <DialogDescription>{t('projects.description')}</DialogDescription>
-                  </DialogHeader>
+                <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>
+                  <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12">
+                    <DialogHeader>
+                      <DialogTitle>{t('projects.new')}</DialogTitle>
+                      <DialogDescription>{t('projects.description')}</DialogDescription>
+                    </DialogHeader>
+                  </div>
                   <form
-                    className="space-y-4"
+                    className="flex min-h-0 flex-1 flex-col"
                     onSubmit={(e) => {
                       e.preventDefault()
                       create.mutate()
                     }}
                   >
-                    <div className="space-y-2">
-                      <Label htmlFor="name">{t('projects.name')}</Label>
-                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="desc">{t('projects.desc')}</Label>
-                      <Textarea
-                        id="desc"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t('projects.icon')}</Label>
-                      <ProjectIconPicker value={icon} onChange={setIcon} color={color} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t('projects.color')}</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {PROJECT_COLORS.map((c) => (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() => setColor(c)}
-                            className="size-7 rounded-full border-2"
-                            style={{
-                              backgroundColor: c,
-                              borderColor: color === c ? '#fff' : 'transparent',
-                            }}
-                          />
-                        ))}
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="name">{t('projects.name')}</Label>
+                        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="desc">{t('projects.desc')}</Label>
+                        <Textarea
+                          id="desc"
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          rows={2}
+                          className="min-h-[4.5rem] resize-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t('projects.icon')}</Label>
+                        <ProjectIconPicker compact value={icon} onChange={setIcon} color={color} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t('projects.color')}</Label>
+                        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+                          {PROJECT_COLORS.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setColor(c)}
+                              className="size-7 shrink-0 rounded-full border-2"
+                              style={{
+                                backgroundColor: c,
+                                borderColor: color === c ? '#fff' : 'transparent',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Labels</Label>
+                        <ProjectLabelPicker
+                          labels={labelsQuery.data ?? []}
+                          selectedIds={createLabelIds}
+                          onChange={setCreateLabelIds}
+                        />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Labels</Label>
-                      <ProjectLabelPicker
-                        labels={labelsQuery.data ?? []}
-                        selectedIds={createLabelIds}
-                        onChange={setCreateLabelIds}
-                      />
+                    <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+                      <Button type="submit" disabled={create.isPending} className="w-full">
+                        {t('common.create')}
+                      </Button>
                     </div>
-                    <Button type="submit" disabled={create.isPending} className="w-full">
-                      {t('common.create')}
-                    </Button>
                   </form>
                 </DialogContent>
               </Dialog>
@@ -495,67 +509,75 @@ export function ProjectsPage() {
       </Dialog>
 
       <Dialog open={Boolean(editProject)} onOpenChange={(next) => !next && setEditProject(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('projects.edit')}</DialogTitle>
-            <DialogDescription>{t('projects.editDesc')}</DialogDescription>
-          </DialogHeader>
+        <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>
+          <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12">
+            <DialogHeader>
+              <DialogTitle>{t('projects.edit')}</DialogTitle>
+              <DialogDescription>{t('projects.editDesc')}</DialogDescription>
+            </DialogHeader>
+          </div>
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(e) => {
               e.preventDefault()
               if (editName.trim()) saveEdit.mutate()
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">{t('projects.name')}</Label>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-desc">{t('projects.desc')}</Label>
-              <Textarea
-                id="edit-desc"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('projects.icon')}</Label>
-              <ProjectIconPicker value={editIcon} onChange={setEditIcon} color={editColor} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('projects.color')}</Label>
-              <div className="flex flex-wrap gap-2">
-                {PROJECT_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setEditColor(c)}
-                    className="size-7 rounded-full border-2"
-                    style={{
-                      backgroundColor: c,
-                      borderColor: editColor === c ? '#fff' : 'transparent',
-                    }}
-                  />
-                ))}
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-name">{t('projects.name')}</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-desc">{t('projects.desc')}</Label>
+                <Textarea
+                  id="edit-desc"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                  className="min-h-[4.5rem] resize-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('projects.icon')}</Label>
+                <ProjectIconPicker compact value={editIcon} onChange={setEditIcon} color={editColor} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('projects.color')}</Label>
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+                  {PROJECT_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setEditColor(c)}
+                      className="size-7 shrink-0 rounded-full border-2"
+                      style={{
+                        backgroundColor: c,
+                        borderColor: editColor === c ? '#fff' : 'transparent',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Labels</Label>
+                <ProjectLabelPicker
+                  labels={labelsQuery.data ?? []}
+                  selectedIds={editLabelIds}
+                  onChange={setEditLabelIds}
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Labels</Label>
-              <ProjectLabelPicker
-                labels={labelsQuery.data ?? []}
-                selectedIds={editLabelIds}
-                onChange={setEditLabelIds}
-              />
+            <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+              <Button type="submit" disabled={saveEdit.isPending} className="w-full">
+                {t('common.save')}
+              </Button>
             </div>
-            <Button type="submit" disabled={saveEdit.isPending} className="w-full">
-              {t('common.save')}
-            </Button>
           </form>
         </DialogContent>
       </Dialog>

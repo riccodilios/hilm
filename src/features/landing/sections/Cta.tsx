@@ -15,12 +15,10 @@ export function CtaSection() {
     <Section>
       <FadeIn>
         <div className="relative overflow-hidden rounded-[2rem] border border-border bg-gradient-to-br from-surface via-[#12141a] to-surface-2 px-6 py-16 text-center sm:px-12 sm:py-20">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(96,165,250,0.12),transparent_55%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(96,165,250,0.1),transparent_55%)]" />
           <div className="relative">
             <h2 className="text-3xl font-medium tracking-tight sm:text-5xl">{t('landing.ctaTitle')}</h2>
-            <p className="mx-auto mt-4 max-w-md text-base text-muted sm:text-lg">
-              {t('landing.ctaBody')}
-            </p>
+            <p className="mx-auto mt-4 max-w-lg text-base text-muted sm:text-lg">{t('landing.ctaBody')}</p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
                 <Link to="/signup">

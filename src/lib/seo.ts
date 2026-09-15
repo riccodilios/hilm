@@ -7,11 +7,11 @@ export const SITE_URL = 'https://hillm.netlify.app'
 export const SEO = {
   siteName: 'Hilm',
   alternateNames: ['HILM', 'Hilm AI', 'حلم', 'Hilm Personal OS', 'Hilm Workspace OS'],
-  title: 'Hilm — AI Personal Operating System',
+  title: 'Hilm | AI Personal OS and Workspace OS',
   titleTemplate: '%s · Hilm',
   description:
-    'Hilm is an AI Personal Operating System and Workspace OS. Your AI Chief of Staff manages projects, tasks, Mission Control, documentation, daily logs, and automation — so you ship faster with one system of record.',
-  shortDescription: 'AI Personal Operating System — projects, tasks, and an AI Chief of Staff in one place.',
+    'Hilm is an AI Personal Operating System and Workspace OS. Run solo projects or team delivery with tasks, Mission Control, docs, daily logs, and an AI Chief of Staff that can apply real changes.',
+  shortDescription: 'AI Personal OS and Workspace OS: projects, tasks, and a Chief of Staff in one place.',
   keywords: [
     'Hilm',
     'HILM',
@@ -32,7 +32,7 @@ export const SEO = {
   twitterHandle: '',
   email: 'hello@hilm.app',
   ogImagePath: '/og-image.png',
-  ogImageAlt: 'Hilm — AI Personal Operating System',
+  ogImageAlt: 'Hilm | AI Personal OS and Workspace OS',
 } as const
 
 export function absoluteUrl(path = '/') {

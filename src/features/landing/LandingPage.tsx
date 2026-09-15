@@ -12,11 +12,20 @@ import {
   SEO,
 } from '@/lib/seo'
 
+const DemoSection = lazy(() =>
+  import('@/features/landing/sections/Demo').then((m) => ({ default: m.DemoSection })),
+)
+const SystemsSection = lazy(() =>
+  import('@/features/landing/sections/Systems').then((m) => ({ default: m.SystemsSection })),
+)
 const ProblemSection = lazy(() =>
   import('@/features/landing/sections/Problem').then((m) => ({ default: m.ProblemSection })),
 )
 const FeaturesSection = lazy(() =>
   import('@/features/landing/sections/Features').then((m) => ({ default: m.FeaturesSection })),
+)
+const WorkspaceSection = lazy(() =>
+  import('@/features/landing/sections/Workspace').then((m) => ({ default: m.WorkspaceSection })),
 )
 const AutomationSection = lazy(() =>
   import('@/features/landing/sections/Automation').then((m) => ({ default: m.AutomationSection })),
@@ -67,10 +76,19 @@ export function LandingPage() {
     <div className="min-h-dvh bg-background text-foreground">
       <LandingHero />
       <LazyBlock>
+        <DemoSection />
+      </LazyBlock>
+      <LazyBlock>
+        <SystemsSection />
+      </LazyBlock>
+      <LazyBlock>
         <ProblemSection />
       </LazyBlock>
       <LazyBlock>
         <FeaturesSection />
+      </LazyBlock>
+      <LazyBlock>
+        <WorkspaceSection />
       </LazyBlock>
       <LazyBlock>
         <AutomationSection />

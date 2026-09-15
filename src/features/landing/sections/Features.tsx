@@ -45,19 +45,17 @@ export function FeaturesSection() {
         />
       </FadeIn>
 
-      <div className="grid gap-px overflow-hidden rounded-3xl border border-border-subtle bg-border-subtle sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
         {features.map((feature, i) => (
-          <FadeIn key={feature.key} delay={Math.min(i * 0.03, 0.3)} className="bg-background">
-            <article className="flex h-full flex-col gap-4 p-6 transition-colors hover:bg-surface/80 sm:p-7">
-              <feature.icon className="size-5 text-muted" strokeWidth={1.5} />
-              <div>
-                <h3 className="text-base font-medium tracking-tight text-foreground">
-                  {t(`landing.features.${feature.key}.title`)}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  {t(`landing.features.${feature.key}.body`)}
-                </p>
-              </div>
+          <FadeIn key={feature.key} delay={Math.min(i * 0.03, 0.3)}>
+            <article className="border-t border-border-subtle pt-5">
+              <feature.icon className="mb-4 size-5 text-muted" strokeWidth={1.5} />
+              <h3 className="text-base font-medium tracking-tight text-foreground">
+                {t(`landing.features.${feature.key}.title`)}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                {t(`landing.features.${feature.key}.body`)}
+              </p>
             </article>
           </FadeIn>
         ))}

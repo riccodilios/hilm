@@ -1,8 +1,8 @@
 {
   "brand": {
     "name": "Hilm",
-    "tagline": "Personal OS",
-    "os": "AI Personal Operating System"
+    "tagline": "Personal OS + Workspace OS",
+    "os": "AI Personal OS and Workspace OS"
   },
   "common": {
     "loading": "Loading…",
@@ -351,97 +351,156 @@
     "resendEmailPlaceholder": "you@example.com"
   },
   "landing": {
-    "heroSubtitle": "The AI Personal Operating System.",
-    "heroDescription": "Hilm is your AI Chief of Staff that manages projects, remembers everything, automates work, and helps you ship products faster.",
+    "heroSubtitle": "Personal OS and Workspace OS, with an AI Chief of Staff.",
+    "heroDescription": "Run solo work and team work in one product. Projects, tasks, Mission Control, docs, and automation stay grounded in your data.",
+    "watchDemo": "Watch demo",
+    "demoEyebrow": "Product tour",
+    "demoTitle": "See Hilm in motion.",
+    "demoDescription": "A short walkthrough of how Personal OS feels day to day: projects, tasks, and the surfaces you actually open.",
+    "demoVideoLabel": "Hilm product demo video",
+    "systemsEyebrow": "Two operating modes",
+    "systemsTitle": "Personal OS for you. Workspace OS for the team.",
+    "systemsDescription": "Same product family, different scopes. Switch when you need private focus or shared delivery.",
+    "systems": {
+      "personalTitle": "Personal OS",
+      "personalBody": "Your private command center for shipping. Context stays with you, and AI can act on the work you own.",
+      "personalPoints": [
+        "Projects with health, archive, labels, and living context",
+        "Tasks, Mission Control scheduling, and daily logs",
+        "Docs, ideas, and roadmaps that stay attached to real work",
+        "Voice and chat actions that update the system, not a separate chat log"
+      ],
+      "workspaceTitle": "Workspace OS",
+      "workspaceBody": "A shared operating system for companies and crews: org structure, roles, shared projects, and team visibility.",
+      "workspacePoints": [
+        "Workspaces with departments, teams, and member roles",
+        "Shared projects, tasks, and Mission Control for the group",
+        "Activity feeds, reports, and team-lead views",
+        "Workspace AI plus CRM hooks when your pipeline needs them"
+      ]
+    },
     "problemEyebrow": "The problem",
-    "problemTitle": "Project tools were built for tracking work — not running it.",
-    "problemDescription": "Spreadsheets of status, disconnected AI chats, and five apps fighting to be the source of truth. You become the integration layer.",
+    "problemTitle": "Most tools track work. Few of them help you run it.",
+    "problemDescription": "Status spreadsheets, chatbots with no memory, and five apps fighting to be the source of truth. You become the glue.",
     "problemItems": [
-      "You update everything manually.",
-      "AI forgets context between chats.",
-      "Projects become scattered across tools.",
-      "Documentation gets outdated the moment you ship.",
-      "Ideas disappear into notes you never reopen."
+      "You rewrite the same status in three places.",
+      "AI chats forget your projects the moment you close the tab.",
+      "Personal notes and team boards never meet.",
+      "Docs rot the week after a release.",
+      "Ideas land in a notes app you stop opening."
     ],
     "thenHilm": "Then Hilm",
-    "thenHilmTitle": "One operating system that remembers your work and acts on it.",
-    "thenHilmBody": "Hilm sits above your projects as an AI Chief of Staff — keeping context, executing changes, and keeping every surface in sync.",
-    "featuresEyebrow": "Capabilities",
-    "featuresTitle": "Everything your personal OS needs — with AI in the loop.",
-    "featuresDescription": "Not a pile of features. A coherent system where each surface feeds the next.",
+    "thenHilmTitle": "One system that keeps context and can change the work itself.",
+    "thenHilmBody": "Hilm sits on top of your projects as an AI Chief of Staff. It reads the same data you see, proposes moves, and applies them after you confirm.",
+    "featuresEyebrow": "Personal OS",
+    "featuresTitle": "The surfaces you run every day.",
+    "featuresDescription": "Each piece feeds the next. Projects, tasks, logs, and docs stay one record, not five silos.",
     "features": {
       "chief": {
         "title": "AI Chief of Staff",
-        "body": "An agent that understands every project and proposes the next move."
+        "body": "Grounded in your Hilm data. It proposes next moves and can apply confirmed changes."
       },
       "projects": {
         "title": "Projects",
-        "body": "Health, progress, and context for everything you build."
+        "body": "Health, progress, labels, archive, and the context behind what you are building."
       },
       "tasks": {
         "title": "Tasks",
-        "body": "Statuses, estimates, dependencies, and kanban that stay current."
+        "body": "Statuses, estimates, dependencies, and boards that stay tied to the project."
       },
       "logs": {
-        "title": "Daily Logs",
-        "body": "What you shipped, what blocked you, and what comes next."
+        "title": "Daily logs",
+        "body": "What shipped, what blocked you, and what should happen next."
       },
       "docs": {
         "title": "Documentation",
-        "body": "Living docs that stay aligned with decisions and releases."
+        "body": "Living docs kept next to decisions and release work."
       },
       "ideas": {
         "title": "Ideas",
-        "body": "Capture sparks, score impact, convert into real work."
+        "body": "Capture sparks, score impact, turn them into tasks when ready."
       },
       "roadmaps": {
         "title": "Roadmaps",
-        "body": "Now, next, later, future — without losing the thread."
+        "body": "Now, next, later, and future without losing the thread."
       },
       "automation": {
-        "title": "AI Automation",
-        "body": "Structured actions that update your system, not just chat."
+        "title": "Structured automation",
+        "body": "Actions that mutate projects and tasks, not copy-paste chat answers."
       },
       "voice": {
-        "title": "Voice Commands",
-        "body": "Speak naturally. Hilm routes intent into actions."
+        "title": "Voice commands",
+        "body": "Speak what happened. Hilm routes intent into real updates."
       },
       "search": {
-        "title": "Smart Search",
-        "body": "Find tasks, notes, ideas, and conversations instantly."
+        "title": "Search",
+        "body": "Jump to tasks, notes, ideas, and conversations without hunting."
       },
       "palette": {
-        "title": "Command Palette",
-        "body": "Raycast-speed shortcuts from anywhere in the app."
+        "title": "Command palette",
+        "body": "Keyboard-first shortcuts from anywhere in the app."
       },
       "offline": {
-        "title": "Offline Support",
-        "body": "Read your work when the network drops."
+        "title": "Offline reading",
+        "body": "Recent work stays readable when the network drops."
       },
       "pwa": {
-        "title": "Progressive Web App",
-        "body": "Install Hilm. Launch it like a native product."
+        "title": "Installable PWA",
+        "body": "Run Hilm from the browser or install it like a desktop app."
+      }
+    },
+    "workspaceEyebrow": "Workspace OS",
+    "workspaceTitle": "Built for shared delivery, not just shared boards.",
+    "workspaceDescription": "Invite the crew, map the org, and keep projects visible with roles that match how you actually work.",
+    "workspaceFeatures": {
+      "org": {
+        "title": "Org structure",
+        "body": "Departments and teams so ownership is clear before work starts."
+      },
+      "projects": {
+        "title": "Shared projects",
+        "body": "Workspace projects and tasks with Mission Control for the group calendar."
+      },
+      "roles": {
+        "title": "Roles and permissions",
+        "body": "Editors, viewers, and managers see the right depth of the system."
+      },
+      "members": {
+        "title": "Members and teams",
+        "body": "Invite people, assign them, and keep lead views focused on their crews."
+      },
+      "reports": {
+        "title": "Reports",
+        "body": "Saved views across projects, members, and delivery signals."
+      },
+      "activity": {
+        "title": "Activity",
+        "body": "A workspace feed so changes do not hide in private chats."
+      },
+      "ai": {
+        "title": "Workspace AI",
+        "body": "Assistants scoped to workspace data, plus CRM hooks when you need pipeline context."
       }
     },
     "automationEyebrow": "Automation",
-    "automationTitle": "Chat that executes — not just answers.",
-    "automationDescription": "Hilm returns structured actions. Your projects, tasks, docs, and activity update automatically.",
+    "automationTitle": "Chat that executes, not only answers.",
+    "automationDescription": "Hilm returns structured actions. Projects, tasks, docs, and activity update in place after you approve.",
     "automationActions": [
       "Complete tasks",
       "Create tasks",
       "Update project status",
-      "Generate documentation",
-      "Create meeting summaries",
+      "Draft documentation",
+      "Summarize meetings",
       "Generate release notes",
       "Track progress",
-      "Find blockers",
+      "Surface blockers",
       "Suggest priorities",
-      "Maintain project history"
+      "Keep project history current"
     ],
     "voiceEyebrow": "Voice",
-    "voiceTitle": "Speak the way you already think.",
-    "voiceDescription": "Say what happened. Hilm finds the task, marks it done, logs activity, and suggests what to do next.",
-    "voiceNote": "Everything updates automatically — no form filling required.",
+    "voiceTitle": "Say it the way you already think.",
+    "voiceDescription": "Tell Hilm what happened. It finds the task, marks it done, logs activity, and suggests what comes next.",
+    "voiceNote": "No form filling for the usual updates.",
     "voicePhrases": [
       "Finished authentication.",
       "Create a task for payment testing.",
@@ -450,50 +509,50 @@
     ],
     "securityEyebrow": "Trust",
     "securityTitle": "Built for work you would not paste into a public chatbot.",
-    "securityDescription": "Security is part of the product surface — not a footnote.",
+    "securityDescription": "Security is part of the product, not a footer promise.",
     "security": {
       "encrypted": {
-        "title": "Encrypted credentials",
-        "body": "API calls use Hilm’s server key — never embedded in the client bundle."
+        "title": "Server-held keys",
+        "body": "AI calls use Hilm’s server key. It is never shipped in the client bundle."
       },
       "storage": {
-        "title": "Secure storage",
-        "body": "Auth sessions persist safely. Attachments live in scoped private storage."
+        "title": "Scoped storage",
+        "body": "Sessions persist safely. Attachments live in private, scoped storage."
       },
       "privateAi": {
-        "title": "Private AI",
-        "body": "Requests proxy through Hilm’s backend with the platform key — your chats stay in your workspace."
+        "title": "Private AI path",
+        "body": "Requests proxy through Hilm’s backend. Chats stay with your account and workspace."
       },
       "offline": {
-        "title": "Offline support",
-        "body": "Recent data stays readable on-device when you lose connectivity."
+        "title": "Offline cache",
+        "body": "Recent data stays readable on-device when connectivity drops."
       },
       "owned": {
-        "title": "User-owned data",
-        "body": "Your projects, notes, and history remain yours — exportable and under your control."
+        "title": "Your data stays yours",
+        "body": "Projects, notes, and history remain under your control and exportable."
       }
     },
-    "ctaTitle": "Ready to build faster?",
-    "ctaBody": "Install Hilm today and give every project a Chief of Staff.",
+    "ctaTitle": "Start with Personal OS. Grow into Workspace OS.",
+    "ctaBody": "Create an account, install the app, and give every project a Chief of Staff.",
     "faqEyebrow": "About Hilm",
-    "faqTitle": "What people ask when they search for Hilm.",
-    "faqDescription": "Clear answers for humans, search engines, and AI assistants.",
+    "faqTitle": "Straight answers.",
+    "faqDescription": "For people deciding whether Hilm fits how they already work.",
     "faqItems": [
       {
         "q": "What is Hilm?",
-        "a": "Hilm (also HILM or حلم) is an AI Personal Operating System and Workspace OS. It combines projects, tasks, Mission Control, documentation, daily logs, and an AI Chief of Staff that can propose and apply real changes in your workspace."
+        "a": "Hilm (also HILM or حلم) is an AI Personal Operating System and a Workspace OS. Personal OS covers your projects, tasks, Mission Control, docs, and daily logs. Workspace OS adds shared workspaces, org structure, roles, reports, and team delivery."
       },
       {
-        "q": "What does Hilm do?",
-        "a": "Hilm helps you run work in one system: manage projects and tasks, schedule days in Mission Control, capture daily logs, write docs, and use AI agents for multi-step automation with confirm-then-apply actions."
+        "q": "How is Personal OS different from Workspace OS?",
+        "a": "Personal OS is your private system of record. Workspace OS is for crews and companies: members, departments, teams, shared projects, activity, and reports. You can use either or both under one Hilm account."
       },
       {
-        "q": "Is Hilm an AI project management tool?",
-        "a": "Yes. Hilm is an AI-native personal and workspace operating system for project and task management — not a standalone chatbot. The AI is grounded in your Hilm data and can create, update, and organize work inside the product."
+        "q": "What does the AI Chief of Staff actually do?",
+        "a": "It reads Hilm data (projects, tasks, logs, docs), proposes multi-step work, and can apply confirmed actions inside the product. It is not a detached chatbot with no memory of your system."
       },
       {
         "q": "Where can I use Hilm?",
-        "a": "Hilm is a Progressive Web App at hillm.netlify.app. Use it in the browser or install it on desktop and mobile. It supports English and Arabic."
+        "a": "Hilm is a Progressive Web App at hillm.netlify.app. Use it in the browser or install it on desktop and mobile. English and Arabic are supported."
       }
     ],
     "footerPrivacy": "Privacy",

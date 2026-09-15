@@ -1,28 +1,57 @@
-import { motion, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { ensureLandingGsap, gsap, useGSAP } from '@/features/landing/gsap-setup'
+
+ensureLandingGsap()
 
 export function FadeIn({
   children,
   className,
   delay = 0,
-  y = 16,
+  y = 28,
 }: {
   children: React.ReactNode
   className?: string
   delay?: number
   y?: number
 }) {
-  const reduce = useReducedMotion()
+  const ref = useRef<HTMLDivElement>(null)
+
+  useGSAP(
+    () => {
+      const el = ref.current
+      if (!el) return
+
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduce) {
+        gsap.set(el, { opacity: 1, y: 0 })
+        return
+      }
+
+      gsap.fromTo(
+        el,
+        { opacity: 0, y },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.85,
+          delay,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: el,
+            start: 'top 88%',
+            toggleActions: 'play none none none',
+          },
+        },
+      )
+    },
+    { scope: ref },
+  )
+
   return (
-    <motion.div
-      className={className}
-      initial={reduce ? false : { opacity: 0, y }}
-      whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-10% 0px' }}
-      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay }}
-    >
+    <div ref={ref} className={cn('opacity-0', className)}>
       {children}
-    </motion.div>
+    </div>
   )
 }
 
@@ -46,13 +75,15 @@ export function SectionHeading({
   eyebrow,
   title,
   description,
+  className,
 }: {
   eyebrow?: string
   title: string
   description?: string
+  className?: string
 }) {
   return (
-    <div className="mb-12 max-w-2xl sm:mb-16">
+    <div className={cn('mb-12 max-w-2xl sm:mb-16', className)}>
       {eyebrow ? (
         <p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted">{eyebrow}</p>
       ) : null}

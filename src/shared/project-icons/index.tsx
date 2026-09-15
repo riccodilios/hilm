@@ -310,9 +310,15 @@ type ProjectIconPickerProps = {
   value: string
   onChange: (icon: string) => void
   color?: string
+  compact?: boolean
 }
 
-export function ProjectIconPicker({ value, onChange, color = '#60a5fa' }: ProjectIconPickerProps) {
+export function ProjectIconPicker({
+  value,
+  onChange,
+  color = '#60a5fa',
+  compact = false,
+}: ProjectIconPickerProps) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<IconCategory | 'all'>('all')
   const [favorites, setFavorites] = useState(() => readList(FAVORITES_KEY))
@@ -352,17 +358,25 @@ export function ProjectIconPicker({ value, onChange, color = '#60a5fa' }: Projec
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface/40 p-3">
+    <div
+      className={cn(
+        'space-y-3 rounded-2xl border border-border-subtle bg-surface/40',
+        compact ? 'space-y-2 p-2.5' : 'p-3',
+      )}
+    >
       <div className="flex items-center gap-3">
         <span
-          className="flex size-12 items-center justify-center rounded-2xl text-background"
+          className={cn(
+            'flex items-center justify-center rounded-2xl text-background',
+            compact ? 'size-10 rounded-xl' : 'size-12',
+          )}
           style={{ backgroundColor: color }}
         >
-          <PreviewIcon className="size-6" />
+          <PreviewIcon className={compact ? 'size-5' : 'size-6'} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium capitalize">{value.replaceAll('-', ' ')}</p>
-          <p className="text-xs text-muted">Live preview</p>
+          <p className="truncate text-sm font-medium capitalize">{value.replaceAll('-', ' ')}</p>
+          {!compact ? <p className="text-xs text-muted">Live preview</p> : null}
         </div>
         <button
           type="button"
@@ -396,7 +410,14 @@ export function ProjectIconPicker({ value, onChange, color = '#60a5fa' }: Projec
         ))}
       </div>
 
-      <div className="grid max-h-56 grid-cols-6 gap-2 overflow-y-auto sm:grid-cols-8">
+      <div
+        className={cn(
+          'grid overflow-y-auto',
+          compact
+            ? 'max-h-36 grid-cols-7 gap-1.5 sm:grid-cols-8'
+            : 'max-h-56 grid-cols-6 gap-2 sm:grid-cols-8',
+        )}
+      >
         {filtered.map(({ id, Icon, label }) => {
           const selected = value === id
           return (
@@ -412,14 +433,15 @@ export function ProjectIconPicker({ value, onChange, color = '#60a5fa' }: Projec
                 toggleFavorite(id)
               }}
               className={cn(
-                'flex size-9 items-center justify-center rounded-xl border transition-colors',
+                'flex items-center justify-center rounded-xl border transition-colors',
+                compact ? 'size-8' : 'size-9',
                 selected
                   ? 'border-foreground/40 text-background'
                   : 'border-border-subtle bg-surface-2 text-muted hover:text-foreground',
               )}
               style={selected ? { backgroundColor: color } : undefined}
             >
-              <Icon className="size-4" />
+              <Icon className={compact ? 'size-3.5' : 'size-4'} />
             </button>
           )
         })}
