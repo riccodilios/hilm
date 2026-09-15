@@ -12,10 +12,35 @@ clientsClaim()
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
+const offlineShell = createHandlerBoundToURL('index.html')
+
+// Fetch fresh index.html on navigations so deploys appear without a manual hard refresh.
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL('index.html'), {
-    denylist: [/^\/api\//],
-  }),
+  new NavigationRoute(
+    async (options) => {
+      try {
+        const fresh = await fetch('/index.html', { cache: 'no-store' })
+        if (fresh.ok) {
+          const cache = await caches.open('hilm-html')
+          await cache.put('/index.html', fresh.clone())
+          return fresh
+        }
+      } catch {
+        /* offline: fall through */
+      }
+
+      const cached = await caches.match('/index.html')
+      if (cached) return cached
+      return offlineShell(options)
+    },
+    { denylist: [/^\/api\//] },
+  ),
+)
+
+registerRoute(
+  ({ url, request }) =>
+    request.destination === 'video' || url.pathname.endsWith('.mp4') || url.pathname.endsWith('.webm'),
+  new NetworkOnly(),
 )
 
 registerRoute(

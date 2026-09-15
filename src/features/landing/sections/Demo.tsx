@@ -1,66 +1,83 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FadeIn, SectionHeading } from '@/features/landing/primitives'
 import { ensureLandingGsap, gsap, useGSAP } from '@/features/landing/gsap-setup'
 
 ensureLandingGsap()
 
 export function DemoSection() {
   const { t } = useTranslation()
-  const frameRef = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
 
   useGSAP(
     () => {
-      const el = frameRef.current
-      if (!el) return
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const root = sectionRef.current
+      if (!root) return
 
-      gsap.fromTo(
-        el,
-        { opacity: 0, y: 48, scale: 0.985 },
-        {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          duration: 1,
-          ease: 'power3.out',
+      const copy = root.querySelectorAll('.demo-copy > *')
+      const video = root.querySelector('.demo-video')
+      if (!copy.length || !video) return
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        gsap.set([copy, video], { clearProps: 'all' })
+        return
+      }
+
+      gsap
+        .timeline({
           scrollTrigger: {
-            trigger: el,
-            start: 'top 85%',
+            trigger: root,
+            start: 'top 82%',
             toggleActions: 'play none none none',
           },
-        },
-      )
+        })
+        .from(copy, {
+          opacity: 0,
+          y: 22,
+          duration: 0.7,
+          stagger: 0.08,
+          ease: 'power3.out',
+        })
+        .from(
+          video,
+          {
+            opacity: 0,
+            y: 18,
+            duration: 0.8,
+            ease: 'power3.out',
+          },
+          '-=0.45',
+        )
     },
-    { scope: frameRef },
+    { scope: sectionRef },
   )
 
   return (
-    <section id="demo" className="relative scroll-mt-8 px-0 pb-16 pt-4 sm:pb-24 sm:pt-8">
-      <div className="mx-auto max-w-6xl px-5">
-        <FadeIn>
-          <SectionHeading
-            className="mb-8 sm:mb-10"
-            eyebrow={t('landing.demoEyebrow')}
-            title={t('landing.demoTitle')}
-            description={t('landing.demoDescription')}
-          />
-        </FadeIn>
-      </div>
+    <section id="demo" ref={sectionRef} className="relative scroll-mt-8 px-5 py-16 sm:py-24">
+      <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2 lg:gap-14">
+        <div className="demo-copy">
+          <p className="mb-3 text-xs font-medium uppercase tracking-[0.22em] text-muted">
+            {t('landing.demoEyebrow')}
+          </p>
+          <h2 className="text-3xl font-medium tracking-tight text-foreground sm:text-4xl">
+            {t('landing.demoTitle')}
+          </h2>
+          <p className="mt-4 max-w-md text-base leading-relaxed text-muted sm:text-lg">
+            {t('landing.demoDescription')}
+          </p>
+        </div>
 
-      <div className="mx-auto max-w-[92rem] px-0 sm:px-5">
-        <div
-          ref={frameRef}
-          className="overflow-hidden border-y border-border-subtle bg-black opacity-0 sm:rounded-2xl sm:border"
-        >
+        <div className="demo-video overflow-hidden rounded-2xl border border-border-subtle bg-surface-2 shadow-[0_24px_80px_-40px_rgba(0,0,0,0.65)]">
           <video
-            className="aspect-video w-full object-cover"
+            className="aspect-video w-full bg-surface-2 object-contain"
             src="/hilm-demo.mp4"
             controls
             playsInline
-            preload="metadata"
+            preload="auto"
+            controlsList="nodownload"
             aria-label={t('landing.demoVideoLabel')}
-          />
+          >
+            <source src="/hilm-demo.mp4" type="video/mp4" />
+          </video>
         </div>
       </div>
     </section>

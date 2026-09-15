@@ -360,23 +360,23 @@ export function ProjectIconPicker({
   return (
     <div
       className={cn(
-        'space-y-3 rounded-2xl border border-border-subtle bg-surface/40',
-        compact ? 'space-y-2 p-2.5' : 'p-3',
+        'rounded-2xl border border-border-subtle bg-surface/40',
+        compact ? 'space-y-2 p-2.5 sm:space-y-3 sm:p-3' : 'space-y-3 p-3',
       )}
     >
       <div className="flex items-center gap-3">
         <span
           className={cn(
             'flex items-center justify-center rounded-2xl text-background',
-            compact ? 'size-10 rounded-xl' : 'size-12',
+            compact ? 'size-10 rounded-xl sm:size-12 sm:rounded-2xl' : 'size-12',
           )}
           style={{ backgroundColor: color }}
         >
-          <PreviewIcon className={compact ? 'size-5' : 'size-6'} />
+          <PreviewIcon className={compact ? 'size-5 sm:size-6' : 'size-6'} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium capitalize">{value.replaceAll('-', ' ')}</p>
-          {!compact ? <p className="text-xs text-muted">Live preview</p> : null}
+          <p className={cn('text-xs text-muted', compact && 'hidden sm:block')}>Live preview</p>
         </div>
         <button
           type="button"
@@ -414,7 +414,7 @@ export function ProjectIconPicker({
         className={cn(
           'grid overflow-y-auto',
           compact
-            ? 'max-h-36 grid-cols-7 gap-1.5 sm:grid-cols-8'
+            ? 'max-h-36 grid-cols-7 gap-1.5 sm:max-h-56 sm:grid-cols-8 sm:gap-2'
             : 'max-h-56 grid-cols-6 gap-2 sm:grid-cols-8',
         )}
       >
@@ -434,14 +434,14 @@ export function ProjectIconPicker({
               }}
               className={cn(
                 'flex items-center justify-center rounded-xl border transition-colors',
-                compact ? 'size-8' : 'size-9',
+                compact ? 'size-8 sm:size-9' : 'size-9',
                 selected
                   ? 'border-foreground/40 text-background'
                   : 'border-border-subtle bg-surface-2 text-muted hover:text-foreground',
               )}
               style={selected ? { backgroundColor: color } : undefined}
             >
-              <Icon className={compact ? 'size-3.5' : 'size-4'} />
+              <Icon className={compact ? 'size-3.5 sm:size-4' : 'size-4'} />
             </button>
           )
         })}

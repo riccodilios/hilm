@@ -12,7 +12,32 @@ import { WorkspaceRealtime } from '@/features/home/WorkspaceRealtime'
 import '@/i18n'
 import '@/styles/globals.css'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    void updateSW(true)
+  },
+  onRegisteredSW(_url, registration) {
+    if (!registration) return
+    const check = () => {
+      void registration.update()
+    }
+    check()
+    setInterval(check, 5 * 60 * 1000)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') check()
+    })
+  },
+})
+
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  let refreshing = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
+}
 
 function App() {
   const { i18n } = useTranslation()

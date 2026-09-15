@@ -52,7 +52,8 @@ type Project = Tables<'projects'>
 const PROJECT_FORM_DIALOG_CLASS = cn(
   'flex flex-col gap-0 overflow-hidden p-0',
   'left-0 top-auto bottom-0 max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-0.5rem))] w-full max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-3xl',
-  'sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[min(85dvh,40rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl',
+  'sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[min(90dvh,52rem)] sm:w-[calc(100%-2rem)] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl',
+  'lg:max-w-2xl',
 )
 
 function ProjectCard({
@@ -309,7 +310,7 @@ export function ProjectsPage() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>
-                  <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12">
+                  <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12 sm:px-6 sm:pb-4 sm:pt-6">
                     <DialogHeader>
                       <DialogTitle>{t('projects.new')}</DialogTitle>
                       <DialogDescription>{t('projects.description')}</DialogDescription>
@@ -322,34 +323,34 @@ export function ProjectsPage() {
                       create.mutate()
                     }}
                   >
-                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
-                      <div className="space-y-1.5">
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4 sm:space-y-4 sm:px-6 sm:py-5">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label htmlFor="name">{t('projects.name')}</Label>
                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label htmlFor="desc">{t('projects.desc')}</Label>
                         <Textarea
                           id="desc"
                           value={description}
                           onChange={(e) => setDescription(e.target.value)}
                           rows={2}
-                          className="min-h-[4.5rem] resize-none"
+                          className="min-h-[4.5rem] resize-none sm:min-h-[6rem]"
                         />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label>{t('projects.icon')}</Label>
                         <ProjectIconPicker compact value={icon} onChange={setIcon} color={color} />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label>{t('projects.color')}</Label>
-                        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+                        <div className="-mx-1 flex flex-wrap gap-2 px-1 pb-0.5 sm:gap-2.5">
                           {PROJECT_COLORS.map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => setColor(c)}
-                              className="size-7 shrink-0 rounded-full border-2"
+                              className="size-7 shrink-0 rounded-full border-2 sm:size-8"
                               style={{
                                 backgroundColor: c,
                                 borderColor: color === c ? '#fff' : 'transparent',
@@ -358,7 +359,7 @@ export function ProjectsPage() {
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label>Labels</Label>
                         <ProjectLabelPicker
                           labels={labelsQuery.data ?? []}
@@ -367,7 +368,7 @@ export function ProjectsPage() {
                         />
                       </div>
                     </div>
-                    <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+                    <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-4">
                       <Button type="submit" disabled={create.isPending} className="w-full">
                         {t('common.create')}
                       </Button>
@@ -510,7 +511,7 @@ export function ProjectsPage() {
 
       <Dialog open={Boolean(editProject)} onOpenChange={(next) => !next && setEditProject(null)}>
         <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>
-          <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12">
+          <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12 sm:px-6 sm:pb-4 sm:pt-6">
             <DialogHeader>
               <DialogTitle>{t('projects.edit')}</DialogTitle>
               <DialogDescription>{t('projects.editDesc')}</DialogDescription>
@@ -523,8 +524,8 @@ export function ProjectsPage() {
               if (editName.trim()) saveEdit.mutate()
             }}
           >
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4">
-              <div className="space-y-1.5">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4 sm:space-y-4 sm:px-6 sm:py-5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label htmlFor="edit-name">{t('projects.name')}</Label>
                 <Input
                   id="edit-name"
@@ -533,29 +534,29 @@ export function ProjectsPage() {
                   required
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label htmlFor="edit-desc">{t('projects.desc')}</Label>
                 <Textarea
                   id="edit-desc"
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={2}
-                  className="min-h-[4.5rem] resize-none"
+                  className="min-h-[4.5rem] resize-none sm:min-h-[6rem]"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label>{t('projects.icon')}</Label>
                 <ProjectIconPicker compact value={editIcon} onChange={setEditIcon} color={editColor} />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label>{t('projects.color')}</Label>
-                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
+                <div className="-mx-1 flex flex-wrap gap-2 px-1 pb-0.5 sm:gap-2.5">
                   {PROJECT_COLORS.map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setEditColor(c)}
-                      className="size-7 shrink-0 rounded-full border-2"
+                      className="size-7 shrink-0 rounded-full border-2 sm:size-8"
                       style={{
                         backgroundColor: c,
                         borderColor: editColor === c ? '#fff' : 'transparent',
@@ -564,7 +565,7 @@ export function ProjectsPage() {
                   ))}
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 <Label>Labels</Label>
                 <ProjectLabelPicker
                   labels={labelsQuery.data ?? []}
@@ -573,7 +574,7 @@ export function ProjectsPage() {
                 />
               </div>
             </div>
-            <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+            <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-4">
               <Button type="submit" disabled={saveEdit.isPending} className="w-full">
                 {t('common.save')}
               </Button>

@@ -26,6 +26,27 @@
     Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; frame-src 'self' blob:; child-src 'self' blob:; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.openrouter.ai https://cdn.jsdelivr.net; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
 
 [[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/hilm-demo.mp4"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+    Content-Type = "video/mp4"
+
+[[headers]]
   for = "/api/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"

@@ -31,10 +31,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
       manifest: {
-        name: 'Hilm — AI Personal Operating System',
+        name: 'Hilm | AI Personal OS and Workspace OS',
         short_name: 'Hilm',
         description:
-          'Hilm is an AI Personal Operating System and Workspace OS with an AI Chief of Staff for projects, tasks, Mission Control, and automation.',
+          'Hilm is an AI Personal OS and Workspace OS with an AI Chief of Staff for projects, tasks, Mission Control, and team delivery.',
         lang: 'en',
         theme_color: '#0a0a0b',
         background_color: '#0a0a0b',

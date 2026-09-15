@@ -49,7 +49,7 @@ export function FadeIn({
   )
 
   return (
-    <div ref={ref} className={cn('opacity-0', className)}>
+    <div ref={ref} className={className}>
       {children}
     </div>
   )
