@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
@@ -11,7 +11,12 @@ import { activityKeys } from '@/features/activity/api'
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
-import { mergeVoiceTranscript, speechLocaleFromI18n } from '@/lib/voice-transcript'
+import {
+  composeVoiceFieldValue,
+  htmlToPlainText,
+  plainTextToEditorHtml,
+  speechLocaleFromI18n,
+} from '@/lib/voice-transcript'
 import { rtlMirrorClass } from '@/lib/rtl'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -33,16 +38,15 @@ import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
 import type { Priority, TaskStatus } from '@/types/domain'
 
-function speechLangFromI18n(lng: string) {
-  return speechLocaleFromI18n(lng)
-}
-
 export function TaskDetailPage() {
   const { t, i18n } = useTranslation()
   const { id } = useParams()
   const qc = useQueryClient()
   const [subtaskTitle, setSubtaskTitle] = useState('')
   const [description, setDescription] = useState('')
+  const voiceBaseRef = useRef('')
+  const descriptionRef = useRef('')
+  const speechLang = speechLocaleFromI18n(i18n.language)
   const { data: task, isLoading } = useQuery({
     queryKey: tasksKeys.detail(id ?? ''),
     queryFn: () => getTask(id!),
@@ -67,6 +71,10 @@ export function TaskDetailPage() {
   useEffect(() => {
     if (task) setDescription(task.description ?? '')
   }, [task?.id, task?.description])
+
+  useEffect(() => {
+    descriptionRef.current = description
+  }, [description])
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateTask>[1]) => updateTask(id!, patch),
@@ -94,17 +102,14 @@ export function TaskDetailPage() {
   )
 
   const dictation = useSpeechDictation({
-    lang: speechLangFromI18n(i18n.language),
-    onFinal: (transcript, meta) => {
-      setDescription((prev) => {
-        const next = mergeVoiceTranscript(prev, transcript, {
-          lang: speechLangFromI18n(i18n.language),
-          gapMs: meta.gapMs,
-          confidence: meta.confidence,
-        })
-        persistDescription(next)
-        return next
+    lang: speechLang,
+    onTranscript: ({ committed, interim }) => {
+      const plain = composeVoiceFieldValue(voiceBaseRef.current, committed, interim, {
+        lang: speechLang,
       })
+      const html = plainTextToEditorHtml(plain)
+      setDescription(html)
+      if (!interim && committed) persistDescription(html)
     },
     onError: (code) => {
       if (code === 'unsupported') toast.error(t('tasks.voiceUnsupported'))
@@ -112,6 +117,16 @@ export function TaskDetailPage() {
       else toast.error(t('tasks.voiceFailed'))
     },
   })
+
+  function toggleDescriptionVoice() {
+    if (dictation.listening) {
+      dictation.stop()
+      persistDescription(descriptionRef.current)
+      return
+    }
+    voiceBaseRef.current = htmlToPlainText(descriptionRef.current)
+    dictation.start()
+  }
 
   const addSubtask = useMutation({
     mutationFn: async () => {
@@ -185,7 +200,7 @@ export function TaskDetailPage() {
                 <VoiceAddButton
                   supported={dictation.supported}
                   listening={dictation.listening}
-                  onToggle={dictation.toggle}
+                  onToggle={toggleDescriptionVoice}
                 />
               </div>
               <RichTextEditor

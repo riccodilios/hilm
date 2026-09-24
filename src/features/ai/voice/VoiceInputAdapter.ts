@@ -1,3 +1,8 @@
+/**
+ * Optional voice adapter contract for AI features.
+ * Production dictation uses `useSpeechDictation` (Web Speech API) shared across
+ * AI Chat and task description fields — do not reimplement recognition here.
+ */
 export type VoiceInputAdapter = {
   start: () => Promise<void>
   stop: () => Promise<void>
@@ -11,3 +16,4 @@ export const noopVoiceInputAdapter: VoiceInputAdapter = {
     return () => {}
   },
 }
+

@@ -42,16 +42,23 @@ import {
 } from '@/features/ai/components/AiActionProgress'
 import { AiSuggestedPrompts } from '@/features/ai/components/AiSuggestedPrompts'
 import { AiThinkingIndicator } from '@/features/ai/components/AiThinkingIndicator'
+import { AiThinkingOrbs } from '@/features/ai/components/AiThinkingOrbs'
+import { AiAmbientBackground } from '@/features/ai/components/AiAmbientBackground'
+import {
+  deriveAiChatPhase,
+  phaseAmbientIntensity,
+  phaseToOrbState,
+} from '@/features/ai/lib/ai-chat-phase'
 import { VoiceAddButton } from '@/components/VoiceAddButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/ui/page'
 import { Textarea } from '@/components/ui/textarea'
-import { AiMarkdown } from '@/features/ai/AiMarkdown'
+import { AiMarkdown, displayAiContent } from '@/features/ai/AiMarkdown'
 import { useSpeechDictation } from '@/hooks/useSpeechDictation'
 import {
-  mergeVoiceTranscript,
+  composeVoiceFieldValue,
   speechLocaleFromI18n,
   type SpeechLocale,
 } from '@/lib/voice-transcript'
@@ -131,11 +138,32 @@ export function AiChatShell({
   const [showJump, setShowJump] = useState(false)
   const streamingRef = useRef(false)
   const voiceModeRef = useRef(false)
+  const voiceBaseRef = useRef('')
+  const inputRef = useRef('')
   const sendMessageRef = useRef<(text?: string) => Promise<void>>(async () => {})
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const sendStartedAtRef = useRef(0)
+  const pendingSettleRef = useRef(false)
   const lastUserMessageRef = useRef('')
   const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
+
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
+
+  const resizeComposer = useCallback(() => {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const next = Math.min(el.scrollHeight, 160)
+    el.style.height = `${Math.max(40, next)}px`
+  }, [])
+
+  useEffect(() => {
+    resizeComposer()
+  }, [input, resizeComposer])
 
   function applyProposed(raw: AiAction[], conversationId?: string, userMessage?: string) {
     const focus = readConversationFocus(conversationId ?? selectedId)
@@ -245,31 +273,36 @@ export function AiChatShell({
   }
 
   const scrollToBottom = useCallback((smooth = true) => {
-    bottomRef.current?.scrollIntoView({
-      behavior: smooth ? 'smooth' : 'auto',
-      block: 'end',
-    })
+    const scroller = scrollRef.current
+    if (scroller) {
+      scroller.scrollTo({
+        top: scroller.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      })
+    } else {
+      bottomRef.current?.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+        block: 'end',
+      })
+    }
     setShowJump(false)
     setStickToBottom(true)
   }, [])
 
-  function handleScrollTouchStart() {
-    // User started interacting away from the live bottom — pause auto-follow.
-    const bottom = bottomRef.current
-    if (!bottom) return
-    const rect = bottom.getBoundingClientRect()
-    if (rect.top > window.innerHeight + 40) {
-      setStickToBottom(false)
-    }
+  function handleScrollerScroll() {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+    const nearBottom = distance < 80
+    setStickToBottom(nearBottom)
+    if (nearBottom) setShowJump(false)
+    else if (streaming || draft || optimisticUser) setShowJump(true)
   }
 
   useEffect(() => {
-    if (!stickToBottom) {
-      if (streaming || draft || optimisticUser) setShowJump(true)
-      return
-    }
+    if (!stickToBottom) return
     scrollToBottom(Boolean(draft?.content))
-  }, [messages.data, draft, optimisticUser, streaming, stickToBottom, scrollToBottom])
+  }, [messages.data, draft, optimisticUser, streaming, actionRun, stickToBottom, scrollToBottom])
 
   async function sendMessage(overrideText?: string) {
     const message = (overrideText ?? input).trim()
@@ -301,6 +334,8 @@ export function AiChatShell({
     }
 
     setInput('')
+    voiceBaseRef.current = ''
+    if (composerRef.current) composerRef.current.style.height = '40px'
     setStreamError(null)
     setRetryMessage(null)
     setProposedActions([])
@@ -310,8 +345,11 @@ export function AiChatShell({
     setDraft(pending)
     setStreaming(true)
     streamingRef.current = true
+    pendingSettleRef.current = false
+    sendStartedAtRef.current = Date.now()
     setStickToBottom(true)
     lastUserMessageRef.current = message
+    requestAnimationFrame(() => scrollToBottom(false))
 
     let conversationId = selectedId
     if (!conversationId) {
@@ -380,10 +418,9 @@ export function AiChatShell({
       }
     }
 
-    setDraft(null)
-    if (!hadError) setOptimisticUser(null)
     setStreaming(false)
     streamingRef.current = false
+    pendingSettleRef.current = !hadError
 
     if (!hadError) {
       const fromContent = extractActionsFromContent(content, {
@@ -391,14 +428,27 @@ export function AiChatShell({
         role: workspaceRole ?? undefined,
       })
       if (fromContent.length) applyProposed(fromContent as AiAction[], conversationId, message)
+      // Keep draft until server messages catch up — avoids blank gap / remount flicker.
+      setDraft((prev) =>
+        prev
+          ? {
+              ...prev,
+              conversation_id: conversationId!,
+              content,
+              pending: false,
+              local: true,
+            }
+          : null,
+      )
     } else {
+      setDraft(null)
       // Keep the optimistic user bubble visible after a failed reply.
       setOptimisticUser((prev) =>
         prev
           ? prev
           : {
               id: `local-user-retry-${Date.now()}`,
-              conversation_id: conversationId,
+              conversation_id: conversationId!,
               user_id: '',
               role: 'user',
               content: message,
@@ -411,7 +461,7 @@ export function AiChatShell({
     }
 
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: aiKeys.messages(conversationId) }),
+      queryClient.invalidateQueries({ queryKey: aiKeys.messages(conversationId!) }),
       queryClient.invalidateQueries({ queryKey: conversationScopeKey }),
     ])
   }
@@ -426,13 +476,11 @@ export function AiChatShell({
   const dictation = useSpeechDictation({
     lang: voiceLang,
     keepAlive: voiceMode && !streaming,
-    onFinal: (transcript, meta) => {
+    onTranscript: ({ committed, interim }) => {
       if (streamingRef.current) return
-      setInput((prev) =>
-        mergeVoiceTranscript(prev, transcript, {
+      setInput(
+        composeVoiceFieldValue(voiceBaseRef.current, committed, interim, {
           lang: voiceLang,
-          gapMs: meta.gapMs,
-          confidence: meta.confidence,
         }),
       )
     },
@@ -448,8 +496,16 @@ export function AiChatShell({
     if (streaming && dictation.listening) dictation.stop()
   }, [streaming, dictation.listening, dictation.stop])
 
+  const wasStreamingRef = useRef(false)
   useEffect(() => {
-    if (!streaming && voiceMode && !dictation.listening) dictation.start()
+    const resumedFromStream = wasStreamingRef.current && !streaming
+    wasStreamingRef.current = streaming
+    // Only auto-resume after AI streaming paused the mic — not on initial voice enable
+    // (that would double-start and wipe the session).
+    if (!resumedFromStream) return
+    if (!voiceMode || dictation.listening) return
+    voiceBaseRef.current = inputRef.current
+    dictation.start()
   }, [streaming, voiceMode, dictation.listening, dictation.start])
 
   function toggleVoiceMode() {
@@ -458,6 +514,7 @@ export function AiChatShell({
       dictation.stop()
       return
     }
+    voiceBaseRef.current = inputRef.current
     setVoiceMode(true)
     dictation.start()
   }
@@ -742,29 +799,93 @@ export function AiChatShell({
           120_000,
     )
 
+  const serverHasSettledAssistant =
+    Boolean(draft?.content) &&
+    serverMessages.some(
+      (message) =>
+        message.role === 'assistant' &&
+        new Date(message.created_at).getTime() >= sendStartedAtRef.current - 8_000 &&
+        (message.content === draft!.content ||
+          displayAiContent(message.content) === displayAiContent(draft!.content)),
+    )
+
+  useEffect(() => {
+    if (!pendingSettleRef.current || streaming) return
+    if (serverHasSettledAssistant || (!messages.isFetching && draft && !streaming)) {
+      // Prefer clearing once server caught up; also clear if fetch finished with no match after short wait
+      if (serverHasSettledAssistant) {
+        setDraft(null)
+        setOptimisticUser(null)
+        pendingSettleRef.current = false
+      }
+    }
+  }, [serverHasSettledAssistant, messages.isFetching, draft, streaming])
+
+  useEffect(() => {
+    if (!pendingSettleRef.current || streaming) return
+    const timer = window.setTimeout(() => {
+      if (!pendingSettleRef.current) return
+      setDraft(null)
+      setOptimisticUser(null)
+      pendingSettleRef.current = false
+    }, 2500)
+    return () => window.clearTimeout(timer)
+  }, [streaming, draft?.id])
+
   const displayedMessages: DraftMessage[] = [
     ...serverMessages,
     ...(optimisticUser && !serverHasOptimisticUser ? [optimisticUser] : []),
-    ...(draft ? [draft] : []),
+    ...(draft && !serverHasSettledAssistant ? [draft] : []),
   ]
+
+  const draftVisible = draft ? displayAiContent(draft.content) : ''
+  const actionRunActive = actionRun.some(
+    (item) => item.status === 'pending' || item.status === 'running',
+  )
+  const actionRunFinalizing =
+    actionRun.length > 0 &&
+    !actionRunActive &&
+    actionRun.every((item) => item.status === 'done' || item.status === 'error')
+
+  const chatPhase = deriveAiChatPhase({
+    streaming,
+    applying,
+    hasStreamError: Boolean(streamError),
+    draftPending: Boolean(draft?.pending),
+    draftHasVisibleContent: Boolean(draftVisible),
+    hasProposedActions: proposedActions.length > 0,
+    actionRunActive: applying || actionRunActive,
+    actionRunFinalizing: Boolean(actionSummary) || actionRunFinalizing,
+  })
+  const orbState = phaseToOrbState(chatPhase)
+  const ambientIntensity = phaseAmbientIntensity(chatPhase)
+
+  const phaseLabel = (() => {
+    switch (chatPhase) {
+      case 'thinking':
+        return t('ai.thinking', { defaultValue: 'Thinking' })
+      case 'planning':
+        return t('ai.planning', { defaultValue: 'Planning' })
+      case 'streaming':
+        return t('ai.composing', { defaultValue: 'Composing' })
+      case 'executing':
+        return t('ai.workingOnIt', { defaultValue: 'Working on it…' })
+      case 'finalizing':
+        return t('ai.finalizing', { defaultValue: 'Finalizing' })
+      case 'error':
+        return t('ai.somethingWrong', { defaultValue: 'Something went wrong' })
+      default:
+        return t('ai.thinking', { defaultValue: 'Thinking' })
+    }
+  })()
 
   const chatTitle = selectedConversation?.title || t('ai.newChat')
   const isEmpty = !displayedMessages.length
 
   useEffect(() => {
-    const bottom = bottomRef.current
-    if (!bottom) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const nearBottom = Boolean(entry?.isIntersecting)
-        setStickToBottom(nearBottom)
-        if (nearBottom) setShowJump(false)
-      },
-      { root: null, rootMargin: '0px 0px 140px 0px', threshold: 0 },
-    )
-    observer.observe(bottom)
-    return () => observer.disconnect()
-  }, [selectedId, displayedMessages.length])
+    // Keep jump chip in sync when following is paused.
+    if (stickToBottom) setShowJump(false)
+  }, [stickToBottom, selectedId])
 
   return (
     <div className="pb-[env(safe-area-inset-bottom,0px)]">
@@ -872,11 +993,16 @@ export function AiChatShell({
         </DialogContent>
       </Dialog>
 
-      <Card className="relative flex min-h-[calc(100dvh-15rem)] flex-col">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
+      <Card className="relative flex h-[calc(100dvh-14.5rem)] max-h-[calc(100dvh-14.5rem)] flex-col overflow-hidden sm:h-[calc(100dvh-13rem)] sm:max-h-[calc(100dvh-13rem)]">
+        <AiAmbientBackground intensity={isEmpty ? 0.4 : ambientIntensity} />
+        <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-              <Sparkles className="size-4" />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              {chatPhase === 'idle' ? (
+                <Sparkles className="size-4" />
+              ) : (
+                <AiThinkingOrbs state={orbState} size={28} label={phaseLabel} />
+              )}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{chatTitle}</p>
@@ -910,11 +1036,11 @@ export function AiChatShell({
           </Button>
         </div>
 
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        <CardContent className="relative z-[1] flex min-h-0 flex-1 flex-col p-0">
           <div
             ref={scrollRef}
-            onTouchStart={handleScrollTouchStart}
-            className="relative space-y-4 p-4 sm:space-y-5 sm:p-6"
+            onScroll={handleScrollerScroll}
+            className="relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6"
           >
             {isEmpty ? (
               <AiSuggestedPrompts
@@ -925,7 +1051,14 @@ export function AiChatShell({
             ) : (
               displayedMessages.map((message) => {
                 const isUser = message.role === 'user'
-                const thinking = Boolean(message.pending && !message.content)
+                const visible = isUser ? message.content : displayAiContent(message.content)
+                const thinking =
+                  !isUser &&
+                  ((Boolean(message.pending) && !visible) ||
+                    (draft?.id === message.id &&
+                      streaming &&
+                      !visible &&
+                      (chatPhase === 'thinking' || chatPhase === 'planning')))
                 return (
                   <div
                     key={message.id}
@@ -939,17 +1072,16 @@ export function AiChatShell({
                         'max-w-[min(92%,42rem)] rounded-2xl px-4 py-3 transition-shadow',
                         isUser
                           ? 'bg-accent text-accent-fg shadow-sm'
-                          : 'border border-border-subtle bg-surface-2 text-foreground',
+                          : 'border border-border-subtle bg-surface-2/90 text-foreground backdrop-blur-[2px]',
+                        thinking && 'min-h-[3.25rem] min-w-[9rem]',
                       )}
                     >
                       {thinking ? (
-                        <AiThinkingIndicator
-                          label={t('ai.thinking', { defaultValue: 'Thinking' })}
-                        />
-                      ) : message.content ? (
+                        <AiThinkingIndicator label={phaseLabel} state={orbState} size={28} />
+                      ) : visible ? (
                         <div className="relative">
                           <AiMarkdown content={message.content} inverse={isUser} />
-                          {draft?.id === message.id && streaming ? (
+                          {draft?.id === message.id && streaming && visible ? (
                             <span
                               className="ms-0.5 inline-block h-3.5 w-0.5 translate-y-0.5 animate-pulse rounded-full bg-current/70 align-middle"
                               aria-hidden
@@ -965,6 +1097,9 @@ export function AiChatShell({
 
             {streamError ? (
               <div className="ai-message-enter mx-auto w-full max-w-md rounded-2xl border border-border-subtle bg-surface/70 px-4 py-3 text-center">
+                <div className="mb-2 flex justify-center">
+                  <AiThinkingOrbs state="error" size={40} label={phaseLabel} />
+                </div>
                 <p className="text-sm font-medium">
                   {t('ai.somethingWrong', { defaultValue: 'Something went wrong' })}
                 </p>
@@ -991,11 +1126,11 @@ export function AiChatShell({
               </div>
             ) : null}
 
-            <div ref={bottomRef} className="h-px w-full" />
+            <div ref={bottomRef} className="h-px w-full shrink-0" />
           </div>
 
           {showJump ? (
-            <div className="pointer-events-none fixed inset-x-0 bottom-28 z-20 flex justify-center sm:bottom-32">
+            <div className="pointer-events-none absolute inset-x-0 bottom-[5.5rem] z-20 flex justify-center sm:bottom-24">
               <Button
                 type="button"
                 size="sm"
@@ -1144,6 +1279,7 @@ export function AiChatShell({
                 )}
               />
               <Textarea
+                ref={composerRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
@@ -1153,8 +1289,9 @@ export function AiChatShell({
                   }
                 }}
                 placeholder={voiceMode ? t('ai.voicePlaceholder') : t('ai.placeholder')}
-                className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+                className="max-h-40 min-h-10 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:ring-0 sm:text-sm"
                 rows={1}
+                aria-label={t('ai.placeholder')}
               />
               <Button
                 type="submit"

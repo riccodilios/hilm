@@ -370,6 +370,51 @@ li[data-type='taskItem'][data-checked='true'] > div {
   animation: ai-message-in 180ms ease-out;
 }
 
+.ai-ambient-layer {
+  position: absolute;
+  inset: -20%;
+  border-radius: 50%;
+  opacity: calc(0.045 * var(--ai-ambient, 0.35));
+  filter: blur(48px);
+  will-change: transform;
+  animation: ai-ambient-drift 28s ease-in-out infinite;
+}
+
+.ai-ambient-a {
+  background: radial-gradient(circle at 30% 30%, rgba(160, 160, 170, 0.55), transparent 62%);
+  animation-duration: 32s;
+}
+
+.ai-ambient-b {
+  background: radial-gradient(circle at 70% 60%, rgba(120, 120, 130, 0.4), transparent 58%);
+  animation-duration: 40s;
+  animation-direction: reverse;
+}
+
+.ai-ambient-c {
+  background: radial-gradient(circle at 50% 80%, rgba(180, 180, 190, 0.28), transparent 55%);
+  animation-duration: 48s;
+}
+
+@keyframes ai-ambient-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-ambient-layer {
+    animation: none;
+  }
+  .ai-message-enter {
+    animation: none;
+  }
+}
+
 /* iOS PWA: keep AI composer above the bottom tab bar + home indicator */
 @supports (-webkit-touch-callout: none) {
   .hilm-ai-composer {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,7 @@ import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
 import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
+import { VoiceAddButton } from '@/components/VoiceAddButton'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -36,15 +37,25 @@ import { memberCanSeeTask } from '@/features/workspace-os/lib/member-visibility'
 import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
 import { StatusBadge } from '@/components/ui/badge'
 import { PageHeader, Skeleton } from '@/components/ui/page'
+import { useSpeechDictation } from '@/hooks/useSpeechDictation'
+import {
+  composeVoiceFieldValue,
+  htmlToPlainText,
+  plainTextToEditorHtml,
+  speechLocaleFromI18n,
+} from '@/lib/voice-transcript'
 
 export function WorkspaceTaskDetailPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { taskId = '' } = useParams()
   const { workspaceId, workspace, canWritePage, role } = useWorkspace()
   const canEdit = canWritePage('tasks')
   const { user } = useAuth()
   const qc = useQueryClient()
   const [description, setDescription] = useState('')
+  const voiceBaseRef = useRef('')
+  const descriptionRef = useRef('')
+  const speechLang = speechLocaleFromI18n(i18n.language)
   const [assignment, setAssignment] = useState<TaskAssignmentValue>({
     departmentId: null,
     teamId: null,
@@ -87,6 +98,10 @@ export function WorkspaceTaskDetailPage() {
     task.data?.assignee_id,
   ])
 
+  useEffect(() => {
+    descriptionRef.current = description
+  }, [description])
+
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateWorkspaceTask>[2]) =>
       updateWorkspaceTask(workspaceId, resolvedTaskId, patch),
@@ -107,6 +122,44 @@ export function WorkspaceTaskDetailPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   })
+
+  const persistDescription = useCallback(
+    (html: string) => {
+      if (!canEdit || !task.data) return
+      if (html === (task.data.description ?? '')) return
+      save.mutate({ description: html })
+    },
+    [canEdit, save, task.data],
+  )
+
+  const dictation = useSpeechDictation({
+    lang: speechLang,
+    onTranscript: ({ committed, interim }) => {
+      if (!canEdit) return
+      const plain = composeVoiceFieldValue(voiceBaseRef.current, committed, interim, {
+        lang: speechLang,
+      })
+      const html = plainTextToEditorHtml(plain)
+      setDescription(html)
+      if (!interim && committed) persistDescription(html)
+    },
+    onError: (code) => {
+      if (code === 'unsupported') toast.error(t('tasks.voiceUnsupported'))
+      else if (code === 'not-allowed') toast.error(t('tasks.voiceDenied'))
+      else toast.error(t('tasks.voiceFailed'))
+    },
+  })
+
+  function toggleDescriptionVoice() {
+    if (!canEdit) return
+    if (dictation.listening) {
+      dictation.stop()
+      persistDescription(descriptionRef.current)
+      return
+    }
+    voiceBaseRef.current = htmlToPlainText(descriptionRef.current)
+    dictation.start()
+  }
 
   const remove = useMutation({
     mutationFn: () => deleteWorkspaceTask(workspaceId, resolvedTaskId),
@@ -178,7 +231,16 @@ export function WorkspaceTaskDetailPage() {
         </div>
       ) : null}
       <div className="space-y-2">
-        <Label>{t('projects.desc')}</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label>{t('projects.desc')}</Label>
+          {canEdit ? (
+            <VoiceAddButton
+              supported={dictation.supported}
+              listening={dictation.listening}
+              onToggle={toggleDescriptionVoice}
+            />
+          ) : null}
+        </div>
         <RichTextEditor
           value={description}
           editable={canEdit}
@@ -189,6 +251,13 @@ export function WorkspaceTaskDetailPage() {
             save.mutate({ description: html })
           }}
         />
+        {canEdit && (dictation.listening || dictation.interim) ? (
+          <p className="text-xs text-muted">
+            {dictation.interim
+              ? `${t('tasks.voiceHearing')}: ${dictation.interim}`
+              : t('tasks.voiceHint')}
+          </p>
+        ) : null}
       </div>
       {canEdit ? (
         <TaskAssignmentFields

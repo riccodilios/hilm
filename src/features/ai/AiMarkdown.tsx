@@ -3,9 +3,20 @@ import remarkGfm from 'remark-gfm'
 import { isSafeHref } from '@/lib/safe-url'
 import { cn } from '@/lib/utils'
 
-/** Hide trailing ```actions blocks from chat display (still applied via action chips). */
-function displayContent(content: string) {
-  return content.replace(/```actions(?:\s+json)?\s*\n[\s\S]*?```/gi, '').trim()
+/**
+ * Strip action fences from chat display (including mid-stream open fences).
+ * Actions still flow through the dedicated SSE / apply pipeline.
+ */
+export function displayAiContent(content: string) {
+  let out = content
+  // Closed fences
+  out = out.replace(/```actions(?:\s+json)?\s*\n[\s\S]*?```/gi, '')
+  // Unclosed fence still streaming
+  out = out.replace(/```actions(?:\s+json)?\s*\n[\s\S]*$/gi, '')
+  out = out.replace(/```actions(?:\s+json)?\s*$/gi, '')
+  // Defensive: bare tool-looking JSON blobs that leaked without a fence label
+  out = out.replace(/```(?:json)?\s*\n\s*\[\s*\{\s*"type"\s*:\s*"[a-z0-9_.]+"[\s\S]*$/gi, '')
+  return out.trim()
 }
 
 export function AiMarkdown({
@@ -18,7 +29,7 @@ export function AiMarkdown({
   /** High-contrast bubble (user): light text on dark bg in light theme, etc. */
   inverse?: boolean
 }) {
-  const body = displayContent(content)
+  const body = displayAiContent(content)
   if (!body) return null
 
   return (

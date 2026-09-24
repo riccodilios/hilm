@@ -7,7 +7,6 @@ import {
   FolderKanban,
   Gauge,
   Scale,
-  Sparkles,
   Target,
   Users,
   type LucideIcon,
@@ -15,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { rtlMirrorClass } from '@/lib/rtl'
+import { AiThinkingOrbs } from '@/features/ai/components/AiThinkingOrbs'
 
 export type SuggestedPrompt = {
   id: string
@@ -128,10 +128,10 @@ export function AiSuggestedPrompts({
   const prompts = suggestedPromptsForOs(os)
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col items-center py-10 text-center sm:py-16">
-      <span className="mb-4 flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-2/80 text-muted shadow-sm">
-        <Sparkles className="size-5" />
-      </span>
+    <div className="mx-auto flex w-full max-w-lg flex-col items-center py-8 text-center sm:py-12">
+      <div className="mb-5 flex size-16 items-center justify-center">
+        <AiThinkingOrbs state="idle" size={64} label={t('ai.title')} />
+      </div>
       <h2 className="font-medium tracking-tight">
         {os === 'workspace' ? t('ai.workspaceTitle') : t('ai.title')}
       </h2>
