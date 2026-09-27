@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { PersonalMeetingsTab } from '@/features/projects/meetings/PersonalMeetingsTab'
 import { ExternalLink, FileText, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { getProject, projectsKeys, updateProject } from '@/features/projects/api'
@@ -55,7 +56,19 @@ export function ProjectDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const tab: Tab = (allTabs as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'overview'
+  const setTab = (next: Tab) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        if (next === 'overview') params.delete('tab')
+        else params.set('tab', next)
+        return params
+      },
+      { replace: true },
+    )
   const [menuTask, setMenuTask] = useState<TaskWithProject | null>(null)
   const [roadmapTitle, setRoadmapTitle] = useState('')
   const [roadmapHorizon, setRoadmapHorizon] = useState<RoadmapHorizon>('next')
@@ -555,7 +568,11 @@ export function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        {(['ideas', 'meetings', 'releases', 'files', 'documentation'] as Tab[]).map((item) => (
+        <TabsContent value="meetings">
+          <PersonalMeetingsTab project={project} />
+        </TabsContent>
+
+        {(['ideas', 'releases', 'files', 'documentation'] as Tab[]).map((item) => (
           <TabsContent key={item} value={item}>
             <EmptyState
               title={`${tabLabels[item]} coming soon`}

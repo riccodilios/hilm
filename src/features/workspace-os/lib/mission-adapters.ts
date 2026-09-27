@@ -25,6 +25,8 @@ export function workspaceTaskAsMission(task: WorkspaceTask): TaskWithProject {
     reminder_datetime: task.reminder_at,
     reminder_type: task.reminder_type,
     notification_sent: false,
+    source_meeting_id: null,
+    source_action_item_id: null,
     projects: task.workspace_projects
       ? {
           id: task.workspace_projects.id,

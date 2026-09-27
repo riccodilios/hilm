@@ -20,6 +20,101 @@ type Table<
   Relationships: Relationships
 }
 
+export type MeetingStatus = 'draft' | 'recording' | 'processing' | 'ready' | 'failed'
+export type MeetingAudioStatus = 'uploaded' | 'transcribing' | 'transcribed' | 'failed'
+
+type MeetingCoreRow = {
+  id: string
+  project_id: string | null
+  title: string
+  description: string | null
+  notes: string | null
+  held_at: string | null
+  status: MeetingStatus
+  started_at: string | null
+  ended_at: string | null
+  duration_seconds: number
+  language: string | null
+  participants: string[]
+  summary: string | null
+  key_points: Json
+  processing_stage: string | null
+  processing_error: string | null
+  processing_attempts: number
+  expected_segments: number | null
+  analysis_model: string | null
+  analyzed_at: string | null
+  created_at: string
+  updated_at: string
+}
+type MeetingCoreUpdate = Partial<Omit<MeetingCoreRow, 'id' | 'created_at'>>
+
+type MeetingSpeakerRow = {
+  id: string
+  meeting_id: string
+  label: string
+  display_name: string | null
+  description: string | null
+  ordinal: number
+  created_at: string
+}
+type MeetingAudioRow = {
+  id: string
+  meeting_id: string
+  idx: number
+  storage_path: string
+  duration_ms: number
+  offset_ms: number
+  mime: string | null
+  byte_size: number | null
+  status: MeetingAudioStatus
+  attempts: number
+  error: string | null
+  transcribed_at: string | null
+  created_at: string
+  updated_at: string
+}
+type MeetingTranscriptRow = {
+  id: string
+  meeting_id: string
+  audio_segment_id: string | null
+  speaker_id: string | null
+  ordinal: number
+  start_ms: number
+  end_ms: number
+  text: string
+  language: string | null
+  created_at: string
+}
+type MeetingDecisionRow = {
+  id: string
+  meeting_id: string
+  text: string
+  certainty: 'confirmed' | 'uncertain'
+  source_segment_ids: string[]
+  ordinal: number
+  created_at: string
+}
+type MeetingActionItemRow = {
+  id: string
+  meeting_id: string
+  title: string
+  description: string | null
+  owner_speaker_id: string | null
+  owner_certainty: 'confirmed' | 'uncertain' | 'none'
+  due_text: string | null
+  due_date: string | null
+  priority: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null
+  certainty: 'confirmed' | 'possible'
+  source_segment_ids: string[]
+  ordinal: number
+  task_id: string | null
+  created_at: string
+  updated_at: string
+}
+type ChildInsert<Row, Required extends keyof Row> = Partial<Omit<Row, Required>> & Pick<Row, Required>
+type ChildUpdate<Row> = Partial<Omit<Row, 'id' | 'created_at'>>
+
 export type Database = {
   public: {
     Tables: {
@@ -209,6 +304,8 @@ export type Database = {
           notification_sent: boolean
           position: number
           completed_at: string | null
+          source_meeting_id: string | null
+          source_action_item_id: string | null
           created_at: string
           updated_at: string
         },
@@ -231,6 +328,8 @@ export type Database = {
           notification_sent?: boolean
           position?: number
           completed_at?: string | null
+          source_meeting_id?: string | null
+          source_action_item_id?: string | null
         },
         {
           id?: string
@@ -251,6 +350,8 @@ export type Database = {
           notification_sent?: boolean
           position?: number
           completed_at?: string | null
+          source_meeting_id?: string | null
+          source_action_item_id?: string | null
         },
         [
           {
@@ -422,30 +523,70 @@ export type Database = {
         }
       >
       meetings: Table<
-        {
-          id: string
-          user_id: string
-          project_id: string | null
-          title: string
-          notes: string | null
-          held_at: string | null
-          created_at: string
-          updated_at: string
-        },
-        {
-          id?: string
-          user_id: string
-          project_id?: string | null
-          title: string
-          notes?: string | null
-          held_at?: string | null
-        },
-        {
-          project_id?: string | null
-          title?: string
-          notes?: string | null
-          held_at?: string | null
-        }
+        MeetingCoreRow & { user_id: string },
+        Partial<Omit<MeetingCoreRow, 'title'>> & { user_id: string; title: string },
+        MeetingCoreUpdate
+      >
+      meeting_speakers: Table<
+        MeetingSpeakerRow & { user_id: string },
+        ChildInsert<MeetingSpeakerRow & { user_id: string }, 'user_id' | 'meeting_id' | 'label'>,
+        ChildUpdate<MeetingSpeakerRow>
+      >
+      meeting_audio_segments: Table<
+        MeetingAudioRow & { user_id: string },
+        ChildInsert<MeetingAudioRow & { user_id: string }, 'user_id' | 'meeting_id' | 'idx' | 'storage_path'>,
+        ChildUpdate<MeetingAudioRow>
+      >
+      meeting_transcript_segments: Table<
+        MeetingTranscriptRow & { user_id: string },
+        ChildInsert<MeetingTranscriptRow & { user_id: string }, 'user_id' | 'meeting_id' | 'ordinal' | 'text'>,
+        ChildUpdate<MeetingTranscriptRow>
+      >
+      meeting_decisions: Table<
+        MeetingDecisionRow & { user_id: string },
+        ChildInsert<MeetingDecisionRow & { user_id: string }, 'user_id' | 'meeting_id' | 'text'>,
+        ChildUpdate<MeetingDecisionRow>
+      >
+      meeting_action_items: Table<
+        MeetingActionItemRow & { user_id: string },
+        ChildInsert<MeetingActionItemRow & { user_id: string }, 'user_id' | 'meeting_id' | 'title'>,
+        ChildUpdate<MeetingActionItemRow>
+      >
+      workspace_meetings: Table<
+        MeetingCoreRow & { workspace_id: string; created_by: string },
+        Partial<Omit<MeetingCoreRow, 'title'>> & { workspace_id: string; created_by: string; title: string },
+        MeetingCoreUpdate
+      >
+      workspace_meeting_speakers: Table<
+        MeetingSpeakerRow & { workspace_id: string; linked_user_id: string | null },
+        ChildInsert<
+          MeetingSpeakerRow & { workspace_id: string; linked_user_id: string | null },
+          'workspace_id' | 'meeting_id' | 'label'
+        >,
+        ChildUpdate<MeetingSpeakerRow & { linked_user_id: string | null }>
+      >
+      workspace_meeting_audio_segments: Table<
+        MeetingAudioRow & { workspace_id: string; uploaded_by: string },
+        ChildInsert<
+          MeetingAudioRow & { workspace_id: string; uploaded_by: string },
+          'workspace_id' | 'uploaded_by' | 'meeting_id' | 'idx' | 'storage_path'
+        >,
+        ChildUpdate<MeetingAudioRow>
+      >
+      workspace_meeting_transcript_segments: Table<
+        MeetingTranscriptRow & { workspace_id: string },
+        ChildInsert<MeetingTranscriptRow & { workspace_id: string }, 'workspace_id' | 'meeting_id' | 'ordinal' | 'text'>,
+        ChildUpdate<MeetingTranscriptRow>
+      >
+      workspace_meeting_decisions: Table<
+        MeetingDecisionRow & { workspace_id: string },
+        ChildInsert<MeetingDecisionRow & { workspace_id: string }, 'workspace_id' | 'meeting_id' | 'text'>,
+        ChildUpdate<MeetingDecisionRow>
+      >
+      workspace_meeting_action_items: Table<
+        MeetingActionItemRow & { workspace_id: string },
+        ChildInsert<MeetingActionItemRow & { workspace_id: string }, 'workspace_id' | 'meeting_id' | 'title'>,
+        ChildUpdate<MeetingActionItemRow>
       >
       documents: Table<
         {
@@ -876,6 +1017,8 @@ export type Database = {
           reminder_type: string | null
           reminder_at: string | null
           task_number: number
+          source_meeting_id: string | null
+          source_action_item_id: string | null
           created_at: string
           updated_at: string
         },
@@ -884,6 +1027,8 @@ export type Database = {
           workspace_id: string
           project_id: string
           created_by: string
+          source_meeting_id?: string | null
+          source_action_item_id?: string | null
           assignee_id?: string | null
           department_id?: string | null
           team_id?: string | null
@@ -1424,6 +1569,23 @@ export type Database = {
       get_ai_usage_summary: {
         Args: {
           p_user_id?: string | null
+        }
+        Returns: Json
+      }
+      meeting_quota_status: {
+        Args: { p_user_id?: string | null }
+        Returns: Json
+      }
+      register_meeting_segment: {
+        Args: {
+          p_os: string
+          p_meeting_id: string
+          p_idx: number
+          p_storage_path: string
+          p_duration_ms: number
+          p_offset_ms: number
+          p_mime?: string
+          p_byte_size?: number | null
         }
         Returns: Json
       }

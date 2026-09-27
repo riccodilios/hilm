@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import pg from 'pg'
 
-export type AiRequestKind = 'chat' | 'daily_log'
+export type AiRequestKind = 'chat' | 'daily_log' | 'meeting_transcribe' | 'meeting_analyze'
 
 export type AiGuardResult = {
   ok: boolean

@@ -25,6 +25,7 @@ import {
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { WorkspaceTaskComments } from '@/features/workspace-os/components/WorkspaceTaskComments'
 import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
+import { MeetingSourceLink } from '@/shared/meetings/components/MeetingSourceLink'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { formatWorkspaceTaskRef } from '@/features/workspace-os/lib/task-refs'
 import { RichTextEditor } from '@/components/editor/RichTextEditor'
@@ -183,6 +184,17 @@ export function WorkspaceTaskDetailPage() {
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={task.data.status} />
+        {task.data.source_meeting_id ? (
+          <MeetingSourceLink
+            os="workspace"
+            meetingId={task.data.source_meeting_id}
+            href={(projectId) =>
+              projectId
+                ? `/workspace/${workspaceId}/projects/${projectId}/meetings/${task.data?.source_meeting_id}`
+                : `/workspace/${workspaceId}/projects`
+            }
+          />
+        ) : null}
       </div>
       <PageHeader
         title={task.data.title}

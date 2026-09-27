@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Check, ChevronLeft, Plus } from 'lucide-react'
+import { MeetingSourceLink } from '@/shared/meetings/components/MeetingSourceLink'
 import { toast } from 'sonner'
 import { getTask, listSubtasks, tasksKeys, updateTask } from '@/features/tasks/api'
 import { listProjects, projectsKeys } from '@/features/projects/api'
@@ -171,6 +172,15 @@ export function TaskDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-medium tracking-tight">{t('tasks.details')}</h1>
           {task.projects ? <ProjectBadge {...task.projects} size="md" /> : null}
+          {task.source_meeting_id ? (
+            <MeetingSourceLink
+              os="personal"
+              meetingId={task.source_meeting_id}
+              href={(projectId) =>
+                projectId ? `/personal/projects/${projectId}/meetings/${task.source_meeting_id}` : '/personal/projects'
+              }
+            />
+          ) : null}
         </div>
         <Button
           disabled={task.status === 'done' || save.isPending}

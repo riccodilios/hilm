@@ -5,6 +5,9 @@
     "os": "AI Personal OS and Workspace OS"
   },
   "common": {
+    "dismiss": "Dismiss",
+    "retry": "Retry",
+    "edit": "Edit",
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
@@ -1404,5 +1407,231 @@
   },
   "errors": {
     "generic": "Something went wrong"
+  },
+  "meetings": {
+    "notFound": "Meeting not found or you no longer have access.",
+    "backToList": "Back to meetings",
+    "backTo": "Back to {{project}}",
+    "rename": "Rename",
+    "deleted": "Meeting deleted",
+    "createdFrom": "Created from meeting: {{title}}",
+    "status": {
+      "draft": "Draft",
+      "recording": "Recording",
+      "processing": "Processing",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "duration": {
+      "underMinute": "< 1 min",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min",
+      "hours_one": "{{count}} hr",
+      "hours_other": "{{count}} hr",
+      "hoursMinutes": "{{hours}} hr {{minutes}} min"
+    },
+    "tabs": {
+      "summary": "Summary",
+      "actions": "Action items",
+      "transcript": "Transcript"
+    },
+    "new": {
+      "button": "New meeting",
+      "title": "New meeting",
+      "description": "Record and summarize a meeting for {{project}}.",
+      "create": "Create meeting"
+    },
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "e.g. Weekly sync",
+      "date": "Date & time",
+      "participants": "Participants",
+      "participantsPlaceholder": "Names separated by commas (optional)",
+      "description": "Agenda / notes",
+      "descriptionPlaceholder": "What is this meeting about? (optional)"
+    },
+    "list": {
+      "search": "Search meetings",
+      "sort": "Sort meetings",
+      "sortNewest": "Newest first",
+      "sortOldest": "Oldest first",
+      "sortTitle": "Title A–Z",
+      "sortLongest": "Longest first",
+      "emptyTitle": "No meetings yet",
+      "emptyDescription": "Record a meeting and Hilm will transcribe it, summarize decisions, and turn action items into tasks.",
+      "emptyAction": "Start your first meeting",
+      "noMatches": "No meetings match your search.",
+      "actionCount_one": "{{count}} action item",
+      "actionCount_other": "{{count}} action items"
+    },
+    "delete": {
+      "button": "Delete meeting",
+      "title": "Delete this meeting?",
+      "description": "The recording, transcript, summary, and action items will be permanently deleted. Tasks already created stay in the project.",
+      "confirm": "Delete meeting"
+    },
+    "recorder": {
+      "start": "Start recording",
+      "startHint": "Audio is saved in parts as you record, so nothing is lost if the connection drops.",
+      "consent": "Make sure everyone in the meeting knows it is being recorded.",
+      "quota": "Up to {{max}} min per meeting · {{used}} of {{month}} min used this month",
+      "requesting": "Waiting for microphone permission…",
+      "recording": "Recording",
+      "paused": "Paused",
+      "finishing": "Saving the last part…",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop & process",
+      "continue": "Continue recording",
+      "finishNow": "Finish & process",
+      "recordMore": "Record more",
+      "keepOpen": "Keep this app open while recording. You can switch pages inside Hilm.",
+      "pendingUploads_one": "{{count}} part waiting to upload",
+      "pendingUploads_other": "{{count}} parts waiting to upload",
+      "allSaved": "All audio saved",
+      "otherActive": "Another meeting is being recorded. Stop it first.",
+      "dockLabel": "Meeting recording in progress",
+      "interruptedTitle": "Recording was interrupted",
+      "interruptedDescription_one": "{{count}} part was saved. Continue recording or finish and process what was captured.",
+      "interruptedDescription_other": "{{count}} parts were saved. Continue recording or finish and process what was captured.",
+      "notice": {
+        "interrupted": "Recording paused because the app went to the background or the microphone was taken by another app.",
+        "device_lost": "The microphone was disconnected. Recording is paused and your audio is saved.",
+        "limit_reached": "Maximum meeting length reached. Recording stopped and is being processed."
+      },
+      "errors": {
+        "unsupported": "Recording is not supported in this browser. Try the latest Chrome, Edge, or Safari.",
+        "insecure": "Recording needs a secure (HTTPS) connection.",
+        "permission_denied": "Microphone access was denied.",
+        "permissionHelp": "Allow microphone access in your browser or device settings, then try again.",
+        "no_microphone": "No microphone was found.",
+        "mic_busy": "The microphone is being used by another app.",
+        "unknown": "Could not start the microphone.",
+        "meeting_too_long": "This meeting reached the maximum length for your plan.",
+        "monthly_meeting_limit": "You have used all meeting minutes for this month.",
+        "tier_disabled": "Meeting recording is not available on your plan.",
+        "upload_failed": "Some audio could not be uploaded yet. It is saved on this device and will retry automatically."
+      }
+    },
+    "processing": {
+      "uploading": "Uploading audio ({{done}}/{{total}})",
+      "transcribing": "Transcribing ({{done}}/{{total}})",
+      "analyzing": "Extracting summary, decisions, and action items…",
+      "waitingQuota": "Waiting for AI capacity — processing will resume automatically.",
+      "background": "You can leave this page; processing continues in the background.",
+      "failedTitle": "Processing failed",
+      "failedDescription": "We could not finish processing this meeting.",
+      "audioSafe": "Your audio is safely stored — retrying will not lose anything.",
+      "retry": "Retry processing",
+      "retriesLeft_one": "{{count}} retry left",
+      "retriesLeft_other": "{{count}} retries left",
+      "noRetriesLeft": "No retries left for this meeting.",
+      "stages": {
+        "upload": "Upload",
+        "transcribe": "Transcribe",
+        "analyze": "Analyze"
+      },
+      "ready": "Meeting ready",
+      "readyHint": "Summary, action items and transcript are available below."
+    },
+    "summary": {
+      "title": "Summary",
+      "keyPoints": "Key points",
+      "decisions": "Decisions",
+      "noDecisions": "No clear decisions were made.",
+      "empty": "No summary available.",
+      "pending": "The summary will appear once processing finishes.",
+      "noSpeech": "No speech was detected in this recording."
+    },
+    "certainty": {
+      "confirmed": "Confirmed",
+      "uncertain": "Uncertain",
+      "possible": "Possible"
+    },
+    "actions": {
+      "title": "Action items",
+      "empty": "No action items were identified.",
+      "select": "Select “{{title}}”",
+      "createTask": "Create task",
+      "createSelected_one": "Create {{count}} task",
+      "createSelected_other": "Create {{count}} tasks",
+      "createAll_one": "Create all ({{count}})",
+      "createAll_other": "Create all ({{count}})",
+      "createdToast_one": "{{count}} task created",
+      "createdToast_other": "{{count}} tasks created",
+      "failedToast_one": "{{count}} task could not be created",
+      "failedToast_other": "{{count}} tasks could not be created",
+      "alreadyCreated": "Task already exists",
+      "taskCreated": "Task created",
+      "viewTask": "View task",
+      "owner": "Owner",
+      "noOwner": "No owner",
+      "due": "Due"
+    },
+    "linkedTasks": {
+      "title": "Tasks from this meeting"
+    },
+    "transcript": {
+      "title": "Transcript",
+      "search": "Search transcript",
+      "filterSpeaker": "Filter by speaker",
+      "allSpeakers": "All speakers",
+      "matches_one": "{{count}} match",
+      "matches_other": "{{count}} matches",
+      "pending": "The transcript will appear as audio is processed.",
+      "playFrom": "Play from {{time}}",
+      "jumpTo": "Jump to {{time}}",
+      "unknownSpeaker": "Speaker"
+    },
+    "speakers": {
+      "button": "Speakers",
+      "title": "Speakers",
+      "description": "Speakers are estimated by AI. Rename them, link workspace members, or merge duplicates.",
+      "empty": "No speakers detected yet.",
+      "count_one": "{{count}} speaker",
+      "count_other": "{{count}} speakers",
+      "lines_one": "{{count}} line",
+      "lines_other": "{{count}} lines",
+      "namePlaceholder": "Name (optional)",
+      "rename": "Rename {{label}}",
+      "linkMember": "Link to workspace member",
+      "noMember": "Not linked to a member",
+      "mergeInto": "Merge into…",
+      "merge": "Merge",
+      "merged": "Speakers merged"
+    },
+    "export": {
+      "markdown": "Markdown",
+      "copy": "Copy summary",
+      "copied": "Summary copied",
+      "share": "Share",
+      "linkCopied": "Link copied",
+      "project": "Project",
+      "date": "Date",
+      "duration": "Duration",
+      "decision": "Decision",
+      "certainty": "Certainty",
+      "item": "Action item",
+      "task": "Task",
+      "time": "Time",
+      "speaker": "Speaker",
+      "text": "Text"
+    },
+    "taskNote": {
+      "owner": "Owner mentioned in the meeting: {{name}}",
+      "ownerUncertain": "Possible owner (not confirmed): {{name}}",
+      "due": "Deadline mentioned: “{{text}}”",
+      "possible": "This item was not explicitly agreed — please confirm.",
+      "source": "From meeting: {{title}}"
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "loadFailed": "Could not load meetings.",
+      "createFailed": "Could not create the meeting.",
+      "deleteFailed": "Could not delete the meeting.",
+      "exportFailed": "Could not export the meeting.",
+      "copyFailed": "Could not copy to the clipboard.",
+      "noTaskPermission": "You do not have permission to create tasks in this workspace."
+    }
   }
 }

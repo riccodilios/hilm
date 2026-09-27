@@ -549,6 +549,8 @@ export async function createWorkspaceTask(
     quiet?: boolean
     /** When set with quiet, skip workspace refetch for short-id formatting. */
     taskKey?: string | null
+    sourceMeetingId?: string | null
+    sourceActionItemId?: string | null
   },
 ) {
   const userId = await requireUserId()
@@ -581,6 +583,8 @@ export async function createWorkspaceTask(
       team_id: assignment.teamId,
       reminder_type: dueDate ? reminderType : null,
       reminder_at: reminderAt,
+      source_meeting_id: input.sourceMeetingId ?? null,
+      source_action_item_id: input.sourceActionItemId ?? null,
     })
     .select('*')
     .maybeSingle()

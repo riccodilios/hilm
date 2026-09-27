@@ -172,6 +172,8 @@ export async function createTask(input: {
   reminderType?: ReminderType
   customReminderAt?: string | null
   estimatedHours?: number | null
+  sourceMeetingId?: string | null
+  sourceActionItemId?: string | null
 }) {
   if (!input.projectId) throw new Error('Every task must belong to a project')
   const userId = await requireUserId()
@@ -195,6 +197,8 @@ export async function createTask(input: {
     reminder_type: reminderType,
     notification_sent: false,
     estimated_hours: input.estimatedHours ?? null,
+    source_meeting_id: input.sourceMeetingId ?? null,
+    source_action_item_id: input.sourceActionItemId ?? null,
   }
 
   // Insert without Prefer: object — then read back. Avoids PGRST116 on RETURNING.

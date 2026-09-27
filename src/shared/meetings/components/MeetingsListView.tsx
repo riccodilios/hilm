@@ -1,0 +1,215 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { CalendarDays, CheckSquare, Clock, Mic, Plus, Search, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { EmptyState, Skeleton } from '@/components/ui/page'
+import { useMeetingMutations, useMeetingsList } from '../hooks'
+import { formatDurationShort } from '../format'
+import { useMeetingRecorder } from '../recorder/recorder-context'
+import type { Meeting, MeetingsAdapter } from '../types'
+import { MeetingStatusBadge } from './MeetingStatusBadge'
+import { NewMeetingDialog } from './NewMeetingDialog'
+import { ConfirmDialog } from './ConfirmDialog'
+
+type SortKey = 'newest' | 'oldest' | 'title' | 'longest'
+
+function meetingDate(meeting: Meeting) {
+  return meeting.heldAt ?? meeting.startedAt ?? meeting.createdAt
+}
+
+export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const list = useMeetingsList(adapter)
+  const mutations = useMeetingMutations(adapter)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<SortKey>('newest')
+  const [creating, setCreating] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<Meeting | null>(null)
+  const recorder = useMeetingRecorder()
+  const processingIds = (list.data ?? [])
+    .filter((meeting) => meeting.status === 'processing')
+    .map((meeting) => meeting.id)
+    .join(',')
+
+  useEffect(() => {
+    if (!adapter.canEdit || !processingIds) return
+    for (const id of processingIds.split(',')) recorder.driveProcessing(adapter.scope.os, id, i18n.language)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter.canEdit, adapter.scope.os, processingIds])
+
+  const meetings = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    const filtered = (list.data ?? []).filter((meeting) => {
+      if (!query) return true
+      return [meeting.title, meeting.description ?? '', meeting.summary ?? '', meeting.participants.join(' ')]
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    })
+    const sorted = [...filtered]
+    sorted.sort((a, b) => {
+      if (sort === 'title') return a.title.localeCompare(b.title, i18n.language)
+      if (sort === 'longest') return b.durationSeconds - a.durationSeconds
+      const diff = new Date(meetingDate(b)).getTime() - new Date(meetingDate(a)).getTime()
+      return sort === 'oldest' ? -diff : diff
+    })
+    return sorted
+  }, [i18n.language, list.data, search, sort])
+
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }),
+    [i18n.language],
+  )
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    try {
+      await mutations.remove.mutateAsync(pendingDelete.id)
+      toast.success(t('meetings.deleted'))
+      setPendingDelete(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('meetings.errors.deleteFailed'))
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t('meetings.list.search')}
+            className="ps-9"
+            aria-label={t('meetings.list.search')}
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as SortKey)}
+            className="h-10 flex-1 rounded-lg border border-border bg-surface px-3 text-sm sm:flex-none"
+            aria-label={t('meetings.list.sort')}
+          >
+            <option value="newest">{t('meetings.list.sortNewest')}</option>
+            <option value="oldest">{t('meetings.list.sortOldest')}</option>
+            <option value="title">{t('meetings.list.sortTitle')}</option>
+            <option value="longest">{t('meetings.list.sortLongest')}</option>
+          </select>
+          {adapter.canEdit ? (
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> {t('meetings.new.button')}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {list.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      ) : list.isError ? (
+        <EmptyState
+          title={t('meetings.errors.loadFailed')}
+          action={
+            <Button variant="secondary" onClick={() => void list.refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+        />
+      ) : !list.data?.length ? (
+        <EmptyState
+          title={t('meetings.list.emptyTitle')}
+          description={t('meetings.list.emptyDescription')}
+          action={
+            adapter.canEdit ? (
+              <Button onClick={() => setCreating(true)}>
+                <Mic /> {t('meetings.list.emptyAction')}
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : !meetings.length ? (
+        <EmptyState title={t('meetings.list.noMatches')} />
+      ) : (
+        <ul className="space-y-2">
+          {meetings.map((meeting) => (
+            <li key={meeting.id}>
+              <div className="group relative rounded-2xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border">
+                <Link to={adapter.meetingHref(meeting.id)} className="absolute inset-0 rounded-2xl" aria-label={meeting.title} />
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-medium">{meeting.title}</p>
+                      <MeetingStatusBadge status={meeting.status} />
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                      <span className="inline-flex items-center gap-1.5">
+                        <CalendarDays className="size-3.5" />
+                        {dateFormatter.format(new Date(meetingDate(meeting)))}
+                      </span>
+                      {meeting.durationSeconds > 0 ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="size-3.5" />
+                          {formatDurationShort(meeting.durationSeconds, t)}
+                        </span>
+                      ) : null}
+                      {meeting.actionItemCount > 0 ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CheckSquare className="size-3.5" />
+                          {t('meetings.list.actionCount', { count: meeting.actionItemCount })}
+                        </span>
+                      ) : null}
+                    </div>
+                    {meeting.summary ? (
+                      <p className="mt-2 line-clamp-2 text-sm text-muted" dir="auto">
+                        {meeting.summary}
+                      </p>
+                    ) : null}
+                  </div>
+                  {adapter.canDelete(meeting) ? (
+                    <button
+                      type="button"
+                      onClick={() => setPendingDelete(meeting)}
+                      className="relative z-10 rounded-lg p-2 text-muted opacity-100 transition-opacity hover:bg-surface-2 hover:text-danger sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                      aria-label={t('meetings.delete.button')}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <NewMeetingDialog
+        open={creating}
+        onOpenChange={setCreating}
+        projectName={adapter.projectName}
+        onCreate={async (input) => {
+          const meeting = await mutations.create.mutateAsync(input)
+          navigate(adapter.meetingHref(meeting.id))
+          return meeting
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title={t('meetings.delete.title')}
+        description={t('meetings.delete.description')}
+        confirmLabel={t('meetings.delete.confirm')}
+        destructive
+        pending={mutations.remove.isPending}
+        onConfirm={() => void confirmDelete()}
+      />
+    </div>
+  )
+}

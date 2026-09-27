@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { WorkspaceMeetingsTab } from '@/features/workspace-os/meetings/WorkspaceMeetingsTab'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Plus } from 'lucide-react'
@@ -39,7 +40,8 @@ import { formatRelative } from '@/lib/utils'
 import { PRIORITIES, PROJECT_COLORS, type Priority, type ProjectStatus } from '@/types/domain'
 import { cn } from '@/lib/utils'
 
-type Tab = 'overview' | 'tasks' | 'activity' | 'ai' | 'settings'
+const TABS = ['overview', 'tasks', 'meetings', 'activity', 'ai', 'settings'] as const
+type Tab = (typeof TABS)[number]
 
 export function WorkspaceProjectDetailPage() {
   const { t } = useTranslation()
@@ -49,7 +51,19 @@ export function WorkspaceProjectDetailPage() {
   const canEdit = canWritePage('projects')
   const { filterTasks } = useOrgVisibility()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const tab: Tab = (TABS as readonly string[]).includes(tabParam ?? '') ? (tabParam as Tab) : 'overview'
+  const setTab = (next: Tab) =>
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        if (next === 'overview') params.delete('tab')
+        else params.set('tab', next)
+        return params
+      },
+      { replace: true },
+    )
   const [labelIds, setLabelIds] = useState<string[]>([])
   const [settings, setSettings] = useState({
     name: '',
@@ -204,6 +218,7 @@ export function WorkspaceProjectDetailPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">{t('workspace.projectOverview')}</TabsTrigger>
           <TabsTrigger value="tasks">{t('nav.tasks')}</TabsTrigger>
+          <TabsTrigger value="meetings">{t('projects.meetings')}</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="ai">{t('nav.ai')}</TabsTrigger>
           <TabsTrigger value="settings">{t('workspace.projectSettings')}</TabsTrigger>
@@ -301,6 +316,10 @@ export function WorkspaceProjectDetailPage() {
             </Link>
           ))}
           {!projectTasks.length ? <p className="text-sm text-muted">{t('workspace.noTasks')}</p> : null}
+        </TabsContent>
+
+        <TabsContent value="meetings" className="mt-6">
+          {project.data ? <WorkspaceMeetingsTab project={project.data} /> : null}
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6 space-y-2">

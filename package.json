@@ -14,7 +14,8 @@
     "check:extraction": "node scripts/simulate-company-extraction.mjs",
     "check:architecture": "npm run check:boundaries && npm run check:extraction",
     "smoke:production": "node scripts/smoke-production.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:meeting-accuracy": "node scripts/run-meeting-accuracy.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
