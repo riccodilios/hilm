@@ -1,60 +1,65 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { CalendarDays, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { formatDurationShort } from '../format'
 import type { Meeting } from '../types'
+import type { MeetingPatch } from '../api'
 
-function localDateTimeValue(date = new Date()) {
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
-}
-
-export function NewMeetingDialog({
+/** Shown when a meeting ends: name it and add context while transcription runs in the background. */
+export function MeetingWrapUpDialog({
   open,
   onOpenChange,
-  projectName,
-  onCreate,
+  meeting,
+  durationMs,
+  onSave,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  projectName: string
-  onCreate: (input: { title: string; description: string | null; heldAt: string; participants: string[] }) => Promise<Meeting>
+  meeting: Meeting
+  durationMs: number
+  onSave: (patch: MeetingPatch) => Promise<void>
 }) {
-  const { t } = useTranslation()
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [heldAt, setHeldAt] = useState(() => localDateTimeValue())
-  const [participants, setParticipants] = useState('')
+  const { t, i18n } = useTranslation()
+  const [title, setTitle] = useState(meeting.title)
+  const [participants, setParticipants] = useState(meeting.participants.join(', '))
+  const [description, setDescription] = useState(meeting.description ?? '')
   const [saving, setSaving] = useState(false)
 
-  const reset = () => {
-    setTitle('')
-    setDescription('')
-    setHeldAt(localDateTimeValue())
-    setParticipants('')
-  }
+  useEffect(() => {
+    if (!open) return
+    setTitle(meeting.title)
+    setParticipants(meeting.participants.join(', '))
+    setDescription(meeting.description ?? '')
+    // Only reset when the dialog opens, not on every background refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const startedLabel = useMemo(() => {
+    const when = meeting.heldAt ?? meeting.startedAt ?? meeting.createdAt
+    return new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(when))
+  }, [i18n.language, meeting.createdAt, meeting.heldAt, meeting.startedAt])
 
   const submit = async () => {
     if (!title.trim() || saving) return
     setSaving(true)
     try {
-      await onCreate({
+      await onSave({
         title: title.trim(),
         description: description.trim() || null,
-        heldAt: heldAt ? new Date(heldAt).toISOString() : new Date().toISOString(),
         participants: participants
           .split(/[,،\n]/)
           .map((name) => name.trim())
           .filter(Boolean),
       })
-      reset()
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('meetings.errors.createFailed'))
+      toast.error(error instanceof Error ? error.message : t('meetings.errors.generic'))
     } finally {
       setSaving(false)
     }
@@ -64,9 +69,19 @@ export function NewMeetingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('meetings.new.title')}</DialogTitle>
-          <DialogDescription>{t('meetings.new.description', { project: projectName })}</DialogDescription>
+          <DialogTitle>{t('meetings.wrapUp.title')}</DialogTitle>
+          <DialogDescription>{t('meetings.wrapUp.description')}</DialogDescription>
         </DialogHeader>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-surface-2/60 px-3 py-2 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays className="size-3.5" /> {t('meetings.wrapUp.startedAt', { time: startedLabel })}
+          </span>
+          {durationMs >= 1000 ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="size-3.5" /> {formatDurationShort(Math.round(durationMs / 1000), t)}
+            </span>
+          ) : null}
+        </div>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -81,17 +96,10 @@ export function NewMeetingDialog({
               value={title}
               autoFocus
               maxLength={200}
+              dir="auto"
+              onFocus={(event) => event.currentTarget.select()}
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t('meetings.fields.titlePlaceholder')}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="meeting-held-at">{t('meetings.fields.date')}</Label>
-            <Input
-              id="meeting-held-at"
-              type="datetime-local"
-              value={heldAt}
-              onChange={(event) => setHeldAt(event.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -99,6 +107,7 @@ export function NewMeetingDialog({
             <Input
               id="meeting-participants"
               value={participants}
+              dir="auto"
               onChange={(event) => setParticipants(event.target.value)}
               placeholder={t('meetings.fields.participantsPlaceholder')}
             />
@@ -109,16 +118,17 @@ export function NewMeetingDialog({
               id="meeting-description"
               value={description}
               rows={3}
+              dir="auto"
               onChange={(event) => setDescription(event.target.value)}
               placeholder={t('meetings.fields.descriptionPlaceholder')}
             />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
+              {t('meetings.wrapUp.skip')}
             </Button>
             <Button type="submit" disabled={!title.trim() || saving}>
-              {t('meetings.new.create')}
+              {t('meetings.wrapUp.save')}
             </Button>
           </div>
         </form>

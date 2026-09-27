@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CalendarDays, CheckSquare, Clock, Mic, Plus, Search, Trash2 } from 'lucide-react'
+import { CalendarDays, CheckSquare, Clock, Loader2, Mic, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState, Skeleton } from '@/components/ui/page'
@@ -11,7 +11,6 @@ import { formatDurationShort } from '../format'
 import { useMeetingRecorder } from '../recorder/recorder-context'
 import type { Meeting, MeetingsAdapter } from '../types'
 import { MeetingStatusBadge } from './MeetingStatusBadge'
-import { NewMeetingDialog } from './NewMeetingDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 
 type SortKey = 'newest' | 'oldest' | 'title' | 'longest'
@@ -65,6 +64,24 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
     [i18n.language],
   )
 
+  const startNewMeeting = async () => {
+    if (creating) return
+    setCreating(true)
+    try {
+      const now = new Date()
+      const meeting = await mutations.create.mutateAsync({
+        title: t('meetings.new.defaultTitle', { date: dateFormatter.format(now) }),
+        description: null,
+        heldAt: now.toISOString(),
+        participants: [],
+      })
+      navigate(adapter.meetingHref(meeting.id), { state: { autoRecord: true } })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('meetings.errors.createFailed'))
+      setCreating(false)
+    }
+  }
+
   const confirmDelete = async () => {
     if (!pendingDelete) return
     try {
@@ -102,8 +119,8 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
             <option value="longest">{t('meetings.list.sortLongest')}</option>
           </select>
           {adapter.canEdit ? (
-            <Button onClick={() => setCreating(true)}>
-              <Plus /> {t('meetings.new.button')}
+            <Button onClick={() => void startNewMeeting()} disabled={creating}>
+              {creating ? <Loader2 className="animate-spin" /> : <Plus />} {t('meetings.new.button')}
             </Button>
           ) : null}
         </div>
@@ -129,7 +146,7 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
           description={t('meetings.list.emptyDescription')}
           action={
             adapter.canEdit ? (
-              <Button onClick={() => setCreating(true)}>
+              <Button onClick={() => void startNewMeeting()} disabled={creating}>
                 <Mic /> {t('meetings.list.emptyAction')}
               </Button>
             ) : undefined
@@ -190,16 +207,6 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
         </ul>
       )}
 
-      <NewMeetingDialog
-        open={creating}
-        onOpenChange={setCreating}
-        projectName={adapter.projectName}
-        onCreate={async (input) => {
-          const meeting = await mutations.create.mutateAsync(input)
-          navigate(adapter.meetingHref(meeting.id))
-          return meeting
-        }}
-      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => !open && setPendingDelete(null)}

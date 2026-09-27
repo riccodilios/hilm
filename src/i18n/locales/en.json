@@ -1437,9 +1437,7 @@
     },
     "new": {
       "button": "New meeting",
-      "title": "New meeting",
-      "description": "Record and summarize a meeting for {{project}}.",
-      "create": "Create meeting"
+      "defaultTitle": "Meeting · {{date}}"
     },
     "fields": {
       "title": "Title",
@@ -1481,7 +1479,7 @@
       "finishing": "Saving the last part…",
       "pause": "Pause",
       "resume": "Resume",
-      "stop": "Stop & process",
+      "stop": "End meeting",
       "continue": "Continue recording",
       "finishNow": "Finish & process",
       "recordMore": "Record more",
@@ -1511,7 +1509,10 @@
         "monthly_meeting_limit": "You have used all meeting minutes for this month.",
         "tier_disabled": "Meeting recording is not available on your plan.",
         "upload_failed": "Some audio could not be uploaded yet. It is saved on this device and will retry automatically."
-      }
+      },
+      "tapToStart": "Tap the orb to start recording",
+      "listening": "Listening",
+      "speaking": "Hearing speech"
     },
     "processing": {
       "uploading": "Uploading audio ({{done}}/{{total}})",
@@ -1632,6 +1633,13 @@
       "exportFailed": "Could not export the meeting.",
       "copyFailed": "Could not copy to the clipboard.",
       "noTaskPermission": "You do not have permission to create tasks in this workspace."
+    },
+    "wrapUp": {
+      "title": "Name this meeting",
+      "description": "Hilm is already transcribing. Add a name and any context so the summary is easy to find later.",
+      "startedAt": "Started {{time}}",
+      "save": "Save details",
+      "skip": "Skip for now"
     }
   }
 }

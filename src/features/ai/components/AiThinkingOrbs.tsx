@@ -29,8 +29,16 @@ const CONFIG: Record<ThinkingOrbState, OrbConfig> = {
   error: { dots: 32, radius: 0.36, speed: 0.2, wobble: 0.01, sizeMin: 1, sizeMax: 1.6 },
 }
 
+type Point = { x: number; y: number; z: number }
+const sphereCache = new Map<number, Point[]>()
+
+/** Milliseconds for the orb to ease from one state to the next. */
+const STATE_EASE_MS = 450
+
 function fibSphere(count: number) {
-  const pts: Array<{ x: number; y: number; z: number }> = []
+  const cached = sphereCache.get(count)
+  if (cached) return cached
+  const pts: Point[] = []
   const golden = Math.PI * (3 - Math.sqrt(5))
   for (let i = 0; i < count; i++) {
     const y = 1 - (i / Math.max(count - 1, 1)) * 2
@@ -38,7 +46,20 @@ function fibSphere(count: number) {
     const theta = golden * i
     pts.push({ x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius })
   }
+  sphereCache.set(count, pts)
   return pts
+}
+
+function lerpConfig(a: OrbConfig, b: OrbConfig, t: number): OrbConfig {
+  const mix = (x: number, y: number) => x + (y - x) * t
+  return {
+    dots: b.dots,
+    radius: mix(a.radius, b.radius),
+    speed: mix(a.speed, b.speed),
+    wobble: mix(a.wobble, b.wobble),
+    sizeMin: mix(a.sizeMin, b.sizeMin),
+    sizeMax: mix(a.sizeMax, b.sizeMax),
+  }
 }
 
 function resolveInk(theme: 'auto' | 'dark' | 'light'): { r: number; g: number; b: number } {
@@ -95,8 +116,16 @@ export function AiThinkingOrbs({
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let raf = 0
-    let t = 0
     let last = performance.now()
+    // Accumulated phases so speed/state changes never make the sphere jump.
+    let rotY = 0
+    let rotX = 0
+    let wobblePhase = 0
+    let speedFactor = speedRef.current
+    let shownState = stateRef.current
+    let fromCfg = CONFIG[shownState]
+    let fromDots = fibSphere(fromCfg.dots)
+    let blend = 1
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const css = size
@@ -119,31 +148,26 @@ export function AiThinkingOrbs({
     }
     document.addEventListener('visibilitychange', onVisibility)
 
-    const drawFrame = (time: number, staticFrame = false) => {
-      const cfg = CONFIG[stateRef.current]
-      const pts = fibSphere(cfg.dots)
-      const ink =
-        stateRef.current === 'error'
-          ? resolveErrorInk(themeRef.current)
-          : resolveInk(themeRef.current)
+    const drawDots = (
+      pts: Point[],
+      cfg: OrbConfig,
+      opacity: number,
+      ink: { r: number; g: number; b: number },
+      staticFrame: boolean,
+    ) => {
+      if (opacity <= 0.01) return
       const cx = css / 2
       const cy = css / 2
       const R = css * cfg.radius
-
-      ctx.clearRect(0, 0, css, css)
-
-      const rotY = time * cfg.speed * speedRef.current * 0.0012
-      const rotX = time * cfg.speed * speedRef.current * 0.0007
-
+      const cosY = Math.cos(rotY)
+      const sinY = Math.sin(rotY)
+      const cosX = Math.cos(rotX)
+      const sinX = Math.sin(rotX)
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i]!
         let x = p.x
         let y = p.y
         let z = p.z
-        const cosY = Math.cos(rotY)
-        const sinY = Math.sin(rotY)
-        const cosX = Math.cos(rotX)
-        const sinX = Math.sin(rotX)
         const xz = x * cosY - z * sinY
         z = x * sinY + z * cosY
         x = xz
@@ -151,11 +175,9 @@ export function AiThinkingOrbs({
         z = y * sinX + z * cosX
         y = yz
 
-        const wobble = staticFrame
-          ? 0
-          : Math.sin(time * 0.003 * cfg.speed + i * 0.7) * cfg.wobble * css
+        const wobble = staticFrame ? 0 : Math.sin(wobblePhase + i * 0.7) * cfg.wobble * css
         const depth = (z + 1) * 0.5
-        const alpha = 0.22 + depth * 0.78
+        const alpha = (0.22 + depth * 0.78) * opacity
         const dot = cfg.sizeMin + depth * (cfg.sizeMax - cfg.sizeMin)
 
         ctx.beginPath()
@@ -165,23 +187,46 @@ export function AiThinkingOrbs({
       }
     }
 
-    if (reduce) {
-      drawFrame(0, true)
-      return () => {
-        io.disconnect()
-        document.removeEventListener('visibilitychange', onVisibility)
+    const drawFrame = (dt: number, staticFrame = false) => {
+      if (stateRef.current !== shownState) {
+        // Start easing from whatever is on screen right now.
+        fromCfg = lerpConfig(fromCfg, CONFIG[shownState], blend)
+        fromDots = fibSphere(CONFIG[shownState].dots)
+        shownState = stateRef.current
+        blend = 0
       }
+      blend = staticFrame ? 1 : Math.min(1, blend + dt / STATE_EASE_MS)
+      const eased = blend * blend * (3 - 2 * blend)
+      const target = CONFIG[shownState]
+      const cfg = lerpConfig(fromCfg, target, eased)
+      speedFactor += (speedRef.current - speedFactor) * Math.min(1, dt / 220)
+
+      rotY += dt * cfg.speed * speedFactor * 0.0012
+      rotX += dt * cfg.speed * speedFactor * 0.0007
+      wobblePhase += dt * 0.003 * cfg.speed * Math.max(0.6, speedFactor)
+
+      const ink = shownState === 'error' ? resolveErrorInk(themeRef.current) : resolveInk(themeRef.current)
+      ctx.clearRect(0, 0, css, css)
+      const toDots = fibSphere(target.dots)
+      if (eased < 1 && fromDots !== toDots) drawDots(fromDots, cfg, 1 - eased, ink, staticFrame)
+      drawDots(toDots, cfg, fromDots === toDots ? 1 : eased, ink, staticFrame)
     }
 
+    let staticState: ThinkingOrbState | null = null
     const tick = (now: number) => {
       const dt = Math.min(32, now - last)
       last = now
-      if (!pausedRef.current && visibleRef.current && document.visibilityState === 'visible') {
-        t += dt
-        drawFrame(t)
+      if (reduce) {
+        if (staticState !== stateRef.current) {
+          drawFrame(0, true)
+          staticState = shownState
+        }
+      } else if (!pausedRef.current && visibleRef.current && document.visibilityState === 'visible') {
+        drawFrame(dt)
       }
       raf = requestAnimationFrame(tick)
     }
+    if (reduce) drawFrame(0, true)
     raf = requestAnimationFrame(tick)
 
     return () => {

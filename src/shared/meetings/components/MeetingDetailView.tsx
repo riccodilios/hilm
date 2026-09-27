@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -33,6 +33,7 @@ import { MeetingSpeakersDialog } from './MeetingSpeakersDialog'
 import { MeetingStatusBadge } from './MeetingStatusBadge'
 import { MeetingSummarySection } from './MeetingSummarySection'
 import { MeetingTranscript } from './MeetingTranscript'
+import { MeetingWrapUpDialog } from './MeetingWrapUpDialog'
 
 type DetailTab = 'summary' | 'actions' | 'transcript'
 
@@ -51,6 +52,10 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
   const [titleDraft, setTitleDraft] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [wrapUp, setWrapUp] = useState<{ open: boolean; durationMs: number }>({ open: false, durationMs: 0 })
+  const location = useLocation()
+  const autoRecord = Boolean((location.state as { autoRecord?: boolean } | null)?.autoRecord)
+  const clearAutoRecord = () => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
 
   const meeting = detail?.meeting
   const isActive = recorder.isActiveFor(meetingId)
@@ -208,7 +213,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
               </h1>
             )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted">
-              <MeetingStatusBadge status={meeting.status} />
+              <MeetingStatusBadge status={isActive ? 'recording' : meeting.status} />
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays className="size-4" /> {dateFormatter.format(new Date(when))}
               </span>
@@ -270,7 +275,17 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
         </div>
       </div>
 
-      {showRecorder ? <MeetingRecorderPanel adapter={adapter} detail={detail} /> : null}
+      {showRecorder ? (
+        <MeetingRecorderPanel
+          adapter={adapter}
+          detail={detail}
+          autoStart={autoRecord}
+          onAutoStartHandled={clearAutoRecord}
+          onStopped={({ firstSession, durationMs }) => {
+            if (firstSession) setWrapUp({ open: true, durationMs })
+          }}
+        />
+      ) : null}
       <MeetingProcessingPanel adapter={adapter} detail={detail} />
       {meeting.status === 'ready' && adapter.canEdit && !isActive ? (
         <MeetingRecorderPanel adapter={adapter} detail={detail} compact />
@@ -331,6 +346,15 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
         </Tabs>
       ) : null}
 
+      <MeetingWrapUpDialog
+        open={wrapUp.open}
+        onOpenChange={(open) => setWrapUp((prev) => ({ ...prev, open }))}
+        meeting={meeting}
+        durationMs={wrapUp.durationMs}
+        onSave={async (patch) => {
+          await mutations.update.mutateAsync(patch)
+        }}
+      />
       <MeetingSpeakersDialog open={speakersOpen} onOpenChange={setSpeakersOpen} adapter={adapter} detail={detail} />
       <ConfirmDialog
         open={confirmDelete}
