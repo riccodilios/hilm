@@ -1,6 +1,7 @@
 /** Meeting processing engine: per-segment transcription and whole-meeting analysis. */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { featureDisabledMessage, getAiRuntimeConfig } from './ai-config'
+import { featureDisabledMessage } from './ai-config'
+import { loadEffectiveAiConfig } from './ai-runtime-db'
 import { beginAiRequest, completeAiRequest, estimateTokensFromText, tokensFromOpenRouterUsage } from './ai-guard'
 import { hashBytes } from './ai-gateway'
 import { resolveAllowedAiModel } from './ai-limits'
@@ -66,19 +67,53 @@ export type StepResult =
   | { ok: true; state: 'transcribed' | 'analyzed' | 'idle' | 'waiting' | 'busy'; more: boolean }
   | { ok: false; code: string; message: string; status: number }
 
+const MEETING_COLUMNS_BASE =
+  'id, title, status, project_id, held_at, started_at, language, summary, expected_segments, processing_attempts, processing_stage, updated_at'
 const MEETING_COLUMNS =
-  'id, title, status, project_id, held_at, started_at, language, summary, expected_segments, processing_attempts, processing_stage, analysis_input_hash, updated_at'
+  `${MEETING_COLUMNS_BASE}, analysis_input_hash`
+
+function isMissingColumnError(message: string | undefined) {
+  const text = (message || '').toLowerCase()
+  return text.includes('does not exist') || text.includes('could not find') || text.includes('analysis_input_hash') || text.includes('content_hash')
+}
+
+/** Soft-write optional migration-0028 columns so deploys stay safe before the SQL lands. */
+async function softUpdate(
+  ctx: EngineContext,
+  table: string,
+  patch: Record<string, unknown>,
+  match: { column: string; value: string },
+) {
+  const { error } = await ctx.client.from(table).update(patch).eq(match.column, match.value)
+  if (!error) return
+  if (!isMissingColumnError(error.message)) throw new Error(error.message)
+  const fallback = { ...patch }
+  delete fallback.analysis_input_hash
+  delete fallback.content_hash
+  if (Object.keys(fallback).length === Object.keys(patch).length) throw new Error(error.message)
+  if (!Object.keys(fallback).length) return
+  const retry = await ctx.client.from(table).update(fallback).eq(match.column, match.value)
+  if (retry.error) throw new Error(retry.error.message)
+}
 
 export async function loadMeeting(ctx: EngineContext, meetingId: string): Promise<MeetingRow | null> {
   const tables = meetingTables(ctx.os)
   const ownerCols = ctx.os === 'workspace' ? ', workspace_id, created_by' : ', user_id'
-  const { data, error } = await ctx.client
+  const primary = await ctx.client
     .from(tables.meetings)
     .select(MEETING_COLUMNS + ownerCols)
     .eq('id', meetingId)
     .maybeSingle()
-  if (error) throw new Error(error.message)
-  return (data as unknown as MeetingRow | null) ?? null
+  if (!primary.error) return (primary.data as unknown as MeetingRow | null) ?? null
+  if (!isMissingColumnError(primary.error.message)) throw new Error(primary.error.message)
+  // Migration 0028 not applied yet — load without analysis_input_hash.
+  const fallback = await ctx.client
+    .from(tables.meetings)
+    .select(MEETING_COLUMNS_BASE + ownerCols)
+    .eq('id', meetingId)
+    .maybeSingle()
+  if (fallback.error) throw new Error(fallback.error.message)
+  return (fallback.data as unknown as MeetingRow | null) ?? null
 }
 
 function scopeFor(ctx: EngineContext, meeting: MeetingRow) {
@@ -100,7 +135,7 @@ export async function transcribeSegment(
   meeting: MeetingRow,
   idx: number,
 ): Promise<StepResult> {
-  const runtime = getAiRuntimeConfig()
+  const runtime = await loadEffectiveAiConfig(ctx.client)
   if (!runtime.aiEnabled || !runtime.transcriptionEnabled) {
     return {
       ok: false,
@@ -111,14 +146,25 @@ export async function transcribeSegment(
   }
 
   const tables = meetingTables(ctx.os)
-  const { data: segmentData, error: segmentError } = await ctx.client
+  const audioSelectWithHash =
+    'id, idx, storage_path, duration_ms, offset_ms, status, attempts, content_hash, updated_at'
+  const audioSelectBase = 'id, idx, storage_path, duration_ms, offset_ms, status, attempts, updated_at'
+  let segmentQuery = await ctx.client
     .from(tables.audio)
-    .select('id, idx, storage_path, duration_ms, offset_ms, status, attempts, content_hash, updated_at')
+    .select(audioSelectWithHash)
     .eq('meeting_id', meeting.id)
     .eq('idx', idx)
     .maybeSingle()
-  if (segmentError) throw new Error(segmentError.message)
-  const segment = segmentData as AudioRow | null
+  if (segmentQuery.error && isMissingColumnError(segmentQuery.error.message)) {
+    segmentQuery = await ctx.client
+      .from(tables.audio)
+      .select(audioSelectBase)
+      .eq('meeting_id', meeting.id)
+      .eq('idx', idx)
+      .maybeSingle()
+  }
+  if (segmentQuery.error) throw new Error(segmentQuery.error.message)
+  const segment = segmentQuery.data as AudioRow | null
   if (!segment) return { ok: false, code: 'not_found', message: 'Audio segment not found', status: 404 }
   if (segment.status === 'transcribed') return { ok: true, state: 'transcribed', more: true }
   if (segment.status === 'failed' && segment.attempts >= MEETING_AUTO_ATTEMPTS) {
@@ -158,7 +204,7 @@ export async function transcribeSegment(
   const contentHash = hashBytes(audioBuffer)
   const audioBase64 = audioBuffer.toString('base64')
   if (!segment.content_hash || segment.content_hash !== contentHash) {
-    await ctx.client.from(tables.audio).update({ content_hash: contentHash }).eq('id', segment.id)
+    await softUpdate(ctx, tables.audio, { content_hash: contentHash }, { column: 'id', value: segment.id })
   }
 
   // Idempotency: same meeting+chunk+audio hash already billed successfully → do not re-pay.
@@ -352,18 +398,20 @@ export async function transcribeSegment(
 // ── Analysis ────────────────────────────────────────────────────────────────
 
 export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): Promise<StepResult> {
-  const runtime = getAiRuntimeConfig()
+  const runtime = await loadEffectiveAiConfig(ctx.client)
   if (!runtime.aiEnabled || !runtime.analysisEnabled) {
     // Transcript is already stored — surface a clear limit state instead of failing hard forever.
-    await ctx.client
-      .from(meetingTables(ctx.os).meetings)
-      .update({
+    await softUpdate(
+      ctx,
+      meetingTables(ctx.os).meetings,
+      {
         status: 'ready',
         processing_stage: null,
         processing_error: featureDisabledMessage('meeting_analyze'),
         analyzed_at: new Date().toISOString(),
-      })
-      .eq('id', meeting.id)
+      },
+      { column: 'id', value: meeting.id },
+    )
     return { ok: true, state: 'analyzed', more: false }
   }
 
@@ -428,16 +476,18 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
   }))
 
   const finishReady = async (patch: Record<string, unknown>) => {
-    await ctx.client
-      .from(tables.meetings)
-      .update({
+    await softUpdate(
+      ctx,
+      tables.meetings,
+      {
         status: 'ready',
         processing_stage: null,
         processing_error: null,
         analyzed_at: new Date().toISOString(),
         ...patch,
-      })
-      .eq('id', meeting.id)
+      },
+      { column: 'id', value: meeting.id },
+    )
   }
 
   if (!lines.length) {

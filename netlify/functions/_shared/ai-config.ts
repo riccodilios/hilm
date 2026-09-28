@@ -114,3 +114,47 @@ export function featureDisabledMessage(feature: AiFeature): string {
 export function resolveFeatureModel(feature: AiFeature, config = getAiRuntimeConfig()): string {
   return config.models[feature]
 }
+
+/**
+ * Overlay DB kill switches from `ai_runtime_controls` (migration 0028) onto env config.
+ * Env vars still win when explicitly set; DB is for ops toggles without redeploy.
+ * Missing table/function is non-fatal (pre-migration).
+ */
+export async function mergeDbRuntimeControls(
+  config: AiRuntimeConfig,
+  fetchControls: () => Promise<{
+    ai_enabled?: boolean
+    transcription_enabled?: boolean
+    analysis_enabled?: boolean
+    max_global_daily_cost_usd?: number | null
+  } | null>,
+): Promise<AiRuntimeConfig> {
+  try {
+    const row = await fetchControls()
+    if (!row) return config
+    return {
+      ...config,
+      // Explicit env overrides remain authoritative when set.
+      aiEnabled:
+        process.env.AI_ENABLED != null && process.env.AI_ENABLED.trim() !== ''
+          ? config.aiEnabled
+          : row.ai_enabled !== false,
+      transcriptionEnabled:
+        process.env.TRANSCRIPTION_ENABLED != null && process.env.TRANSCRIPTION_ENABLED.trim() !== ''
+          ? config.transcriptionEnabled
+          : row.transcription_enabled !== false,
+      analysisEnabled:
+        process.env.ANALYSIS_ENABLED != null && process.env.ANALYSIS_ENABLED.trim() !== ''
+          ? config.analysisEnabled
+          : row.analysis_enabled !== false,
+      maxGlobalDailyCostUsd:
+        process.env.MAX_GLOBAL_DAILY_AI_COST != null && process.env.MAX_GLOBAL_DAILY_AI_COST.trim() !== ''
+          ? config.maxGlobalDailyCostUsd
+          : typeof row.max_global_daily_cost_usd === 'number'
+            ? row.max_global_daily_cost_usd
+            : config.maxGlobalDailyCostUsd,
+    }
+  } catch {
+    return config
+  }
+}

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { featureDisabledMessage, getAiRuntimeConfig } from './_shared/ai-config'
+import { featureDisabledMessage } from './_shared/ai-config'
+import { loadEffectiveAiConfig } from './_shared/ai-runtime-db'
 import {
   aiCorsHeaders,
   aiJson,
@@ -116,7 +117,7 @@ export default async (request: Request) => {
     if (!body.conversationId || !body.message?.trim()) {
       return json({ error: 'conversationId and message are required' }, 400)
     }
-    const runtime = getAiRuntimeConfig()
+    const runtime = await loadEffectiveAiConfig(userClient)
     if (!runtime.aiEnabled) {
       return json({ error: featureDisabledMessage('chat'), code: 'disabled' }, 403)
     }

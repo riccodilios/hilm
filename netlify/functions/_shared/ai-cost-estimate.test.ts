@@ -11,16 +11,30 @@ import type { AnalysisLine } from './meeting-core'
 describe('meeting cost estimates (bookkeeping rates)', () => {
   it('shows STT dominates cost for 15–120 minute meetings', () => {
     const table = estimateCostTable([15, 30, 60, 120])
+    // Baseline STT call counts at 90s chunks, no overlap.
+    expect(table.map((row) => [row.durationMinutes, row.segmentCount])).toEqual([
+      [15, 10],
+      [30, 20],
+      [60, 40],
+      [120, 80],
+    ])
     for (const row of table) {
       expect(row.segmentCount).toBe(Math.ceil((row.durationMinutes * 60) / 90))
       // Audio STT is the primary driver vs analysis for typical lengths.
       expect(row.transcriptionEstimatedUsd).toBeGreaterThan(row.analysisDirectEstimatedUsd)
       expect(row.totalTranscriptionPlusDirectUsd).toBeGreaterThan(0)
+      // Explicit machine-readable cost line for production reports.
+      // eslint-disable-next-line no-console
+      console.log(
+        `COST_ROW minutes=${row.durationMinutes} segments=${row.segmentCount} stt_usd=${row.transcriptionEstimatedUsd.toFixed(6)} analysis_usd=${row.analysisDirectEstimatedUsd.toFixed(6)} total_usd=${row.totalTranscriptionPlusDirectUsd.toFixed(6)}`,
+      )
     }
     const hour = table.find((row) => row.durationMinutes === 60)!
     // Sanity band for current bookkeeping rates (~$0.10–$0.30 / hour audio-heavy).
     expect(hour.transcriptionEstimatedUsd).toBeGreaterThan(0.05)
     expect(hour.transcriptionEstimatedUsd).toBeLessThan(1.5)
+    // eslint-disable-next-line no-console
+    console.log(`COST_PER_HOUR_STT_USD=${hour.transcriptionEstimatedUsd.toFixed(6)}`)
   })
 
   it('uses hierarchical analysis token estimate for long transcripts', () => {
