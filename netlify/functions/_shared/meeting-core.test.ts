@@ -5,9 +5,11 @@ import {
   buildAnalysisTranscript,
   buildTranscriptionPrompt,
   extractJsonObject,
+  inferSpokenLanguages,
   normalizeLanguageCode,
   normalizeSpeakerLabel,
   parseClockOrSeconds,
+  resolveSegmentLanguageMeta,
   sanitizeAnalysis,
   stitchChunkSegments,
   transcriptionResponseSchema,
@@ -48,6 +50,7 @@ describe('transcription parsing and stitching', () => {
         end_ms: 274_200,
         text: 'مرحبا بالجميع',
         language: 'ar',
+        languages: ['ar'],
         confidence: null,
         ordinal: 30_000,
       },
@@ -57,6 +60,7 @@ describe('transcription parsing and stitching', () => {
         end_ms: 279_000,
         text: 'Let us review the API',
         language: 'en',
+        languages: ['en'],
         confidence: null,
         ordinal: 30_001,
       },
@@ -70,11 +74,12 @@ describe('transcription parsing and stitching', () => {
     expect(normalizeLanguageCode('Egyptian Arabic')).toBe('ar-EG')
     expect(normalizeLanguageCode('gulf')).toBe('ar-AE')
     expect(normalizeLanguageCode('en')).toBe('en')
+    expect(normalizeLanguageCode('mixed')).toBe('mixed')
     expect(normalizeLanguageCode('')).toBeNull()
     expect(normalizeLanguageCode(null)).toBeNull()
   })
 
-  it('preserves mixed Arabic+English technical speech and dialect language tags', () => {
+  it('preserves mixed Arabic+English technical speech and marks mixed language metadata', () => {
     const response = transcriptionResponseSchema.parse({
       segments: [
         {
@@ -83,6 +88,7 @@ describe('transcription parsing and stitching', () => {
           end: 5,
           text: 'لازم نخلص الـ backend اليوم وبعدين نعمل deployment على production.',
           language: 'Saudi Arabic',
+          languages: ['ar', 'en'],
           confidence: 0.92,
         },
         {
@@ -99,35 +105,61 @@ describe('transcription parsing and stitching', () => {
           text: 'We need to finish the API integration before Thursday.',
           language: 'en',
         },
+        {
+          speaker: 'Speaker 1',
+          start: 12,
+          end: 16,
+          text: 'الشركة تستخدم Visma في المحاسبة.',
+          language: 'ar',
+          languages: ['ar', 'en'],
+        },
       ],
     })
     const out = stitchChunkSegments({ response, chunkIdx: 0, offsetMs: 0, durationMs: 60_000, roster })
     expect(out[0]).toMatchObject({
-      language: 'ar-SA',
+      language: 'mixed',
+      languages: ['ar', 'en'],
       confidence: 0.92,
       text: 'لازم نخلص الـ backend اليوم وبعدين نعمل deployment على production.',
     })
-    expect(out[1]).toMatchObject({ language: 'ar-LB' })
-    expect(out[2]).toMatchObject({ language: 'en' })
+    expect(out[1]).toMatchObject({ language: 'mixed', languages: expect.arrayContaining(['ar', 'en']) })
+    expect(out[2]).toMatchObject({ language: 'en', languages: ['en'] })
+    expect(out[3]!.text).toContain('Visma')
+    expect(out[3]).toMatchObject({ language: 'mixed' })
     expect(out[0]!.text).toContain('backend')
     expect(out[0]!.text).toContain('deployment')
     expect(out[1]!.text).toContain('API')
   })
 
-  it('transcription prompt requires auto language detection and forbids forced translation', () => {
+  it('infers spoken languages from script without rewriting text', () => {
+    expect(inferSpokenLanguages('خلينا نراجع the API integration')).toEqual(['ar', 'en'])
+    expect(inferSpokenLanguages('Let us review the API architecture.')).toEqual(['en'])
+    expect(inferSpokenLanguages('خلينا نراجع الموضوع مرة ثانية.')).toEqual(['ar'])
+    expect(
+      resolveSegmentLanguageMeta({
+        language: 'ar',
+        text: 'نحتاج نعمل deployment على production',
+      }),
+    ).toEqual({ language: 'mixed', languages: ['ar', 'en'] })
+  })
+
+  it('transcription prompt forbids meeting-level language lock, translation, and transliteration', () => {
     const prompt = buildTranscriptionPrompt({
       roster,
-      previousLines: [],
-      languageHint: 'ar',
+      previousLines: [{ label: 'Speaker 1', text: 'السلام عليكم' }],
       chunkIdx: 0,
+      vocabulary: ['Visma', 'Milkman'],
     })
-    expect(prompt).toMatch(/automatic language detection/i)
-    expect(prompt).toMatch(/NEVER force a single meeting language/i)
-    expect(prompt).toMatch(/code-switching/i)
-    expect(prompt).toMatch(/Saudi|Gulf|Lebanese|Egyptian/i)
-    expect(prompt).toMatch(/backend/)
-    expect(prompt).toMatch(/must NOT force, bias, or override/i)
-    expect(prompt).not.toMatch(/force the transcript into English/i)
+    expect(prompt).toMatch(/language-agnostic/i)
+    expect(prompt).toMatch(/NO MEETING-LEVEL LANGUAGE LOCK/i)
+    expect(prompt).toMatch(/THIS IS TRANSCRIPTION, NOT TRANSLATION/i)
+    expect(prompt).toMatch(/Do NOT transliterate English into Arabic/i)
+    expect(prompt).toMatch(/Visma/)
+    expect(prompt).toMatch(/Milkman/)
+    expect(prompt).toMatch(/speaker continuity ONLY/i)
+    expect(prompt).toMatch(/code-switching|CODE-SWITCHING/i)
+    expect(prompt).toMatch(/UI language.*MUST NOT decide/i)
+    expect(prompt).not.toMatch(/languageHint/)
   })
 
   it('analysis prompt understands Arabic dates and multilingual actions', () => {
@@ -294,5 +326,106 @@ describe('sanitizeAnalysis', () => {
     const text = buildAnalysisTranscript(lines)
     expect(text).toBe("[#1] (00:00) Speaker 1: We will ship on Thursday.\n[#2] (00:05) Speaker 2: I'll write the release notes.")
     expect(buildAnalysisTranscript(lines, 60).split('\n')).toHaveLength(1)
+  })
+})
+
+describe('true multilingual meeting scenarios', () => {
+  function stitch(segments: Array<Record<string, unknown>>) {
+    const response = transcriptionResponseSchema.parse({ segments })
+    return stitchChunkSegments({ response, chunkIdx: 0, offsetMs: 0, durationMs: 120_000, roster })
+  }
+
+  it('TEST 1 — Arabic meeting start does not force later English into Arabic', () => {
+    const out = stitch([
+      { speaker: 'Speaker 1', start: 0, end: 4, text: 'السلام عليكم، خلونا نبدأ الاجتماع.', language: 'ar' },
+      {
+        speaker: 'Speaker 2',
+        start: 5,
+        end: 10,
+        text: "Let's discuss the new API architecture.",
+        language: 'en',
+      },
+    ])
+    expect(out[1]!.text).toBe("Let's discuss the new API architecture.")
+    expect(out[1]!.language).toBe('en')
+    expect(out[1]!.text).not.toMatch(/[\u0600-\u06FF]/)
+  })
+
+  it('TEST 2 — English meeting start does not force later Arabic into English', () => {
+    const out = stitch([
+      { speaker: 'Speaker 1', start: 0, end: 4, text: 'Today we will review the roadmap.', language: 'en' },
+      {
+        speaker: 'Speaker 2',
+        start: 5,
+        end: 10,
+        text: 'خلينا نراجع الموضوع مرة ثانية.',
+        language: 'ar',
+      },
+    ])
+    expect(out[1]!.text).toBe('خلينا نراجع الموضوع مرة ثانية.')
+    expect(out[1]!.language).toBe('ar')
+    expect(out[1]!.text).not.toMatch(/review|topic/i)
+  })
+
+  it('TEST 3 — Arabic + English in one sentence stays mixed', () => {
+    const text = 'خلينا نراجع the API integration وبعدها نرسل التقرير.'
+    const out = stitch([{ speaker: 'Speaker 1', start: 0, end: 6, text, language: 'mixed', languages: ['ar', 'en'] }])
+    expect(out[0]!.text).toBe(text)
+    expect(out[0]).toMatchObject({ language: 'mixed', languages: ['ar', 'en'] })
+  })
+
+  it('TEST 4 — English company name inside Arabic is not transliterated', () => {
+    const text = 'الشركة تستخدم Visma في المحاسبة.'
+    const out = stitch([{ speaker: 'Speaker 1', start: 0, end: 5, text, language: 'ar', languages: ['ar', 'en'] }])
+    expect(out[0]!.text).toContain('Visma')
+    expect(out[0]!.text).not.toContain('فيجم')
+  })
+
+  it('TEST 5 — English proper noun Milkman is preserved (no entity hallucination)', () => {
+    const out = stitch([{ speaker: 'Speaker 1', start: 0, end: 2, text: 'Milkman', language: 'en' }])
+    expect(out[0]!.text).toBe('Milkman')
+    expect(out[0]!.text).not.toMatch(/دبل كليك|شركة/)
+  })
+
+  it('TEST 6 — multiple speakers keep independent languages', () => {
+    const out = stitch([
+      { speaker: 'Speaker 1', start: 0, end: 3, text: 'السلام عليكم، خلونا نبدأ الاجتماع.', language: 'ar' },
+      {
+        speaker: 'Speaker 2',
+        start: 3,
+        end: 8,
+        text: 'Sure, I think we should start with the API architecture.',
+        language: 'en',
+      },
+      {
+        speaker: 'Speaker 3',
+        start: 8,
+        end: 13,
+        text: 'أنا أتفق، but we need to check the database first.',
+        language: 'mixed',
+        languages: ['ar', 'en'],
+      },
+    ])
+    expect(out[0]!.language).toBe('ar')
+    expect(out[1]!.language).toBe('en')
+    expect(out[2]).toMatchObject({ language: 'mixed', languages: expect.arrayContaining(['ar', 'en']) })
+    expect(out[2]!.text).toContain('database')
+  })
+
+  it('TEST 7 — one speaker switching languages mid-turn', () => {
+    const text = 'Okay خلينا نبدأ. أول شيء we need to check the database.'
+    const out = stitch([{ speaker: 'Speaker 1', start: 0, end: 8, text, language: 'mixed' }])
+    expect(out[0]!.text).toBe(text)
+    expect(out[0]!.language).toBe('mixed')
+  })
+
+  it('TEST 8 — technical discussion preserves English terms inside Arabic', () => {
+    const text = 'نحتاج نعمل deployment على production وبعدها نراجع the database migration.'
+    const out = stitch([{ speaker: 'Speaker 1', start: 0, end: 8, text }])
+    expect(out[0]!.text).toBe(text)
+    expect(out[0]!.text).toContain('deployment')
+    expect(out[0]!.text).toContain('production')
+    expect(out[0]!.text).toContain('database migration')
+    expect(out[0]!.language).toBe('mixed')
   })
 })

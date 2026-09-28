@@ -256,7 +256,7 @@ export async function transcribeSegment(
   }
 
   const previousLimit = runtime.meeting.previousContextLines
-  const [{ data: speakerRows }, { data: previousRows }] = await Promise.all([
+  const [{ data: speakerRows }, { data: previousRows }, projectResult] = await Promise.all([
     ctx.client
       .from(tables.speakers)
       .select('id, label, description, display_name, ordinal')
@@ -269,18 +269,36 @@ export async function transcribeSegment(
       .lt('ordinal', idx * 10_000)
       .order('ordinal', { ascending: false })
       .limit(previousLimit),
+    meeting.project_id
+      ? ctx.client
+          .from(ctx.os === 'workspace' ? 'workspace_projects' : 'projects')
+          .select('name')
+          .eq('id', meeting.project_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { name?: string } | null }),
   ])
   const roster = ((speakerRows ?? []) as Array<RosterSpeaker & { ordinal: number }>).slice()
   const labelById = new Map(roster.map((speaker) => [speaker.id, speaker.label]))
   const previousLines = ((previousRows ?? []) as Array<{ text: string; speaker_id: string | null }>)
     .reverse()
     .map((row) => ({ label: (row.speaker_id && labelById.get(row.speaker_id)) || 'Speaker', text: row.text }))
+  const projectName = (projectResult.data as { name?: string } | null)?.name?.trim() || null
 
+  // Never pass UI locale / meeting.language into transcription — that locks the whole chunk.
   const prompt = buildTranscriptionPrompt({
     roster,
     previousLines,
-    languageHint: ctx.locale ?? null,
     chunkIdx: idx,
+    vocabulary: [
+      ...(projectName ? [projectName] : []),
+      'Hilm',
+      'Visma',
+      'Milkman',
+      'API',
+      'Supabase',
+      'Netlify',
+      'GitHub',
+    ],
   })
 
   const result = await transcribeAudioChunk({
@@ -373,6 +391,7 @@ export async function transcribeSegment(
         end_ms: row.end_ms,
         text: row.text,
         language: row.language,
+        languages: row.languages,
       })),
     )
     if (insertError) {

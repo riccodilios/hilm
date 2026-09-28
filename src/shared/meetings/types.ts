@@ -53,8 +53,10 @@ export type MeetingTranscriptSegment = {
   startMs: number
   endMs: number
   text: string
-  /** Detected spoken language for this segment (language_code): en, ar, ar-SA, ar-LB, … */
+  /** Detected spoken language for this segment (language_code): en, ar, ar-SA, mixed, … */
   language: string | null
+  /** Languages present in this segment when code-switching (e.g. ["ar","en"]). */
+  languages: string[]
 }
 
 export type MeetingDecision = {

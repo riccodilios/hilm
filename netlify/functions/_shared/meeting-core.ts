@@ -36,7 +36,7 @@ const numberish = z.union([z.number(), z.string()]).transform((value, ctx) => {
 
 /**
  * Normalize provider language tags for storage.
- * Accepts BCP-47-ish codes (`en`, `ar`, `ar-SA`, `ar-LB`) and common dialect labels.
+ * Accepts BCP-47-ish codes (`en`, `ar`, `ar-SA`, `ar-LB`), `mixed`, and common dialect labels.
  * Returns null when the provider did not supply a usable code — never invent one.
  */
 export function normalizeLanguageCode(raw: string | null | undefined): string | null {
@@ -44,6 +44,10 @@ export function normalizeLanguageCode(raw: string | null | undefined): string | 
   const trimmed = String(raw).trim()
   if (!trimmed) return null
   const lower = trimmed.toLowerCase().replace(/_/g, '-')
+
+  if (lower === 'mixed' || lower === 'multilingual' || lower === 'code-switch' || lower === 'code-switching') {
+    return 'mixed'
+  }
 
   const dialectMap: Record<string, string> = {
     arabic: 'ar',
@@ -88,6 +92,60 @@ const languageCodeField = z
   .union([z.string(), z.null(), z.undefined()])
   .transform((value) => normalizeLanguageCode(typeof value === 'string' ? value : null))
 
+/** Script-based language list for metadata only — never rewrites transcript text. */
+export function inferSpokenLanguages(text: string): string[] {
+  const arabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text)
+  const latin = /[A-Za-z]/.test(text)
+  if (arabic && latin) return ['ar', 'en']
+  if (arabic) return ['ar']
+  if (latin) return ['en']
+  return []
+}
+
+function primaryLanguageCode(code: string): string {
+  if (code === 'mixed') return 'mixed'
+  return code.split('-')[0] || code
+}
+
+export function resolveSegmentLanguageMeta(input: {
+  language?: string | null
+  languages?: Array<string | null | undefined> | null
+  text: string
+}): { language: string | null; languages: string[] } {
+  const fromModel = (input.languages ?? [])
+    .map((value) => normalizeLanguageCode(value))
+    .filter((value): value is string => Boolean(value))
+  const inferred = inferSpokenLanguages(input.text)
+  let language = normalizeLanguageCode(input.language)
+  // Merge model tags + script evidence; store primary codes (ar/en) in languages[].
+  const languages = [
+    ...new Set(
+      [...fromModel, ...inferred, ...(language && language !== 'mixed' ? [language] : [])]
+        .map(primaryLanguageCode)
+        .filter((code) => code !== 'mixed'),
+    ),
+  ]
+  if (languages.length > 1) language = 'mixed'
+  else if (!language && languages.length === 1) language = languages[0]!
+  return { language, languages }
+}
+
+const languageListField = z
+  .array(z.union([z.string(), z.null(), z.undefined()]))
+  .max(8)
+  .optional()
+  .nullable()
+  .transform((value) => {
+    if (!value) return [] as string[]
+    return [
+      ...new Set(
+        value
+          .map((entry) => normalizeLanguageCode(entry))
+          .filter((entry): entry is string => Boolean(entry)),
+      ),
+    ]
+  })
+
 export const transcriptionResponseSchema = z.object({
   segments: z
     .array(
@@ -96,8 +154,10 @@ export const transcriptionResponseSchema = z.object({
         start: numberish,
         end: numberish.optional(),
         text: z.string(),
-        /** Detected spoken language for this segment (e.g. en, ar, ar-SA). Optional. */
+        /** Detected spoken language for this segment (e.g. en, ar, ar-SA, mixed). Optional. */
         language: languageCodeField.optional(),
+        /** Languages present in this segment when code-switching. Optional. */
+        languages: languageListField,
         confidence: z.union([z.number(), z.string()]).optional().nullable().transform((value) => {
           if (value == null || value === '') return null
           const n = typeof value === 'number' ? value : Number(value)
@@ -131,6 +191,7 @@ export type StitchedSegment = {
   end_ms: number
   text: string
   language: string | null
+  languages: string[]
   confidence: number | null
   ordinal: number
 }
@@ -175,12 +236,18 @@ export function stitchChunkSegments(input: {
     if (maxMs > 0) endLocal = Math.min(endLocal, maxMs)
     if (endLocal < startLocal) endLocal = startLocal
     previousStart = startLocal
+    const meta = resolveSegmentLanguageMeta({
+      language: segment.language,
+      languages: segment.languages,
+      text,
+    })
     out.push({
       speakerLabel: normalizeSpeakerLabel(segment.speaker, roster),
       start_ms: offsetMs + startLocal,
       end_ms: offsetMs + endLocal,
       text,
-      language: segment.language ?? null,
+      language: meta.language,
+      languages: meta.languages,
       confidence: segment.confidence ?? null,
       ordinal: chunkIdx * MEETING_SEGMENT_ORDINAL_STRIDE + out.length,
     })
@@ -191,8 +258,8 @@ export function stitchChunkSegments(input: {
 export function buildTranscriptionPrompt(input: {
   roster: RosterSpeaker[]
   previousLines: Array<{ label: string; text: string }>
-  languageHint: string | null
   chunkIdx: number
+  vocabulary?: string[]
 }) {
   const rosterText = input.roster.length
     ? input.roster
@@ -202,35 +269,53 @@ export function buildTranscriptionPrompt(input: {
   const previous = input.previousLines.length
     ? input.previousLines.map((line) => `${line.label}: ${line.text}`).join('\n')
     : '(no earlier transcript)'
+  const vocabulary = (input.vocabulary ?? []).map((term) => term.trim()).filter(Boolean)
+  const vocabularyBlock = vocabulary.length
+    ? `VOCABULARY HINTS (improve recognition only — NEVER invent or substitute if the audio says something else):\n${vocabulary
+        .slice(0, 40)
+        .map((term) => `- ${term}`)
+        .join('\n')}`
+    : 'VOCABULARY HINTS: none beyond common technical terms.'
 
-  return `You are Hilm's multilingual meeting transcriber. Transcribe the attached audio, which is part ${input.chunkIdx + 1} of a longer meeting recording.
+  return `You are Hilm's language-agnostic meeting transcriber. Transcribe the attached audio, which is part ${input.chunkIdx + 1} of a longer meeting recording.
 
-CORE — automatic language detection (mandatory):
-- Detect language per segment. Do NOT assume the whole meeting is one language.
-- Different speakers may use different languages. The same speaker may switch mid-conversation or mid-sentence (code-switching).
-- NEVER force a single meeting language. NEVER translate the transcript into English or Modern Standard Arabic.
-- Preserve the original spoken language exactly: Arabic stays Arabic script; English stays Latin script; mixed speech stays mixed.
+THIS IS TRANSCRIPTION, NOT TRANSLATION.
+- Write exactly what was spoken, in the script/language it was spoken.
+- Do NOT translate Arabic ↔ English.
+- Do NOT transliterate English into Arabic letters (e.g. never turn "today" into "توداي").
+- Do NOT rewrite dialect Arabic into Modern Standard Arabic.
+- Do NOT paraphrase, summarize, or "clean up" meaning.
 
-ARABIC & DIALECTS:
-- Handle conversational Arabic naturally: Saudi, Gulf/Khaleeji, Lebanese/Levantine, Egyptian, and Modern Standard Arabic.
-- Do NOT "correct" dialect into MSA. Colloquial words, contractions, and informal phrasing must remain as spoken.
-- Spoken Arabic ≠ MSA. Prefer faithful dialect transcription over formal rewriting.
+NO MEETING-LEVEL LANGUAGE LOCK (critical):
+- Detect language dynamically for EVERY segment of THIS audio part.
+- The first seconds of the meeting, the UI language, a dominant language, or earlier transcript lines MUST NOT decide the language of later speech.
+- If earlier parts were Arabic and this part has English, transcribe English in English.
+- If earlier parts were English and this part has Arabic, transcribe Arabic in Arabic.
+- Different speakers may use different languages. One speaker may switch languages mid-turn or mid-sentence.
 
-TECHNICAL / BUSINESS TERMS (critical):
-- Keep English technical and business terms in Latin script even inside Arabic sentences.
-- Examples that must stay as spoken (not phonetic Arabic): API, backend, frontend, deployment, database, Supabase, Netlify, Oracle, GitHub, integration, testing, production, development, task, project, deadline, sprint, meeting, dashboard, AI, CRM, ERP, Hilm, iMED.
-- Good: "لازم نخلص الـ backend قبل نهاية الأسبوع."
-- Bad: inventing Arabic phonetic spellings for "backend" / "API" / "deployment".
+CODE-SWITCHING (keep mixed text mixed):
+- Good: "مرحبا، today we're going to discuss the new system."
+- Good: "خلينا نراجع the API integration وبعدها نرسل التقرير."
+- Good: "Okay خلينا نبدأ. أول شيء we need to check the database."
+- Bad: translating the English half into Arabic.
+- Bad: phonetic Arabic spellings of English words.
 
-MIXED SCRIPT & NAMES:
-- Preserve Arabic script + Latin script + numbers + acronyms + URLs + task IDs (e.g. IMED-42, API v2, 10:30 AM) as spoken.
-- Keep personal names as heard. Prefer Arabic script for Arabic names when spoken in Arabic ("محمد"). Do not randomly swap to a different English name.
-- Keep product/project names and acronyms unchanged.
+PROPER NOUNS / BRANDS / PRODUCTS (audio evidence first):
+- Keep English company/product/people names in Latin script even inside Arabic sentences.
+- Spoken "Visma" → "Visma". NOT "فيجم".
+- Spoken "Milkman" → "Milkman". NEVER invent a different company (e.g. do NOT substitute "شركة دبل كليك").
+- Also preserve: API, backend, frontend, deployment, database, production, testing, integration, Supabase, Netlify, Oracle, GitHub, CRM, ERP, Hilm, iMED, Visma, Milkman.
+- Good: "الشركة تستخدم Visma في المحاسبة."
+- Bad: replacing an uncertain name with a "related" entity from general knowledge.
+
+ARABIC DIALECTS:
+- Support Saudi, Gulf/Khaleeji, Lebanese/Levantine, Egyptian, MSA, and informal spoken Arabic.
+- Dialect detection must NOT cause English words to be transliterated into Arabic.
 
 SPEECH NATURALNESS:
-- Include natural human speech: fillers, repetitions, self-corrections, incomplete sentences when audible.
-- Do not invent words for inaudible parts — omit them. Do not summarize or paraphrase.
-- Add natural punctuation and sentence boundaries only.
+- Keep fillers, repetitions, self-corrections, and incomplete sentences when audible.
+- Omit inaudible parts; do not invent words for them.
+- Add natural punctuation only.
 
 SEGMENTATION & SPEAKERS:
 - Split at speaker changes and natural pauses (max ~30 seconds per segment).
@@ -238,20 +323,22 @@ SEGMENTATION & SPEAKERS:
 - If there is no speech, return an empty "segments" array.
 - "start"/"end" are seconds from the beginning of THIS audio part.
 
-LANGUAGE CODES:
-- Set "language" per segment when confident: "en", "ar", or a dialect/region tag when clear ("ar-SA", "ar-LB", "ar-EG", "ar-AE", ...).
-- For mixed Arabic+English in one segment, prefer the dominant script/language of that segment (usually "ar" if mostly Arabic) — still keep mixed text as spoken.
-- Omit "language" when unsure. Optional "confidence" is 0–1 when available.
-${input.languageHint ? `- The user's Hilm UI language is "${input.languageHint}". This is ONLY for UI context — it must NOT force, bias, or override detected spoken languages.` : ''}
+LANGUAGE METADATA:
+- "language": "en", "ar", dialect/region tag ("ar-SA", "ar-LB", "ar-EG", "ar-AE", ...), or "mixed" when the segment itself code-switches.
+- "languages": array of languages present in that segment, e.g. ["ar","en"] for mixed, ["en"] for English-only.
+- Optional "confidence": 0–1 when available.
+- Metadata must describe the spoken text; never rewrite the text to match a language tag.
+
+${vocabularyBlock}
 
 Known speakers so far:
 ${rosterText}
 
-End of the previous part (for continuity only, do not repeat it):
+End of the previous part (speaker continuity ONLY — do NOT copy its language onto this audio, and do NOT repeat it):
 ${previous}
 
 Return ONLY JSON:
-{"segments":[{"speaker":"Speaker 1","start":0.0,"end":4.2,"text":"...","language":"ar-SA","confidence":0.9}],"speakers":[{"label":"Speaker 1","description":"short neutral cue, e.g. discusses API in Arabic"}]}`
+{"segments":[{"speaker":"Speaker 1","start":0.0,"end":4.2,"text":"...","language":"mixed","languages":["ar","en"],"confidence":0.9}],"speakers":[{"label":"Speaker 1","description":"short neutral cue"}]}`
 }
 
 // ── Analysis ────────────────────────────────────────────────────────────────
@@ -465,10 +552,12 @@ ${roster || '- (unknown)'}
 LANGUAGE RULES:
 - Detect the dominant meeting language automatically from the transcript (Arabic, English, or mixed).
 - Write summary, key_points, decisions, and action item titles/descriptions in that dominant language.
-- If the meeting is mixed Arabic+English and the UI language is Arabic, prefer Arabic for the summary while keeping English technical terms (API, backend, deployment, testing, production, etc.) in Latin script.
+- If the meeting is mixed Arabic+English and the UI language is Arabic, prefer Arabic for the summary while keeping English technical terms (API, backend, deployment, testing, production, Visma, Milkman, etc.) in Latin script.
 - If the meeting is clearly English, write the analysis in English even if the UI is Arabic.
 - Do NOT translate the whole meeting into English. Do NOT invent MSA for dialect speech in quotes — paraphrase meaning in the analysis language.
+- Never transliterate English proper nouns/brands into Arabic in the analysis, and never replace them with a different company/product.
 - Action item titles should prefer the language used when that commitment was spoken.
+- Analysis must NEVER rewrite, re-store, or "correct" the transcript itself — only produce summary/actions JSON.
 
 MULTILINGUAL ACTION EXTRACTION:
 - Extract actions whether spoken in English, Arabic, dialect Arabic, or mixed.

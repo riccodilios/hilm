@@ -86,6 +86,7 @@ type MeetingTranscriptRow = {
   end_ms: number
   text: string
   language: string | null
+  languages: string[]
   created_at: string
 }
 type MeetingDecisionRow = {

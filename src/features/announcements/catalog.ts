@@ -99,6 +99,23 @@ export const ANNOUNCEMENT_TYPE_LABEL: Record<FeatureDropType, string> = {
  */
 export const ANNOUNCEMENTS: FeatureAnnouncement[] = [
   defineFeatureAnnouncement({
+    version: '1.5.0',
+    type: 'ai_capability',
+    title: 'Bilingual meeting transcription',
+    description:
+      'Hilm Meetings now follow the language each person actually speaks — Arabic, English, or both in the same sentence — without translating or forcing one language on the whole recording.',
+    highlights: [
+      'Arabic and English speakers can mix freely in one meeting',
+      'Code-switching stays as spoken (e.g. Arabic + “the API integration”)',
+      'Company and product names like Visma stay in English, not transliterated',
+      'Dialect Arabic (Saudi, Gulf, Lebanese, Egyptian) is kept natural',
+      'Each speaker keeps their own language — no meeting-wide language lock',
+    ],
+    icon: 'ai',
+    primaryCta: { label: 'Continue' },
+    secondaryCtas: [{ label: 'Open Projects', href: '/personal/projects' }],
+  }),
+  defineFeatureAnnouncement({
     version: '1.4.0',
     type: 'ui_redesign',
     title: 'UI polish · Desktop & tablet',

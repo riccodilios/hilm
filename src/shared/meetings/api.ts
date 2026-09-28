@@ -99,6 +99,7 @@ function mapTranscript(row: Row): MeetingTranscriptSegment {
     endMs: num(row.end_ms),
     text: String(row.text ?? ''),
     language: str(row.language),
+    languages: strArr(row.languages),
   }
 }
 
