@@ -724,7 +724,22 @@
     "files": "الملفات",
     "documentation": "التوثيق",
     "about": "حول هذا المشروع",
-    "taskStats": "إحصاءات المهام"
+    "taskStats": "إحصاءات المهام",
+    "roadmapAddPlaceholder": "أضف بنداً لخريطة الطريق",
+    "roadmapNotesPlaceholder": "ملاحظات اختيارية",
+    "roadmapTitle": "عنوان بند الخارطة",
+    "roadmapMove": "نقل إلى الأفق",
+    "roadmapEmpty": "لا شيء مخططاً.",
+    "roadmapHint": "أكمل بند «الآن» لإنهائه ونقل «التالي» إلى «الآن».",
+    "roadmapAdded": "تمت إضافة بند الخارطة",
+    "roadmapCompleted": "تم تحديث الخارطة — انتقل «التالي» إلى «الآن» عندما فرغ «الآن»",
+    "roadmapRemoved": "تمت إزالة بند الخارطة",
+    "roadmapHorizon": {
+      "now": "الآن",
+      "next": "التالي",
+      "later": "لاحقاً",
+      "future": "المستقبل"
+    }
   },
   "tasks": {
     "title": "المهام",

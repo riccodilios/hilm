@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PersonalMeetingsTab } from '@/features/projects/meetings/PersonalMeetingsTab'
-import { ExternalLink, FileText, Plus } from 'lucide-react'
+import { Check, FileText, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getProject, projectsKeys, updateProject } from '@/features/projects/api'
 import {
@@ -20,9 +20,16 @@ import { TaskListItem } from '@/features/tasks/TaskListItem'
 import { TaskActionsDialog } from '@/features/tasks/TaskActionsDialog'
 import { KanbanBoard } from '@/features/tasks/KanbanBoard'
 import type { TaskWithProject } from '@/features/tasks/reminders'
-import { activityKeys, listActivity } from '@/features/activity/api'
+import { activityKeys } from '@/features/activity/api'
 import { createNote, listNotes, notesKeys } from '@/features/notes/api'
-import { createRoadmapItem, listRoadmap, roadmapKeys } from '@/features/roadmap/api'
+import {
+  completeRoadmapItem,
+  createRoadmapItem,
+  deleteRoadmapItem,
+  listRoadmap,
+  roadmapKeys,
+  updateRoadmapItem,
+} from '@/features/roadmap/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { HealthBadge, PriorityBadge } from '@/components/ui/badge'
@@ -31,7 +38,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatRelative } from '@/lib/utils'
 import { PRIORITIES, PROJECT_COLORS, ROADMAP_HORIZONS } from '@/types/domain'
 import type { Priority, ProjectStatus, RoadmapHorizon } from '@/types/domain'
 
@@ -41,13 +47,9 @@ const allTabs = [
   'kanban',
   'roadmap',
   'notes',
-  'activity',
-  'ai',
   'settings',
   'ideas',
   'meetings',
-  'releases',
-  'files',
   'documentation',
 ] as const
 type Tab = (typeof allTabs)[number]
@@ -97,11 +99,6 @@ export function ProjectDetailPage() {
   const { data: tasks } = useQuery({
     queryKey: tasksKeys.byProject(id ?? ''),
     queryFn: () => listTasks({ projectId: id! }),
-    enabled: Boolean(id),
-  })
-  const { data: activity } = useQuery({
-    queryKey: activityKeys.byProject(id ?? ''),
-    queryFn: () => listActivity(50, id),
     enabled: Boolean(id),
   })
   const { data: roadmap } = useQuery({
@@ -193,10 +190,44 @@ export function ProjectDetailPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: roadmapKeys.all })
       setRoadmapTitle('')
-      toast.success('Roadmap item added')
+      toast.success(t('projects.roadmapAdded'))
     },
     onError: (error: Error) => toast.error(error.message),
   })
+
+  const saveRoadmapItem = useMutation({
+    mutationFn: (input: {
+      id: string
+      patch: Partial<{ title: string; description: string | null; horizon: RoadmapHorizon }>
+    }) => updateRoadmapItem(input.id, input.patch),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: roadmapKeys.all })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const completeRoadmap = useMutation({
+    mutationFn: (itemId: string) => completeRoadmapItem(itemId),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: roadmapKeys.all }),
+        qc.invalidateQueries({ queryKey: homeKeys.all }),
+        qc.invalidateQueries({ queryKey: projectsKeys.all }),
+      ])
+      toast.success(t('projects.roadmapCompleted'))
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const removeRoadmap = useMutation({
+    mutationFn: (itemId: string) => deleteRoadmapItem(itemId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: roadmapKeys.all })
+      toast.success(t('projects.roadmapRemoved'))
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
   const addNote = useMutation({
     mutationFn: () => createNote({ title: 'Untitled note', projectId: id }),
     onSuccess: async (note) => {
@@ -212,15 +243,17 @@ export function ProjectDetailPage() {
     kanban: t('projects.kanban'),
     roadmap: t('projects.roadmap'),
     notes: t('projects.notes'),
-    activity: t('projects.activity'),
-    ai: t('projects.ai'),
     settings: t('projects.settings'),
     ideas: t('projects.ideas'),
     meetings: t('projects.meetings'),
-    releases: t('projects.releases'),
-    files: t('projects.files'),
     documentation: t('projects.documentation'),
   }
+
+  const roadmapBusy =
+    addRoadmap.isPending ||
+    saveRoadmapItem.isPending ||
+    completeRoadmap.isPending ||
+    removeRoadmap.isPending
 
   if (isLoading) return <Skeleton className="h-[32rem]" />
   if (!project) {
@@ -358,7 +391,7 @@ export function ProjectDetailPage() {
               <Input
                 value={roadmapTitle}
                 onChange={(event) => setRoadmapTitle(event.target.value)}
-                placeholder="Add roadmap item"
+                placeholder={t('projects.roadmapAddPlaceholder')}
               />
               <select
                 value={roadmapHorizon}
@@ -366,32 +399,108 @@ export function ProjectDetailPage() {
                 className="h-10 rounded-lg border border-border bg-surface px-3 text-sm"
               >
                 {ROADMAP_HORIZONS.map((horizon) => (
-                  <option key={horizon}>{horizon}</option>
+                  <option key={horizon} value={horizon}>
+                    {t(`projects.roadmapHorizon.${horizon}`)}
+                  </option>
                 ))}
               </select>
               <Button type="submit" disabled={addRoadmap.isPending}>
-                <Plus /> Add
+                <Plus /> {t('common.create')}
               </Button>
             </form>
+            <p className="mt-3 text-xs text-muted">{t('projects.roadmapHint')}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {ROADMAP_HORIZONS.map((horizon) => (
-              <Card key={horizon}>
-                <CardHeader>
-                  <CardTitle className="capitalize">{horizon}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {roadmap?.filter((item) => item.horizon === horizon).map((item) => (
-                    <div key={item.id} className="rounded-lg bg-surface-2 p-3">
-                      <p className="text-sm font-medium">{item.title}</p>
-                      {item.description ? (
-                        <p className="mt-1 text-xs text-muted">{item.description}</p>
-                      ) : null}
-                    </div>
-                  )) || <p className="text-sm text-muted">Nothing planned.</p>}
-                </CardContent>
-              </Card>
-            ))}
+            {ROADMAP_HORIZONS.map((horizon) => {
+              const items = roadmap?.filter((item) => item.horizon === horizon) ?? []
+              return (
+                <Card key={horizon}>
+                  <CardHeader>
+                    <CardTitle className="capitalize">
+                      {t(`projects.roadmapHorizon.${horizon}`)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {items.length ? (
+                      items.map((item) => (
+                        <div key={item.id} className="space-y-2 rounded-lg bg-surface-2 p-3">
+                          <Input
+                            defaultValue={item.title}
+                            disabled={roadmapBusy}
+                            aria-label={t('projects.roadmapTitle')}
+                            className="h-9 bg-surface text-sm font-medium"
+                            onBlur={(event) => {
+                              const title = event.target.value.trim()
+                              if (!title || title === item.title) {
+                                event.target.value = item.title
+                                return
+                              }
+                              saveRoadmapItem.mutate({ id: item.id, patch: { title } })
+                            }}
+                          />
+                          <Textarea
+                            defaultValue={item.description ?? ''}
+                            disabled={roadmapBusy}
+                            aria-label={t('projects.desc')}
+                            placeholder={t('projects.roadmapNotesPlaceholder')}
+                            className="min-h-16 bg-surface text-xs"
+                            onBlur={(event) => {
+                              const description = event.target.value.trim() || null
+                              if (description === (item.description ?? null)) return
+                              saveRoadmapItem.mutate({ id: item.id, patch: { description } })
+                            }}
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              value={item.horizon}
+                              disabled={roadmapBusy}
+                              aria-label={t('projects.roadmapMove')}
+                              onChange={(event) =>
+                                saveRoadmapItem.mutate({
+                                  id: item.id,
+                                  patch: { horizon: event.target.value as RoadmapHorizon },
+                                })
+                              }
+                              className="h-8 flex-1 rounded-md border border-border bg-surface px-2 text-xs"
+                            >
+                              {ROADMAP_HORIZONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {t(`projects.roadmapHorizon.${option}`)}
+                                </option>
+                              ))}
+                            </select>
+                            {horizon === 'now' ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                disabled={roadmapBusy}
+                                onClick={() => completeRoadmap.mutate(item.id)}
+                              >
+                                <Check /> {t('common.complete')}
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 text-muted hover:text-danger"
+                              disabled={roadmapBusy}
+                              aria-label={t('common.delete')}
+                              onClick={() => removeRoadmap.mutate(item.id)}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted">{t('projects.roadmapEmpty')}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </TabsContent>
 
@@ -421,42 +530,6 @@ export function ProjectDetailPage() {
               description="Keep project decisions and research in one place."
             />
           )}
-        </TabsContent>
-
-        <TabsContent value="activity">
-          <div className="space-y-3">
-            {activity?.length ? (
-              activity.map((event) => (
-                <div key={event.id} className="rounded-xl border border-border-subtle bg-surface/70 p-4">
-                  <div className="flex justify-between gap-3">
-                    <p className="text-sm font-medium">{event.summary}</p>
-                    <time className="shrink-0 text-xs text-muted">
-                      {formatRelative(event.created_at)}
-                    </time>
-                  </div>
-                  <p className="mt-1 text-xs capitalize text-muted">
-                    {event.action} · {event.entity_type.replace('_', ' ')}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <EmptyState title="No project activity yet" />
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="ai">
-          <EmptyState
-            title="Work with AI"
-            description="Use this project as context in a focused AI conversation."
-            action={
-              <Button asChild>
-                <Link to={`/personal/ai?projectId=${id}`}>
-                  <ExternalLink /> Open AI
-                </Link>
-              </Button>
-            }
-          />
         </TabsContent>
 
         <TabsContent value="settings">
@@ -572,7 +645,7 @@ export function ProjectDetailPage() {
           <PersonalMeetingsTab project={project} />
         </TabsContent>
 
-        {(['ideas', 'releases', 'files', 'documentation'] as Tab[]).map((item) => (
+        {(['ideas', 'documentation'] as Tab[]).map((item) => (
           <TabsContent key={item} value={item}>
             <EmptyState
               title={`${tabLabels[item]} coming soon`}

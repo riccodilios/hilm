@@ -724,7 +724,22 @@
     "files": "Files",
     "documentation": "Documentation",
     "about": "About this project",
-    "taskStats": "Task stats"
+    "taskStats": "Task stats",
+    "roadmapAddPlaceholder": "Add roadmap item",
+    "roadmapNotesPlaceholder": "Optional notes",
+    "roadmapTitle": "Roadmap item title",
+    "roadmapMove": "Move to horizon",
+    "roadmapEmpty": "Nothing planned.",
+    "roadmapHint": "Complete a Now item to finish it and advance Next into Now.",
+    "roadmapAdded": "Roadmap item added",
+    "roadmapCompleted": "Roadmap updated — Next moved into Now when Now was empty",
+    "roadmapRemoved": "Roadmap item removed",
+    "roadmapHorizon": {
+      "now": "Now",
+      "next": "Next",
+      "later": "Later",
+      "future": "Future"
+    }
   },
   "tasks": {
     "title": "Tasks",

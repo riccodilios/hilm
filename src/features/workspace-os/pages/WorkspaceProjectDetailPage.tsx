@@ -3,12 +3,11 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { WorkspaceMeetingsTab } from '@/features/workspace-os/meetings/WorkspaceMeetingsTab'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   deleteWorkspaceProject,
   getWorkspaceProject,
-  listWorkspaceActivity,
   listWorkspaceTasks,
   updateWorkspaceProject,
   workspaceKeys,
@@ -36,11 +35,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/page'
 import { HealthBadge, PriorityBadge, StatusBadge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatRelative } from '@/lib/utils'
 import { PRIORITIES, PROJECT_COLORS, type Priority, type ProjectStatus } from '@/types/domain'
 import { cn } from '@/lib/utils'
 
-const TABS = ['overview', 'tasks', 'meetings', 'activity', 'ai', 'settings'] as const
+const TABS = ['overview', 'tasks', 'meetings', 'settings'] as const
 type Tab = (typeof TABS)[number]
 
 export function WorkspaceProjectDetailPage() {
@@ -81,10 +79,6 @@ export function WorkspaceProjectDetailPage() {
   const tasks = useQuery({
     queryKey: workspaceKeys.tasks(workspaceId),
     queryFn: () => listWorkspaceTasks(workspaceId),
-  })
-  const activity = useQuery({
-    queryKey: workspaceKeys.activity(workspaceId),
-    queryFn: () => listWorkspaceActivity(workspaceId, 80),
   })
   const labelsQuery = useQuery({
     queryKey: workspaceLabelKeys.all(workspaceId),
@@ -131,16 +125,6 @@ export function WorkspaceProjectDetailPage() {
   const openTasks = projectTasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
   const doneTasks = projectTasks.filter((task) => task.status === 'done')
   const completionPct = project.data?.completion_pct ?? 0
-
-  const projectActivity = useMemo(() => {
-    return (activity.data ?? []).filter((event) => {
-      if (event.entity_type === 'project' && event.entity_id === projectId) return true
-      if (event.entity_type === 'task') {
-        return projectTasks.some((task) => task.id === event.entity_id)
-      }
-      return false
-    })
-  }, [activity.data, projectId, projectTasks])
 
   const remove = useMutation({
     mutationFn: () => deleteWorkspaceProject(workspaceId, projectId),
@@ -219,8 +203,6 @@ export function WorkspaceProjectDetailPage() {
           <TabsTrigger value="overview">{t('workspace.projectOverview')}</TabsTrigger>
           <TabsTrigger value="tasks">{t('nav.tasks')}</TabsTrigger>
           <TabsTrigger value="meetings">{t('projects.meetings')}</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="ai">{t('nav.ai')}</TabsTrigger>
           <TabsTrigger value="settings">{t('workspace.projectSettings')}</TabsTrigger>
         </TabsList>
 
@@ -320,36 +302,6 @@ export function WorkspaceProjectDetailPage() {
 
         <TabsContent value="meetings" className="mt-6">
           {project.data ? <WorkspaceMeetingsTab project={project.data} /> : null}
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-6 space-y-2">
-          {projectActivity.map((event) => (
-            <div
-              key={event.id}
-              className="rounded-xl border border-border-subtle bg-surface/40 px-4 py-3 text-sm"
-            >
-              <p>{event.summary}</p>
-              <p className="mt-1 text-xs text-muted">{formatRelative(event.created_at)}</p>
-            </div>
-          ))}
-          {!projectActivity.length ? (
-            <p className="text-sm text-muted">No activity for this project yet.</p>
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="ai" className="mt-6">
-          <Card className="max-w-lg">
-            <CardContent className="space-y-3 pt-5">
-              <p className="text-sm text-muted">
-                Ask Hilm AI with this project in context — create tasks, summarize progress, or plan next steps.
-              </p>
-              <Button asChild>
-                <Link to={`/workspace/${workspaceId}/ai?projectId=${projectId}`}>
-                  <ExternalLink className="size-4" /> Open AI with project context
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6">
