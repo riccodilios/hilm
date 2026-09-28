@@ -59,7 +59,12 @@ export function MeetingSummarySection({
       {meeting.summary ? (
         <section>
           <h3 className="mb-2 text-sm font-medium text-muted">{t('meetings.summary.title')}</h3>
-          <p className="whitespace-pre-wrap text-sm leading-7" dir="auto">
+          <p
+            className="whitespace-pre-wrap text-sm leading-7"
+            dir="auto"
+            style={{ unicodeBidi: 'isolate' }}
+            lang={meeting.language ?? undefined}
+          >
             {meeting.summary}
           </p>
         </section>
@@ -70,7 +75,12 @@ export function MeetingSummarySection({
           <h3 className="mb-2 text-sm font-medium text-muted">{t('meetings.summary.keyPoints')}</h3>
           <ul className="space-y-2">
             {meeting.keyPoints.map((point, index) => (
-              <li key={index} className="flex gap-2 text-sm leading-6" dir="auto">
+              <li
+                key={index}
+                className="flex gap-2 text-sm leading-6"
+                dir="auto"
+                style={{ unicodeBidi: 'isolate' }}
+              >
                 <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
                 <span>{point}</span>
               </li>
@@ -92,7 +102,7 @@ export function MeetingSummarySection({
                     <CircleHelp className="mt-0.5 size-4 shrink-0 text-warning" />
                   )}
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="text-sm leading-6" dir="auto">
+                    <p className="text-sm leading-6" dir="auto" style={{ unicodeBidi: 'isolate' }}>
                       {decision.text}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">

@@ -11,25 +11,30 @@ import {
 } from './_shared/meeting-engine'
 
 const osSchema = z.enum(['personal', 'workspace'])
+const localeFields = {
+  locale: z.string().max(16).optional(),
+  timeZone: z.string().max(64).optional(),
+}
+
 const bodySchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('transcribe_segment'),
     os: osSchema,
     meetingId: z.string().uuid(),
     idx: z.number().int().min(0).max(2000),
-    locale: z.string().max(10).optional(),
+    ...localeFields,
   }),
   z.object({
     action: z.literal('advance'),
     os: osSchema,
     meetingId: z.string().uuid(),
-    locale: z.string().max(10).optional(),
+    ...localeFields,
   }),
   z.object({
     action: z.literal('retry'),
     os: osSchema,
     meetingId: z.string().uuid(),
-    locale: z.string().max(10).optional(),
+    ...localeFields,
   }),
 ])
 
@@ -93,6 +98,7 @@ export default async (request: Request) => {
       os: body.os,
       apiKey,
       locale: body.locale?.startsWith('ar') ? 'ar' : 'en',
+      timeZone: body.timeZone?.trim() || null,
     }
     const meeting = await loadMeeting(ctx, body.meetingId)
     if (!meeting) return json({ error: 'Meeting not found' }, 404)

@@ -436,18 +436,21 @@ export type ProcessResponse =
 
 export async function callMeetingProcess(
   body:
-    | { action: 'transcribe_segment'; os: MeetingOs; meetingId: string; idx: number; locale?: string }
-    | { action: 'advance' | 'retry'; os: MeetingOs; meetingId: string; locale?: string },
+    | { action: 'transcribe_segment'; os: MeetingOs; meetingId: string; idx: number; locale?: string; timeZone?: string }
+    | { action: 'advance' | 'retry'; os: MeetingOs; meetingId: string; locale?: string; timeZone?: string },
 ): Promise<ProcessResponse> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
   if (!token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
   let response: Response
   try {
+    const timeZone =
+      body.timeZone ||
+      (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined)
     response = await fetch(meetingProcessUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, timeZone }),
     })
   } catch {
     return { ok: false, code: 'network', error: 'Network error. Processing will continue automatically.' }

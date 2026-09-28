@@ -29,6 +29,8 @@ export type EngineContext = {
   os: MeetingOs
   apiKey: string
   locale?: 'en' | 'ar'
+  /** IANA timezone from the client for resolving relative Arabic/English dates. */
+  timeZone?: string | null
 }
 
 export type MeetingRow = {
@@ -427,6 +429,7 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
     projectName: (projectResult.data as { name?: string } | null)?.name ?? null,
     roster: speakers.map((speaker) => ({ label: speaker.label, display_name: speaker.display_name })),
     locale: ctx.locale ?? 'en',
+    timeZone: ctx.timeZone ?? null,
   })
   const transcriptText = buildAnalysisTranscript(lines)
 

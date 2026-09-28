@@ -53,6 +53,7 @@ export type MeetingTranscriptSegment = {
   startMs: number
   endMs: number
   text: string
+  /** Detected spoken language for this segment (language_code): en, ar, ar-SA, ar-LB, … */
   language: string | null
 }
 

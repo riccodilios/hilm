@@ -4,23 +4,32 @@ import { Loader2, Pause, Play, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { getMeetingAudioUrl } from '../api'
-import { formatClock, speakerName, speakerTone, textDirection } from '../format'
+import {
+  formatClock,
+  speakerName,
+  speakerTone,
+  transcriptTextMatches,
+  transcriptTextStyle,
+} from '../format'
 import type { MeetingDetail } from '../types'
 
 function highlight(text: string, query: string) {
   if (!query) return text
-  const lower = text.toLowerCase()
-  const needle = query.toLowerCase()
+  const hay = text.normalize('NFC')
+  const needle = query.trim().normalize('NFC')
+  if (!needle) return text
+  const lower = hay.toLocaleLowerCase()
+  const needleLower = needle.toLocaleLowerCase()
   const parts: Array<string | { match: string }> = []
   let index = 0
-  while (index < text.length) {
-    const found = lower.indexOf(needle, index)
+  while (index < hay.length) {
+    const found = lower.indexOf(needleLower, index)
     if (found < 0) {
-      parts.push(text.slice(index))
+      parts.push(hay.slice(index))
       break
     }
-    if (found > index) parts.push(text.slice(index, found))
-    parts.push({ match: text.slice(found, found + needle.length) })
+    if (found > index) parts.push(hay.slice(index, found))
+    parts.push({ match: hay.slice(found, found + needle.length) })
     index = found + needle.length
   }
   return parts.map((part, i) =>
@@ -56,7 +65,7 @@ export function MeetingTranscript({
     () =>
       detail.transcript.filter((segment) => {
         if (speakerFilter !== 'all' && segment.speakerId !== speakerFilter) return false
-        if (trimmed && !segment.text.toLowerCase().includes(trimmed.toLowerCase())) return false
+        if (trimmed && !transcriptTextMatches(segment.text, trimmed)) return false
         return true
       }),
     [detail.transcript, speakerFilter, trimmed],
@@ -183,8 +192,12 @@ export function MeetingTranscript({
                 <span className={cn('inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium', speakerTone(speaker?.ordinal ?? 0))}>
                   {speakerName(speaker, t('meetings.transcript.unknownSpeaker'))}
                 </span>
-                <p className="mt-1 text-sm leading-7" dir={textDirection(segment.text)}>
-                  {highlight(segment.text, trimmed)}
+                <p
+                  className="mt-1 text-sm leading-7"
+                  {...transcriptTextStyle(segment.text, segment.language)}
+                  lang={segment.language ?? undefined}
+                >
+                  <bdi>{highlight(segment.text, trimmed)}</bdi>
                 </p>
               </div>
             </li>

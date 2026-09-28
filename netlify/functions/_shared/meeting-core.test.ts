@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   analysisResponseSchema,
+  buildAnalysisPrompt,
   buildAnalysisTranscript,
+  buildTranscriptionPrompt,
   extractJsonObject,
+  normalizeLanguageCode,
   normalizeSpeakerLabel,
   parseClockOrSeconds,
   sanitizeAnalysis,
@@ -39,9 +42,108 @@ describe('transcription parsing and stitching', () => {
     })
     const out = stitchChunkSegments({ response, chunkIdx: 3, offsetMs: 270_000, durationMs: 90_000, roster })
     expect(out).toEqual([
-      { speakerLabel: 'Speaker 1', start_ms: 270_000, end_ms: 274_200, text: 'مرحبا بالجميع', language: 'ar', ordinal: 30_000 },
-      { speakerLabel: 'Speaker 2', start_ms: 274_500, end_ms: 279_000, text: 'Let us review the API', language: 'en', ordinal: 30_001 },
+      {
+        speakerLabel: 'Speaker 1',
+        start_ms: 270_000,
+        end_ms: 274_200,
+        text: 'مرحبا بالجميع',
+        language: 'ar',
+        confidence: null,
+        ordinal: 30_000,
+      },
+      {
+        speakerLabel: 'Speaker 2',
+        start_ms: 274_500,
+        end_ms: 279_000,
+        text: 'Let us review the API',
+        language: 'en',
+        confidence: null,
+        ordinal: 30_001,
+      },
     ])
+  })
+
+  it('normalizes dialect labels and BCP-47 codes without inventing language', () => {
+    expect(normalizeLanguageCode('ar-SA')).toBe('ar-SA')
+    expect(normalizeLanguageCode('Saudi Arabic')).toBe('ar-SA')
+    expect(normalizeLanguageCode('lebanese')).toBe('ar-LB')
+    expect(normalizeLanguageCode('Egyptian Arabic')).toBe('ar-EG')
+    expect(normalizeLanguageCode('gulf')).toBe('ar-AE')
+    expect(normalizeLanguageCode('en')).toBe('en')
+    expect(normalizeLanguageCode('')).toBeNull()
+    expect(normalizeLanguageCode(null)).toBeNull()
+  })
+
+  it('preserves mixed Arabic+English technical speech and dialect language tags', () => {
+    const response = transcriptionResponseSchema.parse({
+      segments: [
+        {
+          speaker: 'Speaker 1',
+          start: 0,
+          end: 5,
+          text: 'لازم نخلص الـ backend اليوم وبعدين نعمل deployment على production.',
+          language: 'Saudi Arabic',
+          confidence: 0.92,
+        },
+        {
+          speaker: 'Speaker 2',
+          start: 5,
+          end: 9,
+          text: 'The frontend is ready بس الـ API لسه ما خلص.',
+          language: 'ar-LB',
+        },
+        {
+          speaker: 'Speaker 1',
+          start: 9,
+          end: 12,
+          text: 'We need to finish the API integration before Thursday.',
+          language: 'en',
+        },
+      ],
+    })
+    const out = stitchChunkSegments({ response, chunkIdx: 0, offsetMs: 0, durationMs: 60_000, roster })
+    expect(out[0]).toMatchObject({
+      language: 'ar-SA',
+      confidence: 0.92,
+      text: 'لازم نخلص الـ backend اليوم وبعدين نعمل deployment على production.',
+    })
+    expect(out[1]).toMatchObject({ language: 'ar-LB' })
+    expect(out[2]).toMatchObject({ language: 'en' })
+    expect(out[0]!.text).toContain('backend')
+    expect(out[0]!.text).toContain('deployment')
+    expect(out[1]!.text).toContain('API')
+  })
+
+  it('transcription prompt requires auto language detection and forbids forced translation', () => {
+    const prompt = buildTranscriptionPrompt({
+      roster,
+      previousLines: [],
+      languageHint: 'ar',
+      chunkIdx: 0,
+    })
+    expect(prompt).toMatch(/automatic language detection/i)
+    expect(prompt).toMatch(/NEVER force a single meeting language/i)
+    expect(prompt).toMatch(/code-switching/i)
+    expect(prompt).toMatch(/Saudi|Gulf|Lebanese|Egyptian/i)
+    expect(prompt).toMatch(/backend/)
+    expect(prompt).toMatch(/must NOT force, bias, or override/i)
+    expect(prompt).not.toMatch(/force the transcript into English/i)
+  })
+
+  it('analysis prompt understands Arabic dates and multilingual actions', () => {
+    const prompt = buildAnalysisPrompt({
+      title: 'تخطيط الأسبوع',
+      meetingDate: '2026-09-14',
+      projectName: 'Hilm',
+      roster: [{ label: 'Speaker 1', display_name: 'محمد' }],
+      locale: 'ar',
+      timeZone: 'Asia/Riyadh',
+    })
+    expect(prompt).toMatch(/بكرا/)
+    expect(prompt).toMatch(/Asia\/Riyadh/)
+    expect(prompt).toMatch(/multilingual/i)
+    expect(prompt).toMatch(/Do NOT translate the whole meeting into English/i)
+    expect(prompt).toMatch(/API integration/)
   })
 
   it('clamps out-of-range and non-monotonic timestamps into the chunk', () => {
@@ -130,13 +232,47 @@ describe('sanitizeAnalysis', () => {
         { title: 'With deadline', certainty: 'confirmed', due_text: 'by Thursday', due_date: '2026-10-01', sources: [1] },
         { title: 'Invented date', certainty: 'confirmed', due_text: null, due_date: '2026-10-01', sources: [1] },
         { title: 'Bad date', certainty: 'confirmed', due_text: 'soon', due_date: '2026-02-30', sources: [1] },
+        { title: 'خلص الاختبار', certainty: 'confirmed', due_text: 'بكرا', due_date: '2026-09-15', sources: [1] },
       ],
     })
     expect(result.action_items.map((item) => [item.due_text, item.due_date])).toEqual([
       ['by Thursday', '2026-10-01'],
       [null, null],
       ['soon', null],
+      ['بكرا', '2026-09-15'],
     ])
+  })
+
+  it('keeps Arabic action titles and renamed Arabic speaker owners', () => {
+    const result = sanitizeAnalysis(
+      analysisResponseSchema.parse({
+        language: 'ar-SA',
+        summary: 'اتفقنا نخلص الـ API.',
+        action_items: [
+          {
+            title: 'يخلص الـ testing',
+            certainty: 'confirmed',
+            owner: 'محمد',
+            owner_certainty: 'confirmed',
+            due_text: 'بكرا',
+            due_date: '2026-09-15',
+            sources: [2],
+          },
+        ],
+      }),
+      {
+        lines,
+        rosterLabels: ['Speaker 1', 'Speaker 2'],
+        displayNames: { 'Speaker 1': 'محمد' },
+      },
+    )
+    expect(result.language).toBe('ar-SA')
+    expect(result.action_items[0]).toMatchObject({
+      title: 'يخلص الـ testing',
+      ownerLabel: 'Speaker 1',
+      due_text: 'بكرا',
+      due_date: '2026-09-15',
+    })
   })
 
   it('dedupes action items by title and tolerates malformed fields', () => {

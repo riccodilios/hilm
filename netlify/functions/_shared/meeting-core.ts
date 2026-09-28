@@ -34,6 +34,60 @@ const numberish = z.union([z.number(), z.string()]).transform((value, ctx) => {
   return n
 })
 
+/**
+ * Normalize provider language tags for storage.
+ * Accepts BCP-47-ish codes (`en`, `ar`, `ar-SA`, `ar-LB`) and common dialect labels.
+ * Returns null when the provider did not supply a usable code — never invent one.
+ */
+export function normalizeLanguageCode(raw: string | null | undefined): string | null {
+  if (raw == null) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase().replace(/_/g, '-')
+
+  const dialectMap: Record<string, string> = {
+    arabic: 'ar',
+    'modern standard arabic': 'ar',
+    msa: 'ar',
+    fusha: 'ar',
+    'saudi arabic': 'ar-SA',
+    saudi: 'ar-SA',
+    najdi: 'ar-SA',
+    hijazi: 'ar-SA',
+    'gulf arabic': 'ar-AE',
+    gulf: 'ar-AE',
+    khaleeji: 'ar-AE',
+    'lebanese arabic': 'ar-LB',
+    lebanese: 'ar-LB',
+    levant: 'ar-LB',
+    levantine: 'ar-LB',
+    syrian: 'ar-SY',
+    jordanian: 'ar-JO',
+    palestinian: 'ar-PS',
+    'egyptian arabic': 'ar-EG',
+    egyptian: 'ar-EG',
+    masri: 'ar-EG',
+    english: 'en',
+    'american english': 'en-US',
+    'british english': 'en-GB',
+  }
+  if (dialectMap[lower]) return dialectMap[lower]!
+
+  // Keep short BCP-47 tags; clamp long free-text so one bad field cannot fail the chunk.
+  const bcp47 = lower.match(/^([a-z]{2,3})(?:-([a-z0-9]{2,8}))?/)
+  if (bcp47) {
+    const primary = bcp47[1]!
+    const region = bcp47[2]
+    if (region) return `${primary}-${region.toUpperCase()}`
+    return primary
+  }
+  return lower.slice(0, 12)
+}
+
+const languageCodeField = z
+  .union([z.string(), z.null(), z.undefined()])
+  .transform((value) => normalizeLanguageCode(typeof value === 'string' ? value : null))
+
 export const transcriptionResponseSchema = z.object({
   segments: z
     .array(
@@ -42,7 +96,13 @@ export const transcriptionResponseSchema = z.object({
         start: numberish,
         end: numberish.optional(),
         text: z.string(),
-        language: z.string().max(12).optional().nullable(),
+        /** Detected spoken language for this segment (e.g. en, ar, ar-SA). Optional. */
+        language: languageCodeField.optional(),
+        confidence: z.union([z.number(), z.string()]).optional().nullable().transform((value) => {
+          if (value == null || value === '') return null
+          const n = typeof value === 'number' ? value : Number(value)
+          return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : null
+        }),
       }),
     )
     .max(1500),
@@ -71,6 +131,7 @@ export type StitchedSegment = {
   end_ms: number
   text: string
   language: string | null
+  confidence: number | null
   ordinal: number
 }
 
@@ -119,7 +180,8 @@ export function stitchChunkSegments(input: {
       start_ms: offsetMs + startLocal,
       end_ms: offsetMs + endLocal,
       text,
-      language: segment.language?.trim() || null,
+      language: segment.language ?? null,
+      confidence: segment.confidence ?? null,
       ordinal: chunkIdx * MEETING_SEGMENT_ORDINAL_STRIDE + out.length,
     })
   }
@@ -141,19 +203,46 @@ export function buildTranscriptionPrompt(input: {
     ? input.previousLines.map((line) => `${line.label}: ${line.text}`).join('\n')
     : '(no earlier transcript)'
 
-  return `You are a precise meeting transcriber. Transcribe the attached audio, which is part ${input.chunkIdx + 1} of a longer meeting recording.
+  return `You are Hilm's multilingual meeting transcriber. Transcribe the attached audio, which is part ${input.chunkIdx + 1} of a longer meeting recording.
 
-Rules:
-- Transcribe exactly what is said, in the language actually spoken. Arabic stays in Arabic script, English in English. Mixed-language speech stays mixed. Do NOT translate.
-- Keep names, product names and acronyms as spoken (e.g. "iMED", "Hilm"). Do not "correct" them into other words.
-- Add natural punctuation and sentence boundaries. Do not summarize, paraphrase or skip content. Do not invent words for inaudible parts; omit them.
-- Keep genuinely repeated words if they were actually said.
-- Split into segments at speaker changes and natural pauses (max ~30 seconds per segment).
-- Label speakers as "Speaker 1", "Speaker 2", ... Reuse the existing labels below when the voice matches; add a new number only for a clearly new voice. Never guess real names.
+CORE — automatic language detection (mandatory):
+- Detect language per segment. Do NOT assume the whole meeting is one language.
+- Different speakers may use different languages. The same speaker may switch mid-conversation or mid-sentence (code-switching).
+- NEVER force a single meeting language. NEVER translate the transcript into English or Modern Standard Arabic.
+- Preserve the original spoken language exactly: Arabic stays Arabic script; English stays Latin script; mixed speech stays mixed.
+
+ARABIC & DIALECTS:
+- Handle conversational Arabic naturally: Saudi, Gulf/Khaleeji, Lebanese/Levantine, Egyptian, and Modern Standard Arabic.
+- Do NOT "correct" dialect into MSA. Colloquial words, contractions, and informal phrasing must remain as spoken.
+- Spoken Arabic ≠ MSA. Prefer faithful dialect transcription over formal rewriting.
+
+TECHNICAL / BUSINESS TERMS (critical):
+- Keep English technical and business terms in Latin script even inside Arabic sentences.
+- Examples that must stay as spoken (not phonetic Arabic): API, backend, frontend, deployment, database, Supabase, Netlify, Oracle, GitHub, integration, testing, production, development, task, project, deadline, sprint, meeting, dashboard, AI, CRM, ERP, Hilm, iMED.
+- Good: "لازم نخلص الـ backend قبل نهاية الأسبوع."
+- Bad: inventing Arabic phonetic spellings for "backend" / "API" / "deployment".
+
+MIXED SCRIPT & NAMES:
+- Preserve Arabic script + Latin script + numbers + acronyms + URLs + task IDs (e.g. IMED-42, API v2, 10:30 AM) as spoken.
+- Keep personal names as heard. Prefer Arabic script for Arabic names when spoken in Arabic ("محمد"). Do not randomly swap to a different English name.
+- Keep product/project names and acronyms unchanged.
+
+SPEECH NATURALNESS:
+- Include natural human speech: fillers, repetitions, self-corrections, incomplete sentences when audible.
+- Do not invent words for inaudible parts — omit them. Do not summarize or paraphrase.
+- Add natural punctuation and sentence boundaries only.
+
+SEGMENTATION & SPEAKERS:
+- Split at speaker changes and natural pauses (max ~30 seconds per segment).
+- Label speakers as "Speaker 1", "Speaker 2", ... Reuse known labels when the voice matches; add a new number only for a clearly new voice. Never invent real names.
 - If there is no speech, return an empty "segments" array.
 - "start"/"end" are seconds from the beginning of THIS audio part.
-- "language" is a short code such as "en" or "ar".
-${input.languageHint ? `- The user's interface language is "${input.languageHint}" (a hint only).` : ''}
+
+LANGUAGE CODES:
+- Set "language" per segment when confident: "en", "ar", or a dialect/region tag when clear ("ar-SA", "ar-LB", "ar-EG", "ar-AE", ...).
+- For mixed Arabic+English in one segment, prefer the dominant script/language of that segment (usually "ar" if mostly Arabic) — still keep mixed text as spoken.
+- Omit "language" when unsure. Optional "confidence" is 0–1 when available.
+${input.languageHint ? `- The user's Hilm UI language is "${input.languageHint}". This is ONLY for UI context — it must NOT force, bias, or override detected spoken languages.` : ''}
 
 Known speakers so far:
 ${rosterText}
@@ -162,7 +251,7 @@ End of the previous part (for continuity only, do not repeat it):
 ${previous}
 
 Return ONLY JSON:
-{"segments":[{"speaker":"Speaker 1","start":0.0,"end":4.2,"text":"...","language":"en"}],"speakers":[{"label":"Speaker 1","description":"short neutral cue, e.g. leads the meeting, discusses API"}]}`
+{"segments":[{"speaker":"Speaker 1","start":0.0,"end":4.2,"text":"...","language":"ar-SA","confidence":0.9}],"speakers":[{"label":"Speaker 1","description":"short neutral cue, e.g. discusses API in Arabic"}]}`
 }
 
 // ── Analysis ────────────────────────────────────────────────────────────────
@@ -174,7 +263,7 @@ const priorityValue = z.enum(['none', 'low', 'medium', 'high', 'urgent']).nullab
 const sourceRefs = z.array(z.union([z.number(), z.string()])).max(40).catch([])
 
 export const analysisResponseSchema = z.object({
-  language: z.string().max(12).nullable().optional().catch(null),
+  language: languageCodeField.optional().catch(null),
   summary: z.string().max(6000).catch(''),
   key_points: z.array(z.string().max(600)).max(30).catch([]),
   decisions: z
@@ -357,32 +446,55 @@ export function buildAnalysisPrompt(input: {
   projectName: string | null
   roster: Array<{ label: string; display_name: string | null }>
   locale: 'en' | 'ar'
+  timeZone?: string | null
 }) {
   const roster = input.roster
     .map((speaker) => `- ${speaker.label}${speaker.display_name ? ` (named "${speaker.display_name}" by the user)` : ''}`)
     .join('\n')
-  return `You are Hilm's meeting analyst. Analyse the meeting transcript and return structured JSON.
+  const uiLang = input.locale === 'ar' ? 'Arabic' : 'English'
+  const tz = input.timeZone?.trim() || 'UTC'
+  return `You are Hilm's multilingual meeting analyst. Analyse the meeting transcript and return structured JSON.
 
 Meeting: "${input.title}"${input.projectName ? ` — project "${input.projectName}"` : ''}
 Meeting date: ${input.meetingDate ?? 'unknown'}
+Timezone for relative dates: ${tz}
+User's Hilm UI language: ${uiLang} (use for analysis output language preference when the meeting is mixed; NEVER rewrite the transcript)
 Speakers:
 ${roster || '- (unknown)'}
 
+LANGUAGE RULES:
+- Detect the dominant meeting language automatically from the transcript (Arabic, English, or mixed).
+- Write summary, key_points, decisions, and action item titles/descriptions in that dominant language.
+- If the meeting is mixed Arabic+English and the UI language is Arabic, prefer Arabic for the summary while keeping English technical terms (API, backend, deployment, testing, production, etc.) in Latin script.
+- If the meeting is clearly English, write the analysis in English even if the UI is Arabic.
+- Do NOT translate the whole meeting into English. Do NOT invent MSA for dialect speech in quotes — paraphrase meaning in the analysis language.
+- Action item titles should prefer the language used when that commitment was spoken.
+
+MULTILINGUAL ACTION EXTRACTION:
+- Extract actions whether spoken in English, Arabic, dialect Arabic, or mixed.
+- Examples of commitments to capture:
+  - "محمد، please finish the API integration by Thursday."
+  - "خلّي أحمد يخلص الـ testing بكرا."
+  - "I'll handle the backend and you can do the frontend."
+- Owners may be Arabic names (محمد، أحمد) or English; map them to the matching speaker label when the user renamed a speaker, otherwise use Speaker N.
+
+ARABIC DATE / TIME EXPRESSIONS:
+- Understand natural Arabic and colloquial relative dates when the meaning is clear, relative to the meeting date and timezone ${tz}:
+  اليوم، بكرا، بكرة، بعد بكرا، الأسبوع الجاي، نهاية الأسبوع، يوم الأحد، الخميس الجاي، بعد أسبوع، الشهر الجاي، الساعة ٣، الساعة ثلاثة ونص
+- Also English: today, tomorrow, Thursday, end of week, next sprint, etc.
+- "due_text": keep the deadline words exactly as said (Arabic or English). "due_date": YYYY-MM-DD only when clearly resolvable; else null. Never invent dates.
+
 STRICT RULES — facts vs inferences:
 - Only use what is in the transcript. Never fabricate decisions, attendees, owners, deadlines or commitments.
-- "decisions": only things the group explicitly agreed or decided. If it sounds tentative, set certainty "uncertain".
-- "action_items": concrete follow-ups. certainty "confirmed" only when someone explicitly committed ("I'll do X", "Rakan will do Y"). Otherwise "possible".
+- "decisions": only things the group explicitly agreed or decided. If tentative, certainty "uncertain".
+- "action_items": concrete follow-ups. certainty "confirmed" only when someone explicitly committed; otherwise "possible".
 - "owner": exactly one speaker label from the list above (or null). owner_certainty "confirmed" only if that speaker explicitly took it on; "uncertain" if implied; null owner + "none" if unknown.
-- "due_text": the deadline words exactly as said (e.g. "by Thursday", "tomorrow"), or null if no deadline was stated. "due_date": resolve due_text to YYYY-MM-DD relative to the meeting date ONLY when due_text is non-null; else null.
-- "priority": only if clearly implied (e.g. "urgent", "top priority"); else null.
-- "sources": the [#n] reference numbers of the transcript lines that support each item.
-- Write summary, key points, decisions and action items in the meeting's dominant language${
-    input.locale === 'ar' ? ' (prefer Arabic if the meeting is mixed Arabic/English)' : ''
-  }. Keep names and acronyms as spoken.
-- "language": dominant language code, e.g. "en" or "ar".
+- "priority": only if clearly implied; else null.
+- "sources": the [#n] reference numbers that support each item.
+- "language": dominant language code, e.g. "en", "ar", "ar-SA".
 
 Return ONLY JSON:
-{"language":"en","summary":"3-6 sentence summary","key_points":["..."],"decisions":[{"text":"...","certainty":"confirmed","sources":[3,4]}],"action_items":[{"title":"short imperative task title","description":"context from the meeting","owner":"Speaker 2","owner_certainty":"confirmed","due_text":"tomorrow","due_date":"2026-01-02","priority":null,"certainty":"confirmed","sources":[7]}]}`
+{"language":"ar","summary":"3-6 sentence summary","key_points":["..."],"decisions":[{"text":"...","certainty":"confirmed","sources":[3,4]}],"action_items":[{"title":"short imperative task title","description":"context from the meeting","owner":"Speaker 2","owner_certainty":"confirmed","due_text":"بكرا","due_date":"2026-01-02","priority":null,"certainty":"confirmed","sources":[7]}]}`
 }
 
 export function extractJsonObject(text: string): Record<string, unknown> | null {
