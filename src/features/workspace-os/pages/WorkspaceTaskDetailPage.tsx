@@ -33,6 +33,8 @@ import { AttachmentPanel } from '@/components/attachments/AttachmentPanel'
 import { VoiceAddButton } from '@/components/VoiceAddButton'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { TaskDueDateField } from '@/shared/tasks/TaskDueDateField'
+import { combineDueAt } from '@/shared/reminders'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { memberCanSeeTask } from '@/features/workspace-os/lib/member-visibility'
 import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
@@ -271,6 +273,21 @@ export function WorkspaceTaskDetailPage() {
           </p>
         ) : null}
       </div>
+      {canEdit ? (
+        <TaskDueDateField
+          id="workspace-task-due"
+          dueDate={task.data.due_date}
+          dueAt={task.data.due_at}
+          disabled={save.isPending}
+          onChange={(dueDate) =>
+            save.mutate(
+              dueDate
+                ? { due_date: dueDate, due_at: combineDueAt(dueDate) }
+                : { due_date: null, due_at: null },
+            )
+          }
+        />
+      ) : null}
       {canEdit ? (
         <TaskAssignmentFields
           workspaceId={workspaceId}

@@ -737,6 +737,7 @@
     "status": "Status",
     "priority": "Priority",
     "due": "Due date",
+    "clearDate": "Clear Date",
     "subtasks": "Subtasks",
     "addSubtask": "Add a subtask",
     "back": "Back to tasks",

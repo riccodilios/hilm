@@ -36,6 +36,10 @@ import {
 } from '@/features/tasks/attachments-api'
 import { EmptyState, Skeleton } from '@/components/ui/page'
 import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
+import {
+  TaskDueDateField,
+  clearTaskDueDatePatch,
+} from '@/shared/tasks/TaskDueDateField'
 import { PRIORITIES, TASK_STATUSES } from '@/types/domain'
 import type { Priority, TaskStatus } from '@/types/domain'
 
@@ -79,6 +83,39 @@ export function TaskDetailPage() {
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateTask>[1]) => updateTask(id!, patch),
+    onMutate: async (patch) => {
+      if (!id) return
+      if (
+        patch.due_date === undefined &&
+        patch.due_at === undefined &&
+        patch.due_time === undefined
+      ) {
+        return
+      }
+      await qc.cancelQueries({ queryKey: tasksKeys.detail(id) })
+      const previous = qc.getQueryData(tasksKeys.detail(id))
+      qc.setQueryData(tasksKeys.detail(id), (current: typeof task) => {
+        if (!current) return current
+        return {
+          ...current,
+          due_date: patch.due_date !== undefined ? patch.due_date : current.due_date,
+          due_at:
+            patch.due_at !== undefined
+              ? patch.due_at
+              : patch.due_date === null
+                ? null
+                : current.due_at,
+          due_time: patch.due_time !== undefined ? patch.due_time : current.due_time,
+        }
+      })
+      return { previous }
+    },
+    onError: (error: Error, _patch, context) => {
+      if (id && context && typeof context === 'object' && 'previous' in context) {
+        qc.setQueryData(tasksKeys.detail(id), (context as { previous: unknown }).previous)
+      }
+      toast.error(error.message)
+    },
     onSuccess: (_data, patch) => {
       void Promise.all([
         qc.invalidateQueries({ queryKey: tasksKeys.all }),
@@ -90,7 +127,6 @@ export function TaskDetailPage() {
         patch.project_id !== undefined ? t('tasks.movedProject') : t('tasks.updated'),
       )
     },
-    onError: (error: Error) => toast.error(error.message),
   })
 
   const persistDescription = useCallback(
@@ -305,15 +341,19 @@ export function TaskDetailPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="due-date">{t('tasks.due')}</Label>
-                <Input
-                  id="due-date"
-                  type="date"
-                  defaultValue={task.due_date ?? task.due_at?.slice(0, 10) ?? ''}
-                  onBlur={(event) => save.mutate({ due_date: event.target.value || null })}
-                />
-              </div>
+              <TaskDueDateField
+                id="due-date"
+                dueDate={task.due_date}
+                dueAt={task.due_at}
+                disabled={save.isPending}
+                onChange={(dueDate) =>
+                  save.mutate(
+                    dueDate
+                      ? { due_date: dueDate }
+                      : clearTaskDueDatePatch(),
+                  )
+                }
+              />
               <div className="space-y-2">
                 <Label htmlFor="reminder-type">{t('tasks.reminder')}</Label>
                 <select
