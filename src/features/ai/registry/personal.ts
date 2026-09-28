@@ -61,13 +61,7 @@ async function ensurePersonalProjectId(preferred?: string) {
   }
   const existing = (await listProjects())[0]?.id
   if (existing) return existing
-  const created = await createProject({
-    name: 'Inbox',
-    description: 'Default project for uncategorized work',
-    icon: 'inbox',
-    color: '#a1a1aa',
-  })
-  return created.id
+  throw new Error('Create your first project before adding tasks.')
 }
 
 async function resolvePersonalProjectId(opts?: {

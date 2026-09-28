@@ -142,7 +142,7 @@ export function projectHoursForDay(tasks: TaskWithProject[], dayKey: string) {
     const id = task.project_id ?? 'none'
     const current = map.get(id) ?? {
       id,
-      name: task.projects?.name ?? 'Inbox',
+      name: task.projects?.name ?? 'Project',
       color: task.projects?.color ?? '#71717a',
       hours: 0,
     }

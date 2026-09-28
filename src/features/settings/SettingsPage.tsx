@@ -48,7 +48,7 @@ export function SettingsPage({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
-  const { theme, setTheme } = useTheme()
+  const { theme } = useTheme()
   const queryClient = useQueryClient()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const profile = useQuery({ queryKey: settingsKeys.profile(), queryFn: getProfile })
@@ -104,9 +104,9 @@ export function SettingsPage({
   }, [profile.data])
 
   useEffect(() => {
-    if (settings.data?.theme === 'light' || settings.data?.theme === 'dark') {
-      setTheme(settings.data.theme)
-    }
+    // Theme is owned by ThemeProvider + ThemeAccountSync (and autosaved on toggle).
+    // Do not re-apply settings.theme here — refetches were overwriting a just-chosen theme
+    // with a stale DB value and writing light back into localStorage.
     if (settings.data) {
       setEmailReminders(settings.data.email_reminders_enabled ?? true)
       setPushNotifications(settings.data.push_notifications_enabled ?? false)
@@ -115,7 +115,7 @@ export function SettingsPage({
       setHideWorkspaceOs(settings.data.hide_workspace_os ?? false)
       setTimeFormat(settings.data.time_format === '12h' ? '12h' : '24h')
     }
-  }, [settings.data, setTheme])
+  }, [settings.data])
 
   async function handlePushToggle(checked: boolean) {
     setPushBusy(true)
@@ -202,9 +202,16 @@ export function SettingsPage({
   const save = useMutation({
     mutationFn: async () => {
       const userId = await requireUserId()
+      // Prefer the live DOM/local preference over a possibly-stale React closure.
+      const themeToSave =
+        (typeof window !== 'undefined' && localStorage.getItem('hilm-theme') === 'light'
+          ? 'light'
+          : theme === 'light'
+            ? 'light'
+            : 'dark') as 'light' | 'dark'
       await Promise.all([
         updateSettings({
-          theme,
+          theme: themeToSave,
           email_reminders_enabled: emailReminders,
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,

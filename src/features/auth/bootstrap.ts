@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 
-/** Ensures profile + settings (+ Inbox project) exist after first verified login. */
+/** Ensures profile + settings exist after first verified login. */
 export async function ensureUserBootstrap() {
   const {
     data: { user },
@@ -30,20 +30,8 @@ export async function ensureUserBootstrap() {
     await supabase.from('user_settings').upsert({ user_id: user.id })
   }
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('user_id', user.id)
-    .limit(1)
-  if (!projects?.length) {
-    await supabase.from('projects').insert({
-      user_id: user.id,
-      name: 'Inbox',
-      description: 'Default project for uncategorized work',
-      icon: 'inbox',
-      color: '#a1a1aa',
-    })
-  }
+  // Intentionally do not seed a default "Inbox" project — empty state prompts
+  // users to create their first real project.
 
   return user
 }
