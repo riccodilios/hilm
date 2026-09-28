@@ -293,8 +293,8 @@ export function ProjectDetailPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
-        <div className="overflow-x-auto pb-1">
-          <TabsList className="h-auto min-w-max flex-wrap justify-start">
+        <div className="overflow-x-auto pb-1 md:flex md:justify-center">
+          <TabsList className="mx-auto h-auto min-w-max flex-wrap justify-center">
             {allTabs.map((item) => (
               <TabsTrigger key={item} value={item}>
                 {tabLabels[item]}

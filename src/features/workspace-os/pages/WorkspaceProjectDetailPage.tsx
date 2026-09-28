@@ -199,12 +199,14 @@ export function WorkspaceProjectDetailPage() {
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">{t('workspace.projectOverview')}</TabsTrigger>
-          <TabsTrigger value="tasks">{t('nav.tasks')}</TabsTrigger>
-          <TabsTrigger value="meetings">{t('projects.meetings')}</TabsTrigger>
-          <TabsTrigger value="settings">{t('workspace.projectSettings')}</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1 md:flex md:justify-center">
+          <TabsList className="mx-auto h-auto min-w-max flex-wrap justify-center">
+            <TabsTrigger value="overview">{t('workspace.projectOverview')}</TabsTrigger>
+            <TabsTrigger value="tasks">{t('nav.tasks')}</TabsTrigger>
+            <TabsTrigger value="meetings">{t('projects.meetings')}</TabsTrigger>
+            <TabsTrigger value="settings">{t('workspace.projectSettings')}</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
