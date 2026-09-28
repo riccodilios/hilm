@@ -50,7 +50,19 @@ export type AiUsageSummary = {
     tokens_month: number
     cost_day: number
     cost_month: number
+    failed_day?: number
   }
+  by_feature?: Record<
+    string,
+    {
+      requests_day: number
+      requests_month: number
+      tokens_day: number
+      tokens_month: number
+      cost_day: number
+      cost_month: number
+    }
+  >
   limits: {
     requests_per_minute: number
     requests_per_day: number
@@ -60,6 +72,8 @@ export type AiUsageSummary = {
     cost_usd_per_day: number
     cost_usd_per_month: number
     max_concurrent: number
+    meeting_max_minutes?: number
+    meeting_minutes_per_month?: number
   }
 }
 

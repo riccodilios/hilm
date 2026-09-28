@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { featureDisabledMessage, getAiRuntimeConfig } from './_shared/ai-config'
 import {
   aiCorsHeaders,
   aiJson,
@@ -120,6 +121,11 @@ export default async (request: Request) => {
       return json({ error: 'logDate, dayStart, and dayEnd are required' }, 400)
     }
 
+    const runtime = getAiRuntimeConfig()
+    if (!runtime.aiEnabled) {
+      return json({ error: featureDisabledMessage('daily_log'), code: 'disabled' }, 403)
+    }
+
     const idempotencyKey =
       body.idempotencyKey?.trim() ||
       request.headers.get('Idempotency-Key')?.trim() ||
@@ -128,7 +134,7 @@ export default async (request: Request) => {
     const fingerprint = body.fingerprint?.trim() || `daily_log:${logDate}`
 
     activeModel = resolveAllowedAiModel({
-      defaultModel: process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash',
+      defaultModel: runtime.models.daily_log,
       allowedEnv: process.env.OPENROUTER_ALLOWED_MODELS,
     })
     const guard = await beginAiRequest(userClient, {
@@ -314,6 +320,7 @@ Return ONLY valid JSON with this shape:
         model: activeModel,
         stream: false,
         temperature: 0.4,
+        max_tokens: runtime.maxTokens.daily_log,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },

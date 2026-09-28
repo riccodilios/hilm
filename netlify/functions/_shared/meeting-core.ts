@@ -529,6 +529,12 @@ export function friendlyMeetingError(code: string) {
       return 'The AI returned an unreadable result.'
     case 'audio_missing':
       return 'The audio for this part of the recording could not be found.'
+    case 'disabled':
+      return 'Meeting AI is temporarily disabled. Please try again later.'
+    case 'rate_limited':
+      return "You've reached your AI usage limit. Please wait and try again."
+    case 'ai_limit':
+      return "You've reached your AI usage limit for today."
     default:
       return 'Processing failed.'
   }

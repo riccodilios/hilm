@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { featureDisabledMessage, getAiRuntimeConfig } from './_shared/ai-config'
 import {
   aiCorsHeaders,
   aiJson,
@@ -10,6 +11,7 @@ import {
   loadOpenRouterKey,
   tokensFromOpenRouterUsage,
 } from './_shared/ai-guard'
+import { trimChatHistory } from './_shared/ai-gateway'
 import {
   assertAiMessageLength,
   resolveAllowedAiModel,
@@ -114,10 +116,12 @@ export default async (request: Request) => {
     if (!body.conversationId || !body.message?.trim()) {
       return json({ error: 'conversationId and message are required' }, 400)
     }
+    const runtime = getAiRuntimeConfig()
+    if (!runtime.aiEnabled) {
+      return json({ error: featureDisabledMessage('chat'), code: 'disabled' }, 403)
+    }
     const messageTooLong = assertAiMessageLength(body.message.trim())
     if (messageTooLong) return json({ error: messageTooLong }, 400)
-    const messageError = assertAiMessageLength(body.message.trim())
-    if (messageError) return json({ error: messageError }, 400)
 
     const idempotencyKey =
       body.idempotencyKey?.trim() ||
@@ -136,8 +140,7 @@ export default async (request: Request) => {
       .single()
     if (conversationError || !conversation) return json({ error: 'Conversation not found' }, 404)
 
-    const defaultModel =
-      process.env.OPENROUTER_DEFAULT_MODEL?.trim() || 'google/gemini-2.5-flash'
+    const defaultModel = runtime.models.chat
     const activeModel = resolveAllowedAiModel({
       requested: body.model,
       conversationModel: conversation.model,
@@ -175,12 +178,16 @@ export default async (request: Request) => {
     }
     usageEventId = guard.event_id ?? null
 
-    const { data: history } = await userClient
+    const { data: historyRows } = await userClient
       .from('ai_messages')
       .select('role, content')
       .eq('conversation_id', body.conversationId)
       .order('created_at', { ascending: false })
-      .limit(16)
+      .limit(runtime.chat.maxHistoryMessages)
+    const history = trimChatHistory(historyRows ?? [], {
+      maxMessages: runtime.chat.maxHistoryMessages,
+      maxCharsPerMessage: runtime.chat.maxHistoryCharsPerMessage,
+    })
 
     const clock = resolveAiClock({
       timezone: body.timezone,
@@ -416,10 +423,11 @@ ${contextPack}`
         model: activeModel,
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: activeWorkspaceId ? 8192 : 4096,
+        max_tokens: activeWorkspaceId ? runtime.maxTokens.chatWorkspace : runtime.maxTokens.chatPersonal,
         messages: [
           { role: 'system', content: systemPrompt },
-          ...(history ?? [])
+          ...history
+            .slice()
             .reverse()
             .map((message) => ({ role: message.role, content: message.content })),
           { role: 'user', content: body.message.trim() },
@@ -482,7 +490,10 @@ ${contextPack}`
           }
 
           if (!usage.totalTokens) {
-            const inputEstimate = estimateTokensFromText(systemPrompt + userMessage)
+            const historyText = history.map((m) => m.content).join('\n')
+            const inputEstimate = estimateTokensFromText(
+              systemPrompt + contextPack + historyText + userMessage,
+            )
             const outputEstimate = estimateTokensFromText(content)
             usage = {
               inputTokens: inputEstimate,

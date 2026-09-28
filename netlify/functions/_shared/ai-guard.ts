@@ -75,9 +75,18 @@ export function aiLimitStatus(code?: string) {
 }
 
 export function friendlyAiLimitPayload(guard: AiGuardResult) {
+  const code = guard.code || 'ai_limit'
+  const fallback =
+    code === 'tier_disabled'
+      ? 'AI access is disabled for your plan.'
+      : code === 'in_flight' || code === 'duplicate_execution'
+        ? 'That AI request is already running. Please wait.'
+        : code === 'duplicate'
+          ? 'That AI request was already completed.'
+          : "You've reached your AI usage limit for today."
   return {
-    error: guard.message || 'AI usage limit reached',
-    code: guard.code || 'ai_limit',
+    error: guard.message || fallback,
+    code,
     tier: guard.tier,
     usage: guard.usage,
     limits: guard.limits,

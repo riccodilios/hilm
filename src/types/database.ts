@@ -43,6 +43,7 @@ type MeetingCoreRow = {
   processing_attempts: number
   expected_segments: number | null
   analysis_model: string | null
+  analysis_input_hash: string | null
   analyzed_at: string | null
   created_at: string
   updated_at: string
@@ -69,6 +70,7 @@ type MeetingAudioRow = {
   byte_size: number | null
   status: MeetingAudioStatus
   attempts: number
+  content_hash: string | null
   error: string | null
   transcribed_at: string | null
   created_at: string
