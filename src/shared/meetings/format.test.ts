@@ -16,6 +16,9 @@ describe('textDirection', () => {
     // Arabic-heavy mixed line → RTL base so English tech terms nest as LTR islands
     expect(textDirection('خلينا نخلص هيدا اليوم وبكرا منبلّش بالـ testing.')).toBe('rtl')
     expect(textDirection('API v2 · IMED-42 · 10:30 AM')).toBe('ltr')
+    // language:"mixed" must not lock direction — use script evidence
+    expect(textDirection('خلينا نراجع الموضوع the API', 'mixed')).toBe('rtl')
+    expect(textDirection("Let's discuss the new API architecture.", 'mixed')).toBe('ltr')
   })
 
   it('isolates bidi so mixed lines keep readable technical tokens', () => {

@@ -228,7 +228,7 @@ describe.skipIf(!enabled)('meeting transcription accuracy (live OpenRouter)', ()
       const perPart: Array<Record<string, unknown>> = []
       for (const segment of segments) {
         const previousLines = stitched.slice(-6).map((row) => ({ label: row.speakerLabel, text: row.text }))
-        const prompt = buildTranscriptionPrompt({ roster, previousLines, languageHint: 'en', chunkIdx: segment.idx })
+        const prompt = buildTranscriptionPrompt({ roster, previousLines, chunkIdx: segment.idx })
         const started = Date.now()
         const { result, attempts } = await transcribeWithRetry({ apiKey, audioBase64: wavBase64(segment.chunks), prompt })
         const latencyMs = Date.now() - started
@@ -312,7 +312,7 @@ describe.skipIf(!enabled)('meeting transcription accuracy (live OpenRouter)', ()
   it(
     'returns no transcript for silence (no hallucinated speech)',
     async () => {
-      const prompt = buildTranscriptionPrompt({ roster: [], previousLines: [], languageHint: 'en', chunkIdx: 0 })
+      const prompt = buildTranscriptionPrompt({ roster: [], previousLines: [], chunkIdx: 0 })
       const { result } = await transcribeWithRetry({ apiKey, audioBase64: wavBase64([silencePcm]), prompt })
       if (!result.ok) throw new Error(`silence failed: ${result.code}`)
       const words = result.data.segments.flatMap((segment) => normalizeWords(segment.text))

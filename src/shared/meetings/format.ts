@@ -74,7 +74,8 @@ const RTL_LANG_PREFIXES = ['ar', 'he', 'fa', 'ur']
  */
 export function textDirection(text: string, language?: string | null): 'rtl' | 'ltr' {
   const lang = (language ?? '').trim().toLowerCase()
-  if (lang) {
+  // "mixed" / unknown tags: decide from script evidence, never lock the whole meeting.
+  if (lang && lang !== 'mixed' && lang !== 'multilingual') {
     const primary = lang.split('-')[0] || lang
     if (RTL_LANG_PREFIXES.includes(primary)) return 'rtl'
     if (/^[a-z]{2,3}$/.test(primary)) return 'ltr'
