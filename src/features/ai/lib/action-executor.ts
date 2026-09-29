@@ -274,15 +274,13 @@ export async function executeAiActions(
       const receipt = receiptFromResult(type, outcome)
       // CREATE tools must never report success without a verified entity id.
       const createLike = type === 'task.create' || type === 'task.create_many'
-      const createVerified =
-        !createLike ||
-        (outcome.ok &&
-          (outcome.verified === true ||
-            (outcome.data &&
-              typeof outcome.data === 'object' &&
-              'succeeded' in outcome.data &&
-              Number((outcome.data as { succeeded?: unknown }).succeeded) > 0)))
-      const success = outcome.ok && (!createLike || createVerified)
+      const batchSucceeded =
+        outcome.data != null &&
+        typeof outcome.data === 'object' &&
+        'succeeded' in outcome.data &&
+        Number((outcome.data as { succeeded?: unknown }).succeeded) > 0
+      const createVerified = !createLike || outcome.verified === true || batchSucceeded
+      const success = Boolean(outcome.ok && (!createLike || createVerified))
       results.push({
         action: parsed.data as ParsedRegistryAction,
         success,
