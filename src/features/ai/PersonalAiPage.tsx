@@ -8,6 +8,8 @@ import { ideasKeys } from '@/features/ideas/api'
 import { notesKeys } from '@/features/notes/api'
 import { labelKeys } from '@/features/projects/labels-api'
 import { projectsKeys } from '@/features/projects/api'
+import { roadmapKeys } from '@/features/roadmap/api'
+import { dailyLogKeys } from '@/features/daily-log/api'
 import { tasksKeys } from '@/features/tasks/api'
 import { ensurePersonalAiRegistry } from '@/features/ai/registry/personal-bootstrap'
 
@@ -26,6 +28,8 @@ export function PersonalAiPage() {
       queryClient.invalidateQueries({ queryKey: ideasKeys.all }),
       queryClient.invalidateQueries({ queryKey: notesKeys.all }),
       queryClient.invalidateQueries({ queryKey: labelKeys.all }),
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.all }),
+      queryClient.invalidateQueries({ queryKey: dailyLogKeys.all }),
     ])
   }, [queryClient])
 

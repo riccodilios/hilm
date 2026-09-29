@@ -8,6 +8,7 @@ import {
 } from '@/features/ai/registry'
 import { normalizeAiAction } from '@/features/ai/registry/schemas'
 import { auditAiAction } from '@/features/ai/lib/conversation-focus'
+import { receiptFromResult, type ActionReceipt } from '@/features/ai/lib/action-receipts'
 import {
   applyCreatedProjectToFollowingActions,
   rewriteActionsForConversationFocus,
@@ -21,6 +22,10 @@ export type ActionExecutionResult = {
   summary?: string
   error?: string
   entities?: Array<{ type: string; id: string }>
+  receipt?: ActionReceipt
+  reused?: boolean
+  verified?: boolean
+  ambiguous?: boolean
 }
 
 export type ExecuteAiActionsOptions = {
@@ -266,13 +271,29 @@ export async function executeAiActions(
         phase: 'start',
       })
       const outcome = await def.execute(parsed.data, ctx)
+      const receipt = receiptFromResult(type, outcome)
+      // CREATE tools must never report success without a verified entity id.
+      const createLike = type === 'task.create' || type === 'task.create_many'
+      const createVerified =
+        !createLike ||
+        (outcome.ok &&
+          (outcome.verified === true ||
+            (outcome.data &&
+              typeof outcome.data === 'object' &&
+              'succeeded' in outcome.data &&
+              Number((outcome.data as { succeeded?: unknown }).succeeded) > 0)))
+      const success = outcome.ok && (!createLike || createVerified)
       results.push({
         action: parsed.data as ParsedRegistryAction,
-        success: outcome.ok,
+        success,
         data: outcome.data,
         summary: outcome.summary,
         entities: outcome.entities,
-        error: outcome.ok ? undefined : outcome.summary || 'Action did not complete',
+        receipt,
+        reused: outcome.reused,
+        verified: outcome.verified,
+        ambiguous: outcome.ambiguous,
+        error: success ? undefined : outcome.summary || receipt.error?.message || 'Action did not complete',
       })
       if (
         outcome.ok &&
@@ -314,16 +335,24 @@ export async function executeAiActions(
         phase: 'result',
         tool: type,
         targetId: actionTaskId(action) ?? outcome.entities?.[0]?.id,
-        result: { ok: outcome.ok, summary: outcome.summary, entities: outcome.entities },
-        error: outcome.ok ? undefined : outcome.summary,
+        result: {
+          ok: success,
+          summary: outcome.summary,
+          entities: outcome.entities,
+          verified: outcome.verified,
+          reused: outcome.reused,
+        },
+        receipt,
+        error: success ? undefined : outcome.summary,
       })
-      if (!outcome.ok) {
+      if (!success) {
         console.error('[hilm] AI action soft-failed', {
           os,
           workspaceId,
           type,
           taskId: actionTaskId(parsed.data as ParsedRegistryAction),
           summary: outcome.summary,
+          receipt,
           action: parsed.data,
         })
       }
@@ -334,7 +363,7 @@ export async function executeAiActions(
         typeof outcome.data === 'object' &&
         'succeeded' in outcome.data &&
         Number((outcome.data as { succeeded?: unknown }).succeeded) > 0
-      if (!outcome.ok && sequential && !isPartialBatch) break
+      if (!success && sequential && !isPartialBatch) break
     } catch (error) {
       console.error('[hilm] AI action failed', {
         os,

@@ -29,6 +29,7 @@ export function WorkspaceAiPage() {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.activity(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) }),
+      queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId] }),
     ])
   }, [queryClient, workspaceId])
 

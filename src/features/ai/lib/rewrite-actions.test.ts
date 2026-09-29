@@ -37,6 +37,37 @@ describe('rewriteActionsForConversationFocus', () => {
     expect(next[0]?.type).toBe('task.create')
   })
 
+  it('never rewrites create→update when message has create + field words like priority/title', () => {
+    const next = rewriteActionsForConversationFocus(
+      [{ type: 'task.create', title: 'Docs', priority: 'high' }],
+      { userMessage: 'Create a high priority task titled Docs', focus },
+    )
+    expect(next[0]?.type).toBe('task.create')
+    expect(next[0]?.title).toBe('Docs')
+  })
+
+  it('rewrites rename follow-ups even when the new title differs', () => {
+    const next = rewriteActionsForConversationFocus(
+      [{ type: 'task.create', title: 'Wasl docs' }],
+      { userMessage: 'Make the title shorter', focus },
+    )
+    expect(next[0]?.type).toBe('task.update')
+    expect(next[0]?.taskId).toBe(focus.lastCreatedTaskId)
+    expect(next[0]?.title).toBe('Wasl docs')
+  })
+
+  it('keeps create for add another / create these tasks', () => {
+    const next = rewriteActionsForConversationFocus(
+      [
+        { type: 'task.create', title: 'A' },
+        { type: 'task.create', title: 'B' },
+        { type: 'task.create', title: 'C' },
+      ],
+      { userMessage: 'Create these 3 tasks: A, B, C', focus },
+    )
+    expect(next.every((action) => action.type === 'task.create')).toBe(true)
+  })
+
   it('fills missing taskId on update from focus', () => {
     const next = rewriteActionsForConversationFocus(
       [{ type: 'task.update', taskId: 'TODO', title: 'Short' }],

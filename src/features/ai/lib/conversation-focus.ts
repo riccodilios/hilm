@@ -98,22 +98,29 @@ export function formatFocusForPrompt(focus: ConversationEntityFocus) {
     lines.push(`recentCreatedTitles=${JSON.stringify(focus.recentCreatedTitles.slice(-12))}`)
   }
   if (!lines.length) return ''
-  return `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):
+  return `Conversation focus (use these IDs for follow-up UPDATES of "it/that/this" only):
 ${lines.join('\n')}
-If a task title is already in recentCreatedTitles or the Tasks pack (especially workState=done), do not recreate it — update or skip.`
+CREATE vs UPDATE rules:
+- Explicit create/add/new language → always emit task.create / task.create_many. Never update an existing task for those requests, even if recentCreatedTitles lists a similar title.
+- Refinement of "it/that/this task" without create language → task.update / task.schedule with lastCreatedTaskId / lastModifiedTaskId.
+- Never claim a mutation succeeded — the client applies actions and verifies results.`
 }
 
+/** Explicit create / add / new phrasing — always CREATE, never rewrite to UPDATE. */
 const CREATE_HINT =
-  /\b(create|add|new|make a|make an|start a|start an|open a|open an)\b/i
+  /\b(create|add|new|make a|make an|start a|start an|open a|open an|another task|another one|these tasks|these items)\b/i
 const MULTI_CREATE_HINT =
-  /\b(these tasks|these items|list of|batch|several|multiple|a few|another (set|batch)|also create|also add)\b/i
-const EDIT_HINT =
-  /\b(update|edit|change|rename|shorten|longer|move|reschedule|set|make (it|the|this|that)|put|add (more |the )?detail|description|title|due|priority|assign|label|complete|finish|archive|delete|remove)\b/i
+  /\b(these tasks|these items|list of|batch|several|multiple|a few|another (set|batch)|also create|also add|create (?:three|3|four|4|five|5|\d+) tasks?)\b/i
+/** Strong edit verbs only — NOT field nouns like title/priority/due (those appear in create requests). */
+const EDIT_VERB_HINT =
+  /\b(update|edit|change|rename|shorten|longer|reschedule|complete|finish|archive|delete|remove|mark (it |this |that )?(as )?(done|complete))\b/i
+const EDIT_REFINE_HINT =
+  /\b(make (it|the|this|that)\b|put (more |the )?|add (more |the )?detail|move (it|this|that)|set (the )?(due|priority|title|status)|due (on|by|at)|priority to)\b/i
 const REF_HINT =
   /\b(it|that|this|the task|the one|previous|just created|i just|we just)\b/i
 
 export function messageLooksLikeCreate(message: string) {
-  return CREATE_HINT.test(message) && !EDIT_HINT.test(message)
+  return CREATE_HINT.test(message)
 }
 
 export function messageLooksLikeMultiCreate(message: string) {
@@ -121,10 +128,10 @@ export function messageLooksLikeMultiCreate(message: string) {
 }
 
 export function messageLooksLikeEdit(message: string) {
-  if (EDIT_HINT.test(message) && !MULTI_CREATE_HINT.test(message)) return true
-  if (REF_HINT.test(message) && !messageLooksLikeCreate(message) && !MULTI_CREATE_HINT.test(message)) {
-    return true
-  }
+  // Explicit create language always wins — never treat "create a high priority task" as edit.
+  if (messageLooksLikeCreate(message) || messageLooksLikeMultiCreate(message)) return false
+  if (EDIT_VERB_HINT.test(message) || EDIT_REFINE_HINT.test(message)) return true
+  if (REF_HINT.test(message)) return true
   return false
 }
 
@@ -137,10 +144,14 @@ export function auditAiAction(entry: {
   params?: unknown
   result?: unknown
   error?: unknown
+  receipt?: unknown
 }) {
   if (typeof console === 'undefined') return
   try {
-    console.debug('[hilm:ai-audit]', entry)
+    console.debug('[hilm:ai-audit]', {
+      ...entry,
+      ts: new Date().toISOString(),
+    })
   } catch {
     /* ignore */
   }

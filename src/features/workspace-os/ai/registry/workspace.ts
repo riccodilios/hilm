@@ -132,34 +132,26 @@ export function registerWorkspaceActions() {
       }
 
       let project = resolved.project
-      const existingOpen = (await listWorkspaceTasks(workspaceId)).find(
-        (task) =>
-          task.project_id === project.id &&
-          task.status !== 'done' &&
-          task.status !== 'archived' &&
-          task.title.trim().toLowerCase() === input.title.trim().toLowerCase(),
-      )
-      if (existingOpen) {
-        const taskRef = formatWorkspaceTaskRef(workspace.task_key, existingOpen.task_number)
+      const {
+        buildCreateClientKey,
+        recallActionResult,
+        rememberActionResult,
+      } = await import('@/features/ai/lib/action-idempotency')
+      const { verifyCreatedTask } = await import('@/features/ai/lib/action-verify')
+      const clientKey = buildCreateClientKey({
+        conversationId: workspaceId,
+        title: input.title,
+        projectId: project.id,
+        explicit: input.clientKey,
+      })
+      const scope = `workspace:${workspaceId}`
+      const cached = recallActionResult(scope, clientKey)
+      if (cached?.ok && cached.entities?.[0]?.id) {
         return {
-          ok: true,
-          summary: taskRef
-            ? `Already have ${taskRef} “${existingOpen.title}” in ${project.name}`
-            : `Already have “${existingOpen.title}” in ${project.name}`,
-          entities: [
-            { type: 'task', id: existingOpen.id },
-            { type: 'project', id: project.id },
-          ],
-          data: {
-            ...existingOpen,
-            id: existingOpen.id,
-            title: existingOpen.title,
-            project_id: project.id,
-            project_name: project.name,
-            workspace_id: workspaceId,
-            task_ref: taskRef,
-            reused: true,
-          },
+          ...cached,
+          reused: true,
+          code: 'task.create_idempotent',
+          summary: cached.summary || `Already created “${input.title}” in this request`,
         }
       }
 
@@ -205,6 +197,8 @@ export function registerWorkspaceActions() {
             ok: false,
             summary:
               'I couldn’t create the task because I couldn’t find that project in this workspace. Would you like me to create the project first?',
+            code: 'project_missing',
+            verified: false,
           }
         }
         project = retry.project
@@ -214,15 +208,41 @@ export function registerWorkspaceActions() {
         })
       }
 
+      if (!task?.id) {
+        return {
+          ok: false,
+          summary: 'Task creation did not return an id — nothing was created.',
+          code: 'task.create_no_id',
+          verified: false,
+        }
+      }
+
+      const verified = await verifyCreatedTask({
+        os: 'workspace',
+        workspaceId,
+        taskId: task.id,
+        expected: { title: input.title, projectId: project.id },
+      })
+      if (!verified.ok) {
+        return {
+          ok: false,
+          summary: verified.summary,
+          code: verified.code ?? 'verify_failed',
+          verified: false,
+          entities: [{ type: 'task', id: task.id }],
+        }
+      }
+
       const taskRef = formatWorkspaceTaskRef(workspace.task_key, task.task_number)
-      return {
-        ok: true,
+      const result = {
+        ok: true as const,
+        verified: true,
         summary: taskRef
           ? `Created ${taskRef} “${input.title}” in ${project.name}`
           : `Created task “${input.title}” in ${project.name}`,
         entities: [
-          { type: 'task', id: task.id },
-          { type: 'project', id: project.id },
+          { type: 'task' as const, id: task.id },
+          { type: 'project' as const, id: project.id },
         ],
         data: {
           ...task,
@@ -235,8 +255,12 @@ export function registerWorkspaceActions() {
           status: task.status ?? input.status ?? 'todo',
           task_number: task.task_number,
           task_ref: taskRef,
+          action: 'task.created',
         },
+        code: 'task.created',
       }
+      rememberActionResult(scope, clientKey, result)
+      return result
     },
   })
 
@@ -275,16 +299,12 @@ export function registerWorkspaceActions() {
       }
 
       const project = resolved.project
-      const existingByTitle = new Map(
-        (await listWorkspaceTasks(workspaceId))
-          .filter(
-            (task) =>
-              task.project_id === project.id &&
-              task.status !== 'done' &&
-              task.status !== 'archived',
-          )
-          .map((task) => [task.title.trim().toLowerCase(), task]),
-      )
+      const {
+        buildCreateClientKey,
+        recallActionResult,
+        rememberActionResult,
+      } = await import('@/features/ai/lib/action-idempotency')
+      const { verifyCreatedTask } = await import('@/features/ai/lib/action-verify')
       const seen = new Set<string>()
 
       type PreparedItem = {
@@ -294,7 +314,7 @@ export function registerWorkspaceActions() {
       }
       const prepared: PreparedItem[] = []
       const preFailures: BatchItemResult[] = []
-      const reused: BatchItemResult[] = []
+      const idempotentHits: BatchItemResult[] = []
 
       input.items.forEach((raw, index) => {
         const parsed = taskCreateFieldsSchema.safeParse(raw)
@@ -313,28 +333,33 @@ export function registerWorkspaceActions() {
           })
           return
         }
-        const key = (parsed.data.clientKey || parsed.data.title).trim().toLowerCase()
-        if (!key || seen.has(key)) {
+        const key = buildCreateClientKey({
+          conversationId: workspaceId,
+          title: parsed.data.title,
+          projectId: project.id,
+          index,
+          explicit: parsed.data.clientKey,
+        })
+        if (seen.has(key)) {
           preFailures.push({
             index,
             title: parsed.data.title,
             ok: false,
-            summary: 'Duplicate title in batch — skipped',
-            error: 'Duplicate title in batch — skipped',
+            summary: 'Duplicate item in batch — skipped',
+            error: 'Duplicate item in batch — skipped',
           })
           return
         }
         seen.add(key)
-        const existing = existingByTitle.get(parsed.data.title.trim().toLowerCase())
-        if (existing) {
-          const taskRef = formatWorkspaceTaskRef(workspace.task_key, existing.task_number)
-          reused.push({
+        const cached = recallActionResult(`workspace:${workspaceId}`, key)
+        if (cached?.ok && cached.entities?.[0]?.id) {
+          idempotentHits.push({
             index,
             title: parsed.data.title,
             ok: true,
-            summary: taskRef ? `Already have ${taskRef}` : `Already have “${parsed.data.title}”`,
-            taskId: existing.id,
-            taskRef: taskRef ?? undefined,
+            reused: true,
+            summary: `Already created “${parsed.data.title}” in this request`,
+            taskId: cached.entities[0].id,
           })
           return
         }
@@ -361,8 +386,32 @@ export function registerWorkspaceActions() {
               quiet: true,
               taskKey: workspace.task_key,
             })
+            if (!task?.id) {
+              return {
+                index: item.index,
+                title: item.fields.title,
+                ok: false,
+                summary: 'Task creation did not return an id',
+                error: 'Task creation did not return an id',
+              }
+            }
+            const verified = await verifyCreatedTask({
+              os: 'workspace',
+              workspaceId,
+              taskId: task.id,
+              expected: { title: item.fields.title, projectId: project.id },
+            })
+            if (!verified.ok) {
+              return {
+                index: item.index,
+                title: item.fields.title,
+                ok: false,
+                summary: verified.summary,
+                error: verified.summary,
+              }
+            }
             const taskRef = formatWorkspaceTaskRef(workspace.task_key, task.task_number)
-            return {
+            const row: BatchItemResult = {
               index: item.index,
               title: item.fields.title,
               ok: true,
@@ -370,6 +419,14 @@ export function registerWorkspaceActions() {
               taskId: task.id,
               taskRef: taskRef ?? undefined,
             }
+            rememberActionResult(`workspace:${workspaceId}`, item.clientKey, {
+              ok: true,
+              summary: row.summary,
+              verified: true,
+              entities: [{ type: 'task', id: task.id }],
+              data: task,
+            })
+            return row
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             return {
@@ -383,26 +440,26 @@ export function registerWorkspaceActions() {
         },
       )
 
-      const results = [...preFailures, ...reused, ...createResults].sort((a, b) => a.index - b.index)
-      const succeeded = results.filter((row) => row.ok)
-      const failed = results.filter((row) => !row.ok)
+      const results = [...preFailures, ...idempotentHits, ...createResults].sort(
+        (a, b) => a.index - b.index,
+      )
       const createdCount = createResults.filter((row) => row.ok).length
-      const reusedCount = reused.length
-      const ok = succeeded.length > 0
+      const reusedCount = idempotentHits.length
+      const failed = results.filter((row) => !row.ok)
+      const ok = createdCount + reusedCount > 0
       const summary =
         failed.length === 0
-          ? reusedCount && createdCount
-            ? `Created ${createdCount} and reused ${reusedCount} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
-            : reusedCount
-              ? `Already had ${reusedCount} task${reusedCount === 1 ? '' : 's'} in ${project.name}`
-              : `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'} in ${project.name}`
-          : `Created ${createdCount}/${results.length} tasks in ${project.name} (${failed.length} failed)`
+          ? `Created ${createdCount} task${createdCount === 1 ? '' : 's'} in ${project.name}`
+          : `Created ${createdCount} of ${results.length} tasks in ${project.name} (${failed.length} failed)`
 
       return {
         ok,
+        verified: failed.length === 0 && createdCount > 0,
         summary,
         entities: [
-          ...succeeded.map((row) => ({ type: 'task', id: row.taskId! })),
+          ...results
+            .filter((row) => row.ok && row.taskId)
+            .map((row) => ({ type: 'task', id: row.taskId! })),
           { type: 'project', id: project.id },
         ],
         data: {
@@ -410,11 +467,13 @@ export function registerWorkspaceActions() {
           project_name: project.name,
           workspace_id: workspaceId,
           items: results,
-          succeeded: succeeded.length,
+          succeeded: createdCount,
           failed: failed.length,
           total: results.length,
           reused: reusedCount,
+          action: 'task.create_many',
         },
+        code: failed.length ? 'task.create_many_partial' : 'task.create_many',
       }
     },
   })

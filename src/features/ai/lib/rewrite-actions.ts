@@ -80,6 +80,8 @@ function withFocusedProject(
 /**
  * Rewrite create→update (and fill missing taskIds) when conversation focus
  * makes the user's intent clearly a modification of an existing task.
+ *
+ * Hard rule: explicit create/add/new language NEVER becomes an update.
  */
 export function rewriteActionsForConversationFocus(
   actions: ParsedRegistryAction[],
@@ -96,13 +98,13 @@ export function rewriteActionsForConversationFocus(
     return type === 'task.create' || type === 'task.create_many'
   }).length
   const hasCreateMany = actions.some((action) => action.type === 'task.create_many')
-  // Only convert create→update on clear single-task edit intent.
-  // Never rewrite batches / multi-create lists into updates of the last focused task.
+  const explicitCreate = messageLooksLikeCreate(message) || messageLooksLikeMultiCreate(message)
+
+  // Only convert create→update on clear single-task edit intent WITHOUT create language.
   const preferUpdate =
     Boolean(focusedId) &&
+    !explicitCreate &&
     messageLooksLikeEdit(message) &&
-    !messageLooksLikeCreate(message) &&
-    !messageLooksLikeMultiCreate(message) &&
     !hasCreateMany &&
     createLikeCount <= 1
 
@@ -111,6 +113,8 @@ export function rewriteActionsForConversationFocus(
     if (!type) return action
 
     if (type === 'task.create' && preferUpdate && focusedId) {
+      // preferUpdate already requires edit intent and NO create language.
+      // Renames often propose a different title — that must still become task.update.
       const title = typeof action.title === 'string' ? action.title : undefined
       const description = typeof action.description === 'string' ? action.description : undefined
       const priority = action.priority
@@ -124,6 +128,11 @@ export function rewriteActionsForConversationFocus(
       if (priority != null) next.priority = priority
       if (dueAt != null) next.dueAt = dueAt
       return next
+    }
+
+    // Never rewrite create_many, and never rewrite create when user used create language.
+    if (type === 'task.create' || type === 'task.create_many') {
+      return withFocusedProject(action, focus, message)
     }
 
     if (

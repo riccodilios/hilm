@@ -294,7 +294,7 @@ ENTITY NAMESPACES: Workspace name and Project names are independent. A project M
 When the user says "create a project called X", emit project.create with name X immediately (current workspace). Do not ask for the name or whether they meant the workspace.
 When referencing an existing task, set taskId to the task's id UUID OR its ref (e.g. ${taskKey}-12) OR the exact title from Tasks. Never invent UUIDs.
 Project lookup is always scoped to this workspaceId. Match project names/keywords from the Projects list (ignore trailing words like "project"/"app"). Prefer exact or prefix matches over weak substring matches.
-WORK STATE: Each task has workState "open" or "done". WorkSummary counts what is already finished vs still open. Do NOT recreate titles that already appear in Tasks (especially workState=done) or Conversation focus recentCreatedTitles — update existing work or skip.
+WORK STATE: Each task has workState "open" or "done". WorkSummary counts what is already finished vs still open. When the user explicitly asks to create/add a new task, always emit task.create / task.create_many (INSERT) — never update an existing row just because a similar title exists.
 Workspace: ${JSON.stringify(workspace ?? { id: activeWorkspaceId, task_key: taskKey })}
 Members: ${JSON.stringify(memberContext)}
 Projects: ${JSON.stringify(projects ?? [])}
@@ -337,7 +337,7 @@ Recent activity: ${JSON.stringify(activity ?? [])}`
       }))
       actionCatalog = personalActionCatalog
       contextPack = `You are operating strictly inside Personal OS. Never access workspace/team data.
-WORK STATE: Each task has workState "open" or "done". Do NOT recreate titles that already appear in Tasks or Conversation focus recentCreatedTitles.
+WORK STATE: Each task has workState "open" or "done". Explicit create/add/new requests always INSERT via task.create / task.create_many — never rewrite them into updates of existing titles.
 Projects: ${JSON.stringify(projects ?? [])}
 WorkSummary: ${JSON.stringify(workSummary)}
 Tasks: ${JSON.stringify(scopedTasks)}
@@ -370,7 +370,7 @@ Labels: ${JSON.stringify(labels ?? [])}`
       focusLines.push(`recentCreatedTitles=${JSON.stringify(focus.recentCreatedTitles.slice(-12))}`)
     }
     const focusBlock = focusLines.length
-      ? `Conversation focus (prefer these IDs for follow-ups — UPDATE existing entities, do not recreate):\n${focusLines.join('\n')}\nIf a task title is already in recentCreatedTitles or Tasks (especially workState=done), do not recreate it — update or skip.`
+      ? `Conversation focus (use these IDs for follow-up UPDATES of "it/that/this" only):\n${focusLines.join('\n')}\nExplicit create/add/new language → always task.create / task.create_many. Never claim a mutation succeeded in prose — propose actions JSON only.`
       : ''
 
     const systemPrompt = `You are Hilm AI (${modeLabel}). ${agentInstruction}

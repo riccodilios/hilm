@@ -71,9 +71,21 @@ export async function getTask(id: string) {
   return asTaskWithProject(data, project)
 }
 
+export class AmbiguousTaskMatchError extends Error {
+  readonly code = 'ambiguous_target'
+  readonly matches: Array<{ id: string; title?: string }>
+  constructor(matches: Array<{ id: string; title?: string }>) {
+    super(
+      `I found ${matches.length} tasks matching that description. Which one do you mean?`,
+    )
+    this.name = 'AmbiguousTaskMatchError'
+    this.matches = matches
+  }
+}
+
 /**
  * Resolve a task id for AI actions.
- * Exact id first, then optional title hint (current title), then fuzzy contains match.
+ * Exact id first, then optional title hint. Never silently picks among multiple matches.
  */
 export async function resolveTaskIdForAction(taskId: string, titleHint?: string) {
   const { data: exact, error } = await supabase.from('tasks').select('id').eq('id', taskId).limit(1)
@@ -84,22 +96,28 @@ export async function resolveTaskIdForAction(taskId: string, titleHint?: string)
   if (hint) {
     const { data: byTitle, error: titleError } = await supabase
       .from('tasks')
-      .select('id')
+      .select('id, title')
       .ilike('title', hint)
       .neq('status', 'archived')
       .order('updated_at', { ascending: false })
-      .limit(1)
+      .limit(5)
     if (titleError) throw titleError
+    if ((byTitle?.length ?? 0) > 1) {
+      throw new AmbiguousTaskMatchError(byTitle ?? [])
+    }
     if (byTitle?.[0]?.id) return byTitle[0].id
 
     const { data: fuzzy, error: fuzzyError } = await supabase
       .from('tasks')
-      .select('id')
+      .select('id, title')
       .ilike('title', `%${hint.replace(/[%_]/g, '')}%`)
       .neq('status', 'archived')
       .order('updated_at', { ascending: false })
-      .limit(1)
+      .limit(5)
     if (fuzzyError) throw fuzzyError
+    if ((fuzzy?.length ?? 0) > 1) {
+      throw new AmbiguousTaskMatchError(fuzzy ?? [])
+    }
     if (fuzzy?.[0]?.id) return fuzzy[0].id
   }
 

@@ -11,6 +11,14 @@ export type ActionResult = {
   summary: string
   data?: unknown
   entities?: Array<{ type: string; id: string }>
+  /** True when an existing entity was returned instead of mutating. */
+  reused?: boolean
+  /** True after a post-mutation DB re-read confirmed the write. */
+  verified?: boolean
+  /** True when multiple targets matched and no mutation ran. */
+  ambiguous?: boolean
+  /** Machine-readable failure / outcome code. */
+  code?: string
 }
 
 export type ActionContext = {

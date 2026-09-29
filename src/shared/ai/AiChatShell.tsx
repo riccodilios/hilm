@@ -765,9 +765,20 @@ export function AiChatShell({
             : t('ai.appliedMany', { count: succeeded }),
         )
         setProposedActions([])
+      } else if (failed && succeeded) {
+        setActionSummary(
+          t('ai.appliedPartial', {
+            defaultValue: `Completed ${succeeded} of ${succeeded + failed} actions. ${failed} failed.`,
+            succeeded,
+            failed,
+            total: succeeded + failed,
+          }),
+        )
+        setProposedActions(remaining)
       } else if (failed) {
         setProposedActions(remaining)
       }
+      // Always refresh when any mutation actually succeeded so lists/dashboard stay in sync.
       if (succeeded) await invalidateAfterActions()
     } catch {
       setStreamError(

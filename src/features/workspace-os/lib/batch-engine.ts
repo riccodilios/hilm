@@ -12,6 +12,8 @@ export type BatchItemResult = {
   taskId?: string
   taskRef?: string
   error?: string
+  /** Idempotent replay of the same clientKey — not a fresh INSERT. */
+  reused?: boolean
 }
 
 export type CreateManyPayload = {

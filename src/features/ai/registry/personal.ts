@@ -26,18 +26,25 @@ import {
 import { createRoadmapItem } from '@/features/roadmap/api'
 import { upsertDailyLog } from '@/features/daily-log/api'
 import {
+  AmbiguousTaskMatchError,
   archiveTask,
   createTask,
   deleteTask,
+  getTask,
   listTasks,
   moveTask,
-  resolveOpenTaskFallback,
   resolveTaskIdForAction,
   updateTask,
 } from '@/features/tasks/api'
 import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
 import { supabase } from '@/lib/supabase/client'
+import {
+  buildCreateClientKey,
+  recallActionResult,
+  rememberActionResult,
+} from '@/features/ai/lib/action-idempotency'
+import { verifyCreatedTask } from '@/features/ai/lib/action-verify'
 import type { Priority, TaskStatus } from '@/types/domain'
 
 function tomorrowIso() {
@@ -48,20 +55,42 @@ function tomorrowIso() {
 }
 
 async function requireResolvedTaskId(taskId: string, currentTitleHint?: string) {
-  const resolved =
-    (await resolveTaskIdForAction(taskId, currentTitleHint)) ?? (await resolveOpenTaskFallback())
-  if (!resolved) throw new Error('Task not found or you do not have access to it')
-  return resolved
+  try {
+    const resolved = await resolveTaskIdForAction(taskId, currentTitleHint)
+    if (!resolved) {
+      throw new Error(
+        'Could not identify which task to change. Name the task or create a new one explicitly.',
+      )
+    }
+    return resolved
+  } catch (error) {
+    if (error instanceof AmbiguousTaskMatchError) throw error
+    throw error
+  }
 }
 
-async function ensurePersonalProjectId(preferred?: string) {
-  if (preferred) {
-    const projects = await listProjects()
-    if (projects.some((project) => project.id === preferred)) return preferred
+async function ensurePersonalProjectId(opts?: {
+  projectId?: string
+  projectName?: string
+}) {
+  const byName = await resolvePersonalProjectId(opts)
+  if (byName) return byName
+  if (opts?.projectId || opts?.projectName) {
+    throw new Error(
+      opts.projectName
+        ? `Could not find project “${opts.projectName}”. Create it first or pick an existing project.`
+        : 'Could not find that project.',
+    )
   }
-  const existing = (await listProjects())[0]?.id
-  if (existing) return existing
-  throw new Error('Create your first project before adding tasks.')
+  const projects = await listProjects()
+  if (projects.length === 1) return projects[0]!.id
+  if (!projects.length) throw new Error('Create your first project before adding tasks.')
+  throw new Error(
+    `Which project should this task go in? Available: ${projects
+      .slice(0, 8)
+      .map((project) => project.name)
+      .join(', ')}.`,
+  )
 }
 
 async function resolvePersonalProjectId(opts?: {
@@ -101,14 +130,32 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?',
     execute: async (input) => {
-      const taskId =
-        (await resolveTaskIdForAction(input.taskId, input.title)) ??
-        (await resolveOpenTaskFallback())
-      if (!taskId) {
-        return { ok: true, summary: 'No matching task to complete (already gone or unknown id)' }
+      try {
+        const taskId = await requireResolvedTaskId(input.taskId, input.title)
+        const updated = await updateTask(taskId, { status: 'done' })
+        return {
+          ok: true,
+          summary: `Completed “${updated.title ?? taskId}”`,
+          verified: true,
+          entities: [{ type: 'task', id: taskId }],
+          data: updated,
+          code: 'task.completed',
+        }
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return {
+            ok: false,
+            summary: error.message,
+            ambiguous: true,
+            code: error.code,
+          }
+        }
+        return {
+          ok: false,
+          summary: error instanceof Error ? error.message : 'Could not complete task',
+          code: 'task.complete_failed',
+        }
       }
-      await updateTask(taskId, { status: 'done' })
-      return { ok: true, summary: `Completed task ${taskId}` }
     },
   })
 
@@ -116,31 +163,38 @@ export function registerPersonalActions() {
     type: 'task.create',
     os: 'personal',
     title: 'Create task',
-    description: 'Create a personal task',
+    description: 'Create a personal task (always INSERT — never updates an existing task)',
     risk: 'safe',
     inputSchema: z.object({
       type: z.literal('task.create'),
       projectId: optionalUuid,
-      ...taskCreateFieldsSchema.omit({ assigneeId: true, departmentId: true, teamId: true, clientKey: true })
-        .shape,
+      projectName: z.string().min(1).optional(),
+      ...taskCreateFieldsSchema.omit({ assigneeId: true, departmentId: true, teamId: true }).shape,
     }),
-    promptFields: 'title, description?, projectId?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?',
+    promptFields:
+      'title, description?, projectId?, projectName?, priority?, status? (backlog|todo|in_progress|waiting|testing|done), dueAt?, clientKey?',
     execute: async (input) => {
-      const projectId = await ensurePersonalProjectId(input.projectId)
-      const existing = (await listTasks({ projectId })).find(
-        (task) =>
-          task.status !== 'done' &&
-          task.status !== 'archived' &&
-          task.title.trim().toLowerCase() === input.title.trim().toLowerCase(),
-      )
-      if (existing) {
+      const projectId = await ensurePersonalProjectId({
+        projectId: input.projectId,
+        projectName: input.projectName,
+      })
+      const userId = await requireUserId()
+      const clientKey = buildCreateClientKey({
+        title: input.title,
+        projectId,
+        explicit: input.clientKey,
+      })
+      const scope = `personal:${userId}`
+      const cached = recallActionResult(scope, clientKey)
+      if (cached?.ok && cached.entities?.[0]?.id) {
         return {
-          ok: true,
-          summary: `Already have “${existing.title}”`,
-          entities: [{ type: 'task', id: existing.id }],
-          data: { ...existing, reused: true },
+          ...cached,
+          reused: true,
+          code: 'task.create_idempotent',
+          summary: cached.summary || `Already created “${input.title}” in this request`,
         }
       }
+
       const task = await createTask({
         title: input.title,
         description: input.description,
@@ -149,11 +203,205 @@ export function registerPersonalActions() {
         status: input.status as TaskStatus | undefined,
         dueAt: input.dueAt,
       })
+      if (!task?.id) {
+        return {
+          ok: false,
+          summary: 'Task creation did not return an id — nothing was created.',
+          code: 'task.create_no_id',
+          verified: false,
+        }
+      }
+
+      const verified = await verifyCreatedTask({
+        os: 'personal',
+        taskId: task.id,
+        expected: { title: input.title, projectId, userId },
+      })
+      if (!verified.ok) {
+        return {
+          ok: false,
+          summary: verified.summary,
+          code: verified.code ?? 'verify_failed',
+          verified: false,
+          entities: [{ type: 'task', id: task.id }],
+        }
+      }
+
+      const project = (await listProjects()).find((row) => row.id === projectId)
+      const result = {
+        ok: true as const,
+        summary: `Created “${task.title}”${project ? ` in ${project.name}` : ''}`,
+        verified: true,
+        entities: [
+          { type: 'task' as const, id: task.id },
+          { type: 'project' as const, id: projectId },
+        ],
+        data: {
+          ...task,
+          project_id: projectId,
+          project_name: project?.name,
+          action: 'task.created',
+        },
+        code: 'task.created',
+      }
+      rememberActionResult(scope, clientKey, result)
+      return result
+    },
+  })
+
+  registerAction({
+    type: 'task.create_many',
+    os: 'personal',
+    title: 'Create tasks (batch)',
+    description: 'Create multiple personal tasks — each item is an independent INSERT',
+    risk: 'safe',
+    parallelSafe: true,
+    inputSchema: z.object({
+      type: z.literal('task.create_many'),
+      projectId: optionalUuid,
+      projectName: z.string().min(1).optional(),
+      items: z.array(z.record(z.string(), z.unknown())).min(1).max(40),
+    }),
+    promptFields:
+      'projectId?, projectName?, items:[{title, description?, priority?, status?, dueAt?, clientKey?}] (max 40)',
+    execute: async (input) => {
+      const projectId = await ensurePersonalProjectId({
+        projectId: input.projectId,
+        projectName: input.projectName,
+      })
+      const userId = await requireUserId()
+      const project = (await listProjects()).find((row) => row.id === projectId)
+      const items: Array<{
+        index: number
+        title: string
+        ok: boolean
+        summary: string
+        taskId?: string
+        reused?: boolean
+        error?: string
+      }> = []
+
+      for (let index = 0; index < input.items.length; index++) {
+        const raw = input.items[index]!
+        const parsed = taskCreateFieldsSchema.safeParse(raw)
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0]
+          items.push({
+            index,
+            title:
+              typeof (raw as { title?: unknown }).title === 'string'
+                ? String((raw as { title: string }).title)
+                : `Item ${index + 1}`,
+            ok: false,
+            summary: issue?.message ?? 'Invalid item',
+            error: issue?.message ?? 'Invalid item',
+          })
+          continue
+        }
+        const fields = parsed.data
+        const clientKey = buildCreateClientKey({
+          title: fields.title,
+          projectId,
+          index,
+          explicit: fields.clientKey,
+        })
+        const scope = `personal:${userId}`
+        const cached = recallActionResult(scope, clientKey)
+        if (cached?.ok && cached.entities?.[0]?.id) {
+          items.push({
+            index,
+            title: fields.title,
+            ok: true,
+            reused: true,
+            summary: `Already created “${fields.title}” in this request`,
+            taskId: cached.entities[0].id,
+          })
+          continue
+        }
+        try {
+          const task = await createTask({
+            title: fields.title,
+            description: fields.description,
+            projectId,
+            priority: fields.priority as Priority | undefined,
+            status: fields.status as TaskStatus | undefined,
+            dueAt: fields.dueAt,
+          })
+          const verified = await verifyCreatedTask({
+            os: 'personal',
+            taskId: task.id,
+            expected: { title: fields.title, projectId, userId },
+          })
+          if (!verified.ok) {
+            items.push({
+              index,
+              title: fields.title,
+              ok: false,
+              summary: verified.summary,
+              error: verified.summary,
+            })
+            continue
+          }
+          const result = {
+            ok: true as const,
+            summary: `Created “${task.title}”`,
+            verified: true,
+            entities: [{ type: 'task' as const, id: task.id }],
+            data: task,
+            code: 'task.created',
+          }
+          rememberActionResult(scope, clientKey, result)
+          items.push({
+            index,
+            title: fields.title,
+            ok: true,
+            summary: result.summary,
+            taskId: task.id,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          items.push({
+            index,
+            title: fields.title,
+            ok: false,
+            summary: message,
+            error: message,
+          })
+        }
+      }
+
+      const succeeded = items.filter((row) => row.ok && !row.reused)
+      const reused = items.filter((row) => row.ok && row.reused)
+      const failed = items.filter((row) => !row.ok)
+      const ok = succeeded.length + reused.length > 0
       return {
-        ok: true,
-        summary: `Created task ${input.title}`,
-        entities: [{ type: 'task', id: task.id }],
-        data: task,
+        ok,
+        verified: failed.length === 0 && succeeded.length > 0,
+        summary:
+          failed.length === 0
+            ? `Created ${succeeded.length} task${succeeded.length === 1 ? '' : 's'}${
+                project ? ` in ${project.name}` : ''
+              }`
+            : `Created ${succeeded.length} of ${items.length} tasks${
+                project ? ` in ${project.name}` : ''
+              } (${failed.length} failed)`,
+        entities: [
+          ...items
+            .filter((row) => row.ok && row.taskId)
+            .map((row) => ({ type: 'task' as const, id: row.taskId! })),
+          { type: 'project' as const, id: projectId },
+        ],
+        data: {
+          project_id: projectId,
+          project_name: project?.name,
+          items,
+          succeeded: succeeded.length,
+          failed: failed.length,
+          reused: reused.length,
+          total: items.length,
+          action: 'task.create_many',
+        },
+        code: failed.length ? 'task.create_many_partial' : 'task.create_many',
       }
     },
   })
@@ -173,9 +421,28 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, status, title?',
     execute: async (input) => {
-      const taskId = await requireResolvedTaskId(input.taskId, input.title)
-      await moveTask(taskId, input.status as TaskStatus)
-      return { ok: true, summary: `Moved task to ${input.status}` }
+      try {
+        const taskId = await requireResolvedTaskId(input.taskId, input.title)
+        await moveTask(taskId, input.status as TaskStatus)
+        const updated = await getTask(taskId)
+        return {
+          ok: true,
+          summary: `Moved “${updated.title ?? taskId}” to ${input.status}`,
+          verified: true,
+          entities: [{ type: 'task', id: taskId }],
+          data: updated,
+          code: 'task.moved',
+        }
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return { ok: false, summary: error.message, ambiguous: true, code: error.code }
+        }
+        return {
+          ok: false,
+          summary: error instanceof Error ? error.message : 'Could not move task',
+          code: 'task.move_failed',
+        }
+      }
     },
   })
 
@@ -183,7 +450,7 @@ export function registerPersonalActions() {
     type: 'task.update',
     os: 'personal',
     title: 'Update task',
-    description: 'Update task fields or move the task to another project',
+    description: 'Update task fields or move the task to another project — requires an identifiable taskId',
     risk: 'safe',
     parallelSafe: true,
     inputSchema: z.object({
@@ -200,16 +467,24 @@ export function registerPersonalActions() {
       'taskId, title?, description?, priority?, dueAt?, projectId?, projectName? (to move the task to another project)',
     execute: async (input) => {
       // Do NOT look up by input.title — that field is the NEW title when renaming.
-      // Never create a new task from an update request (that caused duplicates/untitled tasks).
-      const taskId =
-        (await resolveTaskIdForAction(input.taskId)) ?? (await resolveOpenTaskFallback())
-
-      if (!taskId) {
-        return {
-          ok: false,
-          summary:
-            'Could not find the task to update. Ask which task to change, or create a new one explicitly.',
+      // Never create a new task from an update request. Never fall back to "any open task".
+      let taskId: string
+      try {
+        const resolved = await resolveTaskIdForAction(input.taskId)
+        if (!resolved) {
+          return {
+            ok: false,
+            summary:
+              'Could not find the task to update. Name which task to change, or create a new one explicitly.',
+            code: 'task.update_missing',
+          }
         }
+        taskId = resolved
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return { ok: false, summary: error.message, ambiguous: true, code: error.code }
+        }
+        throw error
       }
 
       let projectId: string | undefined
@@ -224,6 +499,7 @@ export function registerPersonalActions() {
             summary: input.projectName
               ? `Could not find project “${input.projectName}”.`
               : 'Could not find that project.',
+            code: 'project_missing',
           }
         }
         projectId = resolved
@@ -241,14 +517,16 @@ export function registerPersonalActions() {
       })
       return {
         ok: true,
+        verified: true,
         summary: projectId
-          ? `Moved task ${updated.title ?? taskId} to ${updated.projects?.name ?? 'another project'}`
-          : `Updated task ${updated.title ?? taskId}`,
+          ? `Moved “${updated.title ?? taskId}” to ${updated.projects?.name ?? 'another project'}`
+          : `Updated “${updated.title ?? taskId}”`,
         entities: [
           { type: 'task', id: taskId },
           ...(projectId ? [{ type: 'project' as const, id: projectId }] : []),
         ],
-        data: updated,
+        data: { ...updated, action: 'task.updated' },
+        code: 'task.updated',
       }
     },
   })
@@ -266,10 +544,29 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?',
     execute: async (input) => {
-      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
-      if (!taskId) return { ok: true, summary: 'Task already deleted or not found' }
-      await deleteTask(taskId)
-      return { ok: true, summary: `Deleted task ${taskId}` }
+      try {
+        const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+        if (!taskId) {
+          return {
+            ok: false,
+            summary: 'Could not find that task to delete.',
+            code: 'task.delete_missing',
+          }
+        }
+        await deleteTask(taskId)
+        return {
+          ok: true,
+          verified: true,
+          summary: `Deleted task ${taskId}`,
+          entities: [{ type: 'task', id: taskId }],
+          code: 'task.deleted',
+        }
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return { ok: false, summary: error.message, ambiguous: true, code: error.code }
+        }
+        throw error
+      }
     },
   })
 
@@ -286,10 +583,29 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, title?',
     execute: async (input) => {
-      const taskId = await resolveTaskIdForAction(input.taskId, input.title)
-      if (!taskId) return { ok: true, summary: 'Task already archived or not found' }
-      await archiveTask(taskId)
-      return { ok: true, summary: `Archived task ${taskId}` }
+      try {
+        const taskId = await resolveTaskIdForAction(input.taskId, input.title)
+        if (!taskId) {
+          return {
+            ok: false,
+            summary: 'Could not find that task to archive.',
+            code: 'task.archive_missing',
+          }
+        }
+        await archiveTask(taskId)
+        return {
+          ok: true,
+          verified: true,
+          summary: `Archived task ${taskId}`,
+          entities: [{ type: 'task', id: taskId }],
+          code: 'task.archived',
+        }
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return { ok: false, summary: error.message, ambiguous: true, code: error.code }
+        }
+        throw error
+      }
     },
   })
 
@@ -308,16 +624,30 @@ export function registerPersonalActions() {
     }),
     promptFields: 'taskId, dueAt, title?',
     execute: async (input) => {
-      const taskId = await requireResolvedTaskId(input.taskId, input.title)
-      const dueAt = input.dueAt
-      await updateTask(taskId, {
-        due_at: dueAt,
-        due_date: dueAt ? dueAt.slice(0, 10) : null,
-      })
-      return {
-        ok: true,
-        summary: dueAt ? `Scheduled task` : `Cleared schedule`,
-        entities: [{ type: 'task', id: taskId }],
+      try {
+        const taskId = await requireResolvedTaskId(input.taskId, input.title)
+        const dueAt = input.dueAt
+        const updated = await updateTask(taskId, {
+          due_at: dueAt,
+          due_date: dueAt ? dueAt.slice(0, 10) : null,
+        })
+        return {
+          ok: true,
+          verified: true,
+          summary: dueAt ? `Scheduled “${updated.title ?? taskId}”` : `Cleared schedule`,
+          entities: [{ type: 'task', id: taskId }],
+          data: updated,
+          code: 'task.scheduled',
+        }
+      } catch (error) {
+        if (error instanceof AmbiguousTaskMatchError) {
+          return { ok: false, summary: error.message, ambiguous: true, code: error.code }
+        }
+        return {
+          ok: false,
+          summary: error instanceof Error ? error.message : 'Could not schedule task',
+          code: 'task.schedule_failed',
+        }
       }
     },
   })
