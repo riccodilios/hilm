@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import { PROJECT_COLORS } from '@/types/domain'
 
 export function WorkspaceProjectsPage() {
@@ -154,36 +155,39 @@ export function WorkspaceProjectsPage() {
           <Skeleton className="h-20" />
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {filtered.map((project, index) => (
             <motion.div
               key={project.id}
+              className="min-w-0 max-w-full"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(index, 8) * 0.03, duration: 0.28 }}
             >
               <Link
                 to={`/workspace/${workspaceId}/projects/${project.id}`}
-                className="flex h-full min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface"
+                className="flex h-full min-w-0 max-w-full gap-3 overflow-hidden rounded-xl border border-border-subtle bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface sm:p-4"
               >
                 <span
-                  className="flex size-11 shrink-0 items-center justify-center rounded-xl text-background"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl text-background sm:size-11"
                   style={{ backgroundColor: project.color || '#60a5fa' }}
                 >
                   <ProjectIcon icon={project.icon} size={20} />
                 </span>
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate font-medium">{project.name}</p>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="min-w-0 max-w-full flex-1 basis-[8rem] truncate font-medium">
+                      {project.name}
+                    </p>
                     <HealthBadge health={project.health} />
-                    <span className="text-[11px] tabular-nums text-muted">
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted">
                       {Math.round(project.completion_pct)}%
                     </span>
                   </div>
                   <p className="line-clamp-2 text-sm text-muted">
                     {project.description || t('workspace.noDescription')}
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex min-w-0 flex-wrap gap-1.5">
                     {(projectLinks.data?.byProject?.[project.id] ?? []).map((label) => (
                       <LabelChip key={label.id} name={label.name} color={label.color} />
                     ))}
@@ -193,7 +197,7 @@ export function WorkspaceProjectsPage() {
             </motion.div>
           ))}
           {!projects.data?.length ? (
-            <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center sm:col-span-2">
+            <div className="rounded-2xl border border-dashed border-border px-4 py-14 text-center sm:col-span-2 sm:px-6">
               <h3 className="text-base font-medium">{t('workspace.noProjects')}</h3>
               <p className="mt-1 text-sm text-muted">{t('workspace.projectsDesc')}</p>
               {canEdit ? (
@@ -207,73 +211,85 @@ export function WorkspaceProjectsPage() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('workspace.newProject')}</DialogTitle>
-            <DialogDescription>{t('workspace.projectsDesc')}</DialogDescription>
-          </DialogHeader>
+        <DialogContent
+          className={cn(
+            'flex flex-col gap-0 overflow-hidden p-0',
+            'left-0 top-auto bottom-0 max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top,0px)-0.5rem))] w-full max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-3xl',
+            'sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[min(90dvh,52rem)] sm:w-[calc(100%-2rem)] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl',
+          )}
+        >
+          <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-5 pe-12 sm:px-6 sm:pb-4 sm:pt-6">
+            <DialogHeader>
+              <DialogTitle>{t('workspace.newProject')}</DialogTitle>
+              <DialogDescription>{t('workspace.projectsDesc')}</DialogDescription>
+            </DialogHeader>
+          </div>
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault()
               if (!name.trim()) return
               create.mutate()
             }}
           >
-            <div className="space-y-2">
-              <Label htmlFor="ws-project-name">{t('workspace.name')}</Label>
-              <Input
-                id="ws-project-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ws-project-desc">{t('workspace.description')}</Label>
-              <Input
-                id="ws-project-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('workspace.icon')}</Label>
-              <ProjectIconPicker value={icon} onChange={setIcon} color={color} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('workspace.color')}</Label>
-              <div className="flex flex-wrap gap-2">
-                {PROJECT_COLORS.map((swatch) => (
-                  <button
-                    key={swatch}
-                    type="button"
-                    className="size-8 rounded-full border-2 transition-transform"
-                    style={{
-                      backgroundColor: swatch,
-                      borderColor: color === swatch ? 'var(--foreground)' : 'transparent',
-                      transform: color === swatch ? 'scale(1.1)' : undefined,
-                    }}
-                    aria-label={swatch}
-                    onClick={() => setColor(swatch)}
-                  />
-                ))}
-              </div>
-            </div>
-            {canEdit ? (
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-4 sm:space-y-4 sm:px-6 sm:py-5">
               <div className="space-y-2">
-                <Label>Labels</Label>
-                <ProjectLabelPicker
-                  labels={labelsQuery.data ?? []}
-                  selectedIds={createLabelIds}
-                  onChange={setCreateLabelIds}
+                <Label htmlFor="ws-project-name">{t('workspace.name')}</Label>
+                <Input
+                  id="ws-project-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoFocus
                 />
               </div>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={create.isPending || !name.trim()}>
-              {t('common.create')}
-            </Button>
+              <div className="space-y-2">
+                <Label htmlFor="ws-project-desc">{t('workspace.description')}</Label>
+                <Input
+                  id="ws-project-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <Label>{t('workspace.icon')}</Label>
+                <ProjectIconPicker compact value={icon} onChange={setIcon} color={color} />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <Label>{t('workspace.color')}</Label>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(1.75rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fill,minmax(2rem,1fr))]">
+                  {PROJECT_COLORS.map((swatch) => (
+                    <button
+                      key={swatch}
+                      type="button"
+                      className="aspect-square w-full max-w-8 rounded-full border-2 transition-transform"
+                      style={{
+                        backgroundColor: swatch,
+                        borderColor: color === swatch ? 'var(--foreground)' : 'transparent',
+                        transform: color === swatch ? 'scale(1.1)' : undefined,
+                      }}
+                      aria-label={swatch}
+                      onClick={() => setColor(swatch)}
+                    />
+                  ))}
+                </div>
+              </div>
+              {canEdit ? (
+                <div className="min-w-0 space-y-2">
+                  <Label>Labels</Label>
+                  <ProjectLabelPicker
+                    labels={labelsQuery.data ?? []}
+                    selectedIds={createLabelIds}
+                    onChange={setCreateLabelIds}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <div className="shrink-0 border-t border-border-subtle px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-4">
+              <Button type="submit" className="w-full" disabled={create.isPending || !name.trim()}>
+                {t('common.create')}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

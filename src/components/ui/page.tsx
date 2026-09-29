@@ -39,7 +39,11 @@ export function PageHeader({
         <h1 className="break-words text-2xl font-medium tracking-tight text-foreground sm:text-3xl">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
+          {actions}
+        </div>
+      ) : null}
     </div>
   )
 }

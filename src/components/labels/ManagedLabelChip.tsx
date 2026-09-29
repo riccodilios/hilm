@@ -51,7 +51,7 @@ export function ManagedLabelChip({
     <>
       <button
         type="button"
-        className={cn('touch-manipulation select-none', className)}
+        className={cn('max-w-full touch-manipulation select-none', className)}
         onClick={(e) => {
           e.stopPropagation()
           if (longPressed.current) {

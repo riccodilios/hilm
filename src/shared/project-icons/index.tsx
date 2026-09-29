@@ -412,10 +412,10 @@ export function ProjectIconPicker({
 
       <div
         className={cn(
-          'grid overflow-y-auto',
+          'grid w-full min-w-0 overflow-y-auto',
           compact
-            ? 'max-h-36 grid-cols-7 gap-1.5 sm:max-h-56 sm:grid-cols-8 sm:gap-2'
-            : 'max-h-56 grid-cols-6 gap-2 sm:grid-cols-8',
+            ? 'max-h-36 grid-cols-[repeat(auto-fill,minmax(2rem,1fr))] gap-1.5 sm:max-h-56 sm:gap-2'
+            : 'max-h-56 grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-2',
         )}
       >
         {filtered.map(({ id, Icon, label }) => {
@@ -433,8 +433,7 @@ export function ProjectIconPicker({
                 toggleFavorite(id)
               }}
               className={cn(
-                'flex items-center justify-center rounded-xl border transition-colors',
-                compact ? 'size-8 sm:size-9' : 'size-9',
+                'flex aspect-square w-full items-center justify-center rounded-xl border transition-colors',
                 selected
                   ? 'border-foreground/40 text-background'
                   : 'border-border-subtle bg-surface-2 text-muted hover:text-foreground',

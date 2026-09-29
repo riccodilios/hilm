@@ -98,8 +98,10 @@ export function ProjectInsightCard({
         </span>
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-medium">{project.name}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <p className="min-w-0 max-w-full flex-1 basis-[7rem] truncate text-sm font-medium">
+            {project.name}
+          </p>
           <HealthBadge health={project.health} />
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">

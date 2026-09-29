@@ -100,7 +100,7 @@ export function LabelsBar({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex w-full min-w-0 flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => onFilterChange('all')}
@@ -124,7 +124,7 @@ export function LabelsBar({
         ))}
         {canManage ? (
           <form
-            className="flex gap-2"
+            className="flex min-w-0 max-w-full flex-1 basis-full items-center gap-2 sm:basis-auto sm:flex-none"
             onSubmit={(e) => {
               e.preventDefault()
               if (search.trim()) createMut.mutate()
@@ -134,9 +134,9 @@ export function LabelsBar({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('labels.create')}
-              className="h-8 w-36"
+              className="h-8 min-w-0 w-full max-w-full sm:w-36"
             />
-            <Button type="submit" size="sm" variant="secondary" disabled={createMut.isPending}>
+            <Button type="submit" size="sm" variant="secondary" disabled={createMut.isPending} className="shrink-0">
               +
             </Button>
           </form>

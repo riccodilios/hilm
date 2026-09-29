@@ -81,7 +81,7 @@ function ProjectCard({
       role="link"
       tabIndex={0}
       className={cn(
-        'group cursor-pointer touch-manipulation select-none rounded-2xl border border-border-subtle bg-surface/70 p-5 transition-colors hover:border-border hover:bg-surface',
+        'group min-w-0 max-w-full cursor-pointer touch-manipulation select-none overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface sm:p-5',
         archived && 'opacity-55 grayscale-[0.35]',
       )}
       onClick={() => {
@@ -99,15 +99,15 @@ function ProjectCard({
       }}
       {...longPress}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
           <span
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-background"
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl text-background sm:size-10"
             style={{ backgroundColor: project.color }}
           >
             <ProjectIcon icon={project.icon} size={18} />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="truncate font-medium tracking-tight">{project.name}</h2>
             <p className="line-clamp-1 text-sm text-muted">
               {project.description || t('projects.noDescription')}
@@ -115,23 +115,23 @@ function ProjectCard({
           </div>
         </div>
         {archived ? (
-          <span className="shrink-0 rounded-md bg-surface-3 px-2 py-0.5 text-xs text-muted">
+          <span className="max-w-[40%] shrink-0 truncate rounded-md bg-surface-3 px-2 py-0.5 text-xs text-muted">
             {t('projects.showArchived')}
           </span>
         ) : (
           <HealthBadge health={project.health} />
         )}
       </div>
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
+      <div className="mt-4 flex min-w-0 items-center justify-between gap-3 sm:mt-5">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
           <div
             className="h-full rounded-full bg-accent/70 transition-all"
             style={{ width: `${project.completion_pct}%` }}
           />
         </div>
-        <span className="text-xs tabular-nums text-muted">{project.completion_pct}%</span>
+        <span className="shrink-0 text-xs tabular-nums text-muted">{project.completion_pct}%</span>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
         <PriorityBadge priority={project.priority} />
         {labels.map((label) => (
           <LabelChip key={label.id} name={label.name} color={label.color} />
@@ -287,26 +287,26 @@ export function ProjectsPage() {
   const menuIsArchived = Boolean(menuProject && menuProject.status === 'archived')
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       <PageHeader
         title={showArchived ? t('projects.archivedTitle') : t('projects.title')}
         description={showArchived ? t('projects.archivedHint') : t('projects.description')}
         actions={
-          <div className="flex flex-nowrap items-center justify-start gap-2 sm:ms-auto sm:justify-end">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-stretch gap-2 sm:w-auto sm:justify-end">
             <Button
               variant={showArchived ? 'secondary' : 'ghost'}
               size="sm"
-              className="order-2 shrink-0 sm:order-1"
+              className="order-2 max-w-full sm:order-1"
               onClick={() => setShowArchived((value) => !value)}
             >
-              <Archive className="size-4" />
+              <Archive className="size-4 shrink-0" />
               {showArchived ? t('projects.showActive') : t('projects.showArchived')}
             </Button>
             {!showArchived ? (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button className="order-1 shrink-0 sm:order-2">
-                    <Plus className="size-4" /> {t('projects.new')}
+                  <Button className="order-1 min-w-0 flex-1 sm:order-2 sm:flex-none">
+                    <Plus className="size-4 shrink-0" /> {t('projects.new')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>
@@ -344,13 +344,13 @@ export function ProjectsPage() {
                       </div>
                       <div className="space-y-1.5 sm:space-y-2">
                         <Label>{t('projects.color')}</Label>
-                        <div className="-mx-1 flex flex-wrap gap-2 px-1 pb-0.5 sm:gap-2.5">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(1.75rem,1fr))] gap-2 pb-0.5 sm:grid-cols-[repeat(auto-fill,minmax(2rem,1fr))] sm:gap-2.5">
                           {PROJECT_COLORS.map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => setColor(c)}
-                              className="size-7 shrink-0 rounded-full border-2 sm:size-8"
+                              className="aspect-square w-full max-w-8 rounded-full border-2"
                               style={{
                                 backgroundColor: c,
                                 borderColor: color === c ? '#fff' : 'transparent',
@@ -382,9 +382,9 @@ export function ProjectsPage() {
       />
 
       {listLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Skeleton className="h-36" />
-          <Skeleton className="h-36" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Skeleton className="h-36 min-w-0" />
+          <Skeleton className="h-36 min-w-0" />
         </div>
       ) : !listSource.length ? (
         <EmptyState
@@ -416,7 +416,7 @@ export function ProjectsPage() {
               deleteLabel={deleteLabel}
             />
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filteredProjects.map((project) => (
               <ProjectCard
                 key={project.id}

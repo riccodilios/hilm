@@ -14,7 +14,7 @@ export function LabelChip({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-0.5 text-xs font-medium',
+        'inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0.5 text-xs font-medium',
         className,
       )}
       style={{
@@ -24,7 +24,7 @@ export function LabelChip({
       }}
     >
       <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden />
-      <span className="truncate">{name}</span>
+      <span className="min-w-0 max-w-[min(100%,11rem)] truncate">{name}</span>
       {onRemove ? (
         <button
           type="button"
