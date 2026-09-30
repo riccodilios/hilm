@@ -178,6 +178,26 @@ export async function transcribeSegment(
   if (segment.status === 'failed' && segment.attempts >= MEETING_AUTO_ATTEMPTS) {
     return { ok: false, code: 'segment_failed', message: 'This part of the recording failed. Use Retry.', status: 409 }
   }
+  // A worker killed mid-call leaves the part in "transcribing"; once stale it counts as a
+  // spent attempt, so an exhausted part fails instead of being reclaimed forever.
+  if (
+    segment.status === 'transcribing' &&
+    segment.attempts >= MEETING_AUTO_ATTEMPTS &&
+    new Date(segment.updated_at).getTime() < Date.now() - STALE_CLAIM_MS
+  ) {
+    const { data: failed } = await ctx.client
+      .from(tables.audio)
+      .update({ status: 'failed', error: friendlyMeetingError('provider_timeout') })
+      .eq('id', segment.id)
+      .eq('status', 'transcribing')
+      .eq('attempts', segment.attempts)
+      .select('id')
+      .maybeSingle()
+    if (failed && meeting.status === 'processing') {
+      await markMeetingFailed(ctx, meeting.id, 'transcription_failed', friendlyMeetingError('segment_failed'))
+    }
+    return { ok: false, code: 'segment_failed', message: 'This part of the recording failed. Use Retry.', status: 409 }
+  }
 
   // Pre-flight: transcript already saved → never open another STT bill.
   const { count: existingTranscriptCount } = await ctx.client
@@ -381,9 +401,43 @@ export async function transcribeSegment(
     audioBase64,
     prompt,
     model: runtime.models.meeting_transcription,
+    // Retries transcribe the two halves in parallel so a dense part fits the time budget.
+    split: attempt >= 2,
   })
+
+  let usage = tokensFromOpenRouterUsage(result.usage)
+  if (!usage.totalTokens && (result.ok || result.content)) {
+    // Gemini bills ~32 tokens per second of audio.
+    const inputTokens = Math.ceil((segment.duration_ms / 1000) * 32) + estimateTokensFromText(prompt)
+    const outputTokens = estimateTokensFromText(result.content ?? '')
+    usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }
+  }
+
+  if (!result.ok && result.code === 'output_truncated') {
+    await complete('failed', {
+      errorCode: result.code,
+      errorMessage: result.detail.slice(0, 500),
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    })
+    if (attempt >= MEETING_AUTO_ATTEMPTS) {
+      await failSegment(result.code, result.detail)
+      return { ok: false, code: result.code, message: friendlyMeetingError(result.code), status: 502 }
+    }
+    await ctx.client
+      .from(tables.audio)
+      .update({ status: 'uploaded', attempts: attempt, error: null })
+      .eq('id', segment.id)
+    return { ok: true, state: 'busy', more: true }
+  }
+
   if (!result.ok && result.code !== 'parse_error') {
-    await complete('failed', { errorCode: result.code, errorMessage: result.detail.slice(0, 500) })
+    await complete('failed', {
+      errorCode: result.code,
+      errorMessage: result.detail.slice(0, 500),
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    })
     // Transient provider pressure: re-queue, but keep the attempt count so we cannot
     // loop forever and multiply OpenRouter spend on the same part.
     if (TRANSIENT_STT_CODES.has(result.code)) {
@@ -425,14 +479,6 @@ export async function transcribeSegment(
       message: result.code === 'disabled' ? result.detail : friendlyMeetingError(result.code),
       status,
     }
-  }
-
-  let usage = tokensFromOpenRouterUsage(result.usage)
-  if (!usage.totalTokens) {
-    // Gemini bills ~32 tokens per second of audio.
-    const inputTokens = Math.ceil((segment.duration_ms / 1000) * 32) + estimateTokensFromText(prompt)
-    const outputTokens = estimateTokensFromText(result.content ?? '')
-    usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }
   }
 
   if (!result.ok) {

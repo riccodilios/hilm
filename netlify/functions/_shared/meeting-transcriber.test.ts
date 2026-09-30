@@ -1,6 +1,115 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { collapseRepeatedPhrases, salvageTruncatedTranscription } from './meeting-core'
-import { parseTranscriptionContent } from './meeting-transcriber'
+import { parseTranscriptionContent, splitWav, transcribeAudioChunk } from './meeting-transcriber'
+
+function makeWav(seconds: number, sampleRate = 16_000) {
+  const pcm = Buffer.alloc(seconds * sampleRate * 2)
+  for (let i = 0; i < pcm.length / 2; i++) pcm.writeInt16LE(i % 30_000, i * 2)
+  const header = Buffer.alloc(44)
+  header.write('RIFF', 0, 'ascii')
+  header.writeUInt32LE(36 + pcm.length, 4)
+  header.write('WAVE', 8, 'ascii')
+  header.write('fmt ', 12, 'ascii')
+  header.writeUInt32LE(16, 16)
+  header.writeUInt16LE(1, 20)
+  header.writeUInt16LE(1, 22)
+  header.writeUInt32LE(sampleRate, 24)
+  header.writeUInt32LE(sampleRate * 2, 28)
+  header.writeUInt16LE(2, 32)
+  header.writeUInt16LE(16, 34)
+  header.write('data', 36, 'ascii')
+  header.writeUInt32LE(pcm.length, 40)
+  return Buffer.concat([header, pcm])
+}
+
+/** Fake OpenRouter SSE response streaming `content` in small deltas. */
+function sseResponse(content: string, opts: { finish?: string; stallMs?: number } = {}) {
+  const encoder = new TextEncoder()
+  const pieces = content.match(/[\s\S]{1,40}/g) ?? []
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        for (const piece of pieces) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`))
+        }
+        if (opts.stallMs) await new Promise((resolve) => setTimeout(resolve, opts.stallMs))
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              choices: [{ delta: {}, finish_reason: opts.finish ?? 'stop' }],
+              usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+            })}\n\ndata: [DONE]\n\n`,
+          ),
+        )
+        controller.close()
+      },
+    }),
+    { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+  )
+}
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('splitWav', () => {
+  it('splits a PCM WAV into two playable halves at a sample boundary', () => {
+    const wav = makeWav(4)
+    const result = splitWav(wav)!
+    expect(result.firstSeconds).toBe(2)
+    for (const part of result.parts) {
+      expect(part.toString('ascii', 0, 4)).toBe('RIFF')
+      expect(part.readUInt32LE(4)).toBe(part.length - 8)
+      expect(part.readUInt32LE(40)).toBe(2 * 16_000 * 2)
+    }
+    expect(Buffer.concat([result.parts[0].subarray(44), result.parts[1].subarray(44)])).toEqual(wav.subarray(44))
+  })
+
+  it('rejects non-WAV input', () => {
+    expect(splitWav(Buffer.from('not a wav file at all, definitely not one'))).toBeNull()
+  })
+})
+
+describe('transcribeAudioChunk (streamed)', () => {
+  const reply = (text: string, start = 0) =>
+    JSON.stringify({ segments: [{ speaker: 'Speaker 1', start, end: start + 2, text }], speakers: [{ label: 'Speaker 1' }] })
+  const audioBase64 = makeWav(4).toString('base64')
+
+  it('returns the parsed transcript and provider usage', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse(reply('مرحبا، today we start.'))))
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64, prompt: 'p' })
+    expect(result.ok && result.data.segments[0]?.text).toBe('مرحبا، today we start.')
+    expect(result.usage).toMatchObject({ total_tokens: 150 })
+  })
+
+  it('reports a whole part cut off at max_tokens as output_truncated', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse(reply('first line'), { finish: 'length' })))
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64, prompt: 'p' })
+    expect(!result.ok && result.code).toBe('output_truncated')
+  })
+
+  it('stops at the deadline instead of running past the function limit', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse(reply('partial'), { stallMs: 5_000 })))
+    const t = Date.now()
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64, prompt: 'p', deadlineMs: 200 })
+    expect(Date.now() - t).toBeLessThan(2_000)
+    expect(!result.ok && result.code).toBe('output_truncated')
+  })
+
+  it('transcribes both halves in parallel and offsets the second half', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { messages: Array<{ content: Array<{ text?: string }> }> }
+      const second = body.messages[0]!.content[0]!.text!.includes('second half')
+      return sseResponse(reply(second ? 'second half words' : 'first half words', 1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64, prompt: 'p', split: true })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.ok && result.data.segments.map((s) => [s.text, s.start])).toEqual([
+      ['first half words', 1],
+      ['second half words', 3],
+    ])
+    expect(result.usage).toMatchObject({ total_tokens: 300 })
+  })
+})
 
 const seg = (speaker: string, start: number, text: string) =>
   JSON.stringify({ speaker, start, end: start + 3, text, language: 'mixed', languages: ['ar', 'en'] })
@@ -37,6 +146,12 @@ describe('parseTranscriptionContent', () => {
     const content = `{"segments":[${seg('Speaker 2', 0, 'Start of the call')},${loop.join(',')}`
     const data = parseTranscriptionContent(content)
     expect(data?.segments.map((s) => s.text)).toEqual(['Start of the call', 'we need to check the database'])
+  })
+
+  it('keeps a sentence genuinely repeated two or three times', () => {
+    const line = 'can you hear me now please'
+    const content = `{"segments":[${seg('Speaker 1', 0, line)},${seg('Speaker 1', 3, line)},${seg('Speaker 1', 6, line)},${seg('Speaker 2', 9, 'yes')}]}`
+    expect(parseTranscriptionContent(content)?.segments).toHaveLength(4)
   })
 
   it('keeps short genuine repeats like "yes" or "okay"', () => {

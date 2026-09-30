@@ -646,19 +646,24 @@ export function collapseRepeatedPhrases(text: string): string {
 }
 
 /**
- * Removes runaway repetition from a transcription: phrase loops inside a segment and
- * segments whose text repeats one of the last few segments verbatim.
+ * Removes runaway repetition from a transcription: phrase loops inside a segment, and
+ * runs of 4+ consecutive segments with identical text (kept once). Shorter runs are left
+ * alone — people do repeat themselves two or three times.
  */
 export function dedupeTranscriptionLoops(response: TranscriptionResponse): TranscriptionResponse {
-  const recent: string[] = []
-  const segments: TranscriptionResponse['segments'] = []
-  for (const segment of response.segments) {
+  const cleaned = response.segments.map((segment) => {
     const text = collapseRepeatedPhrases(segment.text)
-    const key = text.replace(/\s+/g, ' ').trim().toLowerCase()
-    if (key && key.split(' ').length >= 3 && recent.includes(key)) continue
-    segments.push(text === segment.text ? segment : { ...segment, text })
-    recent.push(key)
-    if (recent.length > 3) recent.shift()
+    return text === segment.text ? segment : { ...segment, text }
+  })
+  const keyOf = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase()
+  const segments: TranscriptionResponse['segments'] = []
+  for (let i = 0; i < cleaned.length; ) {
+    const key = keyOf(cleaned[i]!.text)
+    let run = 1
+    while (i + run < cleaned.length && keyOf(cleaned[i + run]!.text) === key) run++
+    const isLoop = run >= 4 && key.split(' ').length >= 3
+    segments.push(...(isLoop ? [cleaned[i]!] : cleaned.slice(i, i + run)))
+    i += run
   }
   return { ...response, segments }
 }
@@ -717,6 +722,8 @@ export function friendlyMeetingError(code: string) {
       return 'The AI service could not process this part of the recording.'
     case 'parse_error':
       return 'The AI returned an unreadable result.'
+    case 'output_truncated':
+      return 'This part of the recording was too long to transcribe in one go.'
     case 'audio_missing':
       return 'The audio for this part of the recording could not be found.'
     case 'disabled':
