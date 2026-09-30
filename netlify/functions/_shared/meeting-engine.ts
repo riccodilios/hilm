@@ -179,6 +179,19 @@ export async function transcribeSegment(
     return { ok: false, code: 'segment_failed', message: 'This part of the recording failed. Use Retry.', status: 409 }
   }
 
+  // Pre-flight: transcript already saved → never open another STT bill.
+  const { count: existingTranscriptCount } = await ctx.client
+    .from(tables.transcript)
+    .select('id', { count: 'exact', head: true })
+    .eq('audio_segment_id', segment.id)
+  if ((existingTranscriptCount ?? 0) > 0) {
+    await ctx.client
+      .from(tables.audio)
+      .update({ status: 'transcribed', error: null, transcribed_at: new Date().toISOString() })
+      .eq('id', segment.id)
+    return { ok: true, state: 'transcribed', more: true }
+  }
+
   const staleIso = new Date(Date.now() - STALE_CLAIM_MS).toISOString()
   const { data: claimed, error: claimError } = await ctx.client
     .from(tables.audio)
@@ -203,6 +216,13 @@ export async function transcribeSegment(
     console.error('meeting transcribe failed', { meetingId: meeting.id, idx, code, detail: detail.slice(0, 300) })
   }
 
+  const releaseClaim = async (status: 'uploaded' | 'failed' = 'uploaded') => {
+    await ctx.client
+      .from(tables.audio)
+      .update({ status, attempts: segment.attempts, error: null })
+      .eq('id', segment.id)
+  }
+
   const download = await ctx.client.storage.from(MEETING_BUCKET).download(segment.storage_path)
   if (download.error || !download.data) {
     await failSegment('audio_missing', download.error?.message ?? 'missing')
@@ -215,17 +235,25 @@ export async function transcribeSegment(
     await softUpdate(ctx, tables.audio, { content_hash: contentHash }, { column: 'id', value: segment.id })
   }
 
-  // Idempotency: same meeting+chunk+audio hash already billed successfully → do not re-pay.
-  const guard = await beginAiRequest(ctx.client, {
-    requestKind: 'meeting_transcribe',
-    model: runtime.models.meeting_transcription || MEETING_TRANSCRIBE_MODEL,
-    workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
-    idempotencyKey: `meeting:${meeting.id}:seg:${idx}:h:${contentHash.slice(0, 16)}:a${attempt}`,
-    fingerprint: `meeting:${meeting.id}:seg:${idx}`,
-  })
-  if (!guard.ok) {
-    const alreadyDone = guard.code === 'duplicate' && guard.status === 'completed'
-    if (alreadyDone) {
+  // Hash-stable key (no attempt suffix): completed STT for this audio never re-pays.
+  const idempotencyKey = `meeting:${meeting.id}:seg:${idx}:h:${contentHash.slice(0, 16)}`
+  const fingerprint = `meeting:${meeting.id}:seg:${idx}`
+  const sttModel = runtime.models.meeting_transcription || MEETING_TRANSCRIBE_MODEL
+  const startSttGuard = (key: string) =>
+    beginAiRequest(ctx.client, {
+      requestKind: 'meeting_transcribe',
+      model: sttModel,
+      workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
+      idempotencyKey: key,
+      fingerprint,
+    })
+
+  let eventId: string | null = null
+  {
+    const guard = await startSttGuard(idempotencyKey)
+    if (guard.ok) {
+      eventId = guard.event_id ?? null
+    } else if (guard.code === 'duplicate' && guard.status === 'completed') {
       const { count } = await ctx.client
         .from(tables.transcript)
         .select('id', { count: 'exact', head: true })
@@ -237,19 +265,58 @@ export async function transcribeSegment(
           .eq('id', segment.id)
         return { ok: true, state: 'transcribed', more: true }
       }
-    }
-    await ctx.client
-      .from(tables.audio)
-      .update({ status: segment.status === 'failed' ? 'failed' : 'uploaded', attempts: segment.attempts })
-      .eq('id', segment.id)
-    return {
-      ok: false,
-      code: guard.code || 'ai_limit',
-      message: guard.message || 'AI usage limit reached',
-      status: guard.code === 'tier_disabled' || guard.code === 'disabled' ? 403 : 429,
+      // Billed but transcript missing (killed mid-save): one orphan recovery key only.
+      const recover = await startSttGuard(`${idempotencyKey}:orphan`)
+      if (!recover.ok) {
+        await releaseClaim('uploaded')
+        await softUpdate(
+          ctx,
+          tables.meetings,
+          { processing_stage: 'waiting_quota', processing_error: recover.message ?? null },
+          { column: 'id', value: meeting.id },
+        )
+        return {
+          ok: false,
+          code: recover.code || 'ai_limit',
+          message: recover.message || 'AI usage limit reached',
+          status: 429,
+        }
+      }
+      eventId = recover.event_id ?? null
+    } else if (
+      guard.code === 'in_flight' ||
+      guard.code === 'duplicate_execution' ||
+      (guard.code === 'duplicate' && guard.status === 'started')
+    ) {
+      // Another worker owns the AI lock — drop our segment claim so we do not burn attempts
+      // or strand the part in "transcribing" until the stale timer fires.
+      await releaseClaim(segment.status === 'failed' ? 'failed' : 'uploaded')
+      return { ok: true, state: 'busy', more: true }
+    } else {
+      await releaseClaim(segment.status === 'failed' ? 'failed' : 'uploaded')
+      await softUpdate(
+        ctx,
+        tables.meetings,
+        { processing_stage: 'waiting_quota', processing_error: guard.message ?? null },
+        { column: 'id', value: meeting.id },
+      )
+      return {
+        ok: false,
+        code: guard.code || 'ai_limit',
+        message: guard.message || 'AI usage limit reached',
+        status: guard.code === 'tier_disabled' || guard.code === 'disabled' ? 403 : 429,
+      }
     }
   }
-  const eventId = guard.event_id ?? null
+
+  // Clear cool-down copy once a paid attempt is actually running.
+  await softUpdate(
+    ctx,
+    tables.meetings,
+    { processing_stage: null, processing_error: null },
+    { column: 'id', value: meeting.id },
+  )
+
   const complete = async (
     status: 'completed' | 'failed',
     extra: { inputTokens?: number; outputTokens?: number; errorCode?: string; errorMessage?: string } = {},
@@ -317,14 +384,23 @@ export async function transcribeSegment(
   })
   if (!result.ok && result.code !== 'parse_error') {
     await complete('failed', { errorCode: result.code, errorMessage: result.detail.slice(0, 500) })
-    // Transient provider pressure: re-queue the part instead of burning auto-attempts
-    // and flipping the whole meeting to "Processing failed".
+    // Transient provider pressure: re-queue, but keep the attempt count so we cannot
+    // loop forever and multiply OpenRouter spend on the same part.
     if (TRANSIENT_STT_CODES.has(result.code)) {
+      if (attempt >= MEETING_AUTO_ATTEMPTS) {
+        await failSegment(result.code, result.detail)
+        return {
+          ok: false,
+          code: result.code,
+          message: friendlyMeetingError(result.code),
+          status: result.code === 'rate_limited' ? 429 : 502,
+        }
+      }
       await ctx.client
         .from(tables.audio)
         .update({
           status: 'uploaded',
-          attempts: Math.max(0, attempt - 1),
+          attempts: attempt,
           error: null,
         })
         .eq('id', segment.id)
@@ -571,30 +647,67 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
     return { ok: true, state: 'analyzed', more: false }
   }
 
-  const guard = await beginAiRequest(ctx.client, {
-    requestKind: 'meeting_analyze',
-    model,
-    workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
-    idempotencyKey: `meeting:${meeting.id}:analyze:${analysisInputHash.slice(0, 24)}:a${meeting.processing_attempts}`,
-    fingerprint: `meeting:${meeting.id}:analyze`,
-  })
-  if (!guard.ok) {
-    if (guard.code === 'duplicate' && guard.status === 'completed' && meeting.summary) {
+  const analysisKey = `meeting:${meeting.id}:analyze:${analysisInputHash.slice(0, 24)}`
+  const analysisFingerprint = `meeting:${meeting.id}:analyze`
+  const startAnalysisGuard = (key: string) =>
+    beginAiRequest(ctx.client, {
+      requestKind: 'meeting_analyze',
+      model,
+      workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
+      idempotencyKey: key,
+      fingerprint: analysisFingerprint,
+    })
+
+  let eventId: string | null = null
+  {
+    const guard = await startAnalysisGuard(analysisKey)
+    if (guard.ok) {
+      eventId = guard.event_id ?? null
+    } else if (guard.code === 'duplicate' && guard.status === 'completed' && meeting.summary) {
       await finishReady({ analysis_input_hash: analysisInputHash })
       return { ok: true, state: 'analyzed', more: false }
-    }
-    await ctx.client
-      .from(tables.meetings)
-      .update({ processing_stage: 'waiting_quota', processing_error: guard.message ?? null })
-      .eq('id', meeting.id)
-    return {
-      ok: false,
-      code: guard.code || 'ai_limit',
-      message: guard.message || "You've reached your AI usage limit for today.",
-      status: guard.code === 'tier_disabled' ? 403 : 429,
+    } else if (
+      guard.code === 'in_flight' ||
+      guard.code === 'duplicate_execution' ||
+      (guard.code === 'duplicate' && guard.status === 'started')
+    ) {
+      // Peer owns analysis — do not cool-down / 429; client will poll.
+      await softUpdate(
+        ctx,
+        tables.meetings,
+        { processing_stage: null, processing_error: null },
+        { column: 'id', value: meeting.id },
+      )
+      return { ok: true, state: 'busy', more: false }
+    } else if (guard.code === 'duplicate' && guard.status === 'completed' && !meeting.summary) {
+      // Billed but summary missing (killed mid-save): one orphan recovery key only.
+      const recover = await startAnalysisGuard(`${analysisKey}:orphan`)
+      if (!recover.ok) {
+        await ctx.client
+          .from(tables.meetings)
+          .update({ processing_stage: 'waiting_quota', processing_error: recover.message ?? null })
+          .eq('id', meeting.id)
+        return {
+          ok: false,
+          code: recover.code || 'ai_limit',
+          message: recover.message || "You've reached your AI usage limit for today.",
+          status: 429,
+        }
+      }
+      eventId = recover.event_id ?? null
+    } else {
+      await ctx.client
+        .from(tables.meetings)
+        .update({ processing_stage: 'waiting_quota', processing_error: guard.message ?? null })
+        .eq('id', meeting.id)
+      return {
+        ok: false,
+        code: guard.code || 'ai_limit',
+        message: guard.message || "You've reached your AI usage limit for today.",
+        status: guard.code === 'tier_disabled' ? 403 : 429,
+      }
     }
   }
-  const eventId = guard.event_id ?? null
   const complete = async (
     status: 'completed' | 'failed',
     extra: { inputTokens?: number; outputTokens?: number; errorCode?: string; errorMessage?: string } = {},
@@ -707,6 +820,14 @@ export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): P
     if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 90_000) {
       return { ok: true, state: 'waiting', more: false }
     }
+    // Cool-down elapsed — clear stage so list/detail drivers treat the meeting as active again.
+    await softUpdate(
+      ctx,
+      meetingTables(ctx.os).meetings,
+      { processing_stage: null, processing_error: null },
+      { column: 'id', value: meeting.id },
+    )
+    meeting = { ...meeting, processing_stage: null }
   }
   const tables = meetingTables(ctx.os)
   const { data: rows, error } = await ctx.client
