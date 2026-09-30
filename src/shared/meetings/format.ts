@@ -113,3 +113,12 @@ export function transcriptTextMatches(text: string, query: string): boolean {
   // Arabic locale fold (no-op for most Arabic, helps mixed Latin)
   return hay.toLocaleLowerCase('ar').includes(q.toLocaleLowerCase('ar'))
 }
+
+/** `datetime-local` wants local wall-clock time, not the UTC slice of an ISO string. */
+export function toLocalInputValue(iso: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}

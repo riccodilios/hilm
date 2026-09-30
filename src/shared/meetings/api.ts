@@ -274,6 +274,21 @@ export async function updateMeeting(os: MeetingOs, meetingId: string, patch: Mee
   if (error) throw error
 }
 
+/**
+ * Re-homes a meeting (transcript, summary, audio and action items follow it). The DB
+ * guard rejects projects outside the meeting's owner / workspace.
+ */
+export async function moveMeeting(os: MeetingOs, meetingId: string, projectId: string) {
+  const { data, error } = await db
+    .from(meetingTables(os).meetings)
+    .update({ project_id: projectId })
+    .eq('id', meetingId)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Meeting not found')
+}
+
 /** Deletes the meeting, its derived rows (cascade) and its private audio objects. */
 export async function deleteMeeting(os: MeetingOs, meetingId: string) {
   const tables = meetingTables(os)

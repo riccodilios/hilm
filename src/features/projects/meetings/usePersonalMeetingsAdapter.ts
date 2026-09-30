@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { supabase } from '@/lib/supabase/client'
 import { createTask, tasksKeys } from '@/features/tasks/api'
+import { listProjects } from '@/features/projects/api'
 import { homeKeys } from '@/features/home/api'
 import { buildActionTaskDescription } from '@/shared/meetings/format'
 import { createTaskOnce } from '@/shared/meetings/task-dedupe'
@@ -72,6 +73,13 @@ export function usePersonalMeetingsAdapter(project: { id: string; name: string }
       meetingHref: (meetingId) => `/personal/projects/${project.id}/meetings/${meetingId}`,
       listHref: `/personal/projects/${project.id}?tab=meetings`,
       tasks,
+      moveTargets: {
+        list: async () =>
+          (await listProjects())
+            .filter((row) => row.id !== project.id)
+            .map((row) => ({ id: row.id, name: row.name })),
+        meetingHref: (projectId, meetingId) => `/personal/projects/${projectId}/meetings/${meetingId}`,
+      },
       userDisplayName: displayName,
     }
   }, [project, user, t])

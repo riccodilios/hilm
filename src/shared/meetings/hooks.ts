@@ -9,6 +9,7 @@ import {
   listMeetings,
   meetingKeys,
   mergeSpeakers,
+  moveMeeting,
   updateActionItem,
   updateMeeting,
   updateSpeaker,
@@ -72,6 +73,21 @@ export function useMeetingMutations(adapter: MeetingsAdapter, meetingId?: string
     mutationFn: (patch: MeetingPatch) => updateMeeting(os, meetingId!, patch),
     onSuccess: invalidate,
   })
+  const edit = useMutation({
+    mutationFn: (input: { id: string; patch: MeetingPatch }) => updateMeeting(os, input.id, input.patch),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({ queryKey: meetingKeys.list(adapter.scope) })
+      await queryClient.invalidateQueries({ queryKey: meetingKeys.detail(os, input.id) })
+    },
+  })
+  const move = useMutation({
+    mutationFn: (input: { id: string; projectId: string }) => moveMeeting(os, input.id, input.projectId),
+    onSuccess: async (_data, input) => {
+      // Both the source and destination project lists change.
+      await queryClient.invalidateQueries({ queryKey: ['meetings', os, 'list'] })
+      await queryClient.invalidateQueries({ queryKey: meetingKeys.detail(os, input.id) })
+    },
+  })
   const remove = useMutation({
     mutationFn: (id: string) => deleteMeeting(os, id),
     onSuccess: async (_data, id) => {
@@ -97,7 +113,7 @@ export function useMeetingMutations(adapter: MeetingsAdapter, meetingId?: string
     onSuccess: invalidate,
   })
 
-  return { create, update, remove, renameSpeaker, merge, editItem, removeItem, invalidate }
+  return { create, update, edit, move, remove, renameSpeaker, merge, editItem, removeItem, invalidate }
 }
 
 export type CreateTasksResult = { created: number; existing: number; failed: number }

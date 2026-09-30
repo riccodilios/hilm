@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { textDirection, transcriptTextMatches, transcriptTextStyle } from './format'
+import { textDirection, toLocalInputValue, transcriptTextMatches, transcriptTextStyle } from './format'
+
+describe('toLocalInputValue', () => {
+  it('formats in local wall-clock time', () => {
+    const local = new Date(2026, 8, 30, 7, 5)
+    expect(toLocalInputValue(local.toISOString())).toBe('2026-09-30T07:05')
+  })
+
+  it('returns empty for missing or invalid input', () => {
+    expect(toLocalInputValue(null)).toBe('')
+    expect(toLocalInputValue('not a date')).toBe('')
+  })
+})
 
 describe('textDirection', () => {
   it('uses language tags when present instead of forcing whole-meeting RTL', () => {

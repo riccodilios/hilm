@@ -3,7 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { supabase } from '@/lib/supabase/client'
-import { createWorkspaceTask, listWorkspaceMembers, workspaceKeys } from '@/features/workspace-os/api'
+import {
+  createWorkspaceTask,
+  listWorkspaceMembers,
+  listWorkspaceProjects,
+  workspaceKeys,
+} from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { buildActionTaskDescription } from '@/shared/meetings/format'
 import { createTaskOnce } from '@/shared/meetings/task-dedupe'
@@ -94,6 +99,13 @@ export function useWorkspaceMeetingsAdapter(
       meetingHref: (meetingId) => `/workspace/${workspaceId}/projects/${project.id}/meetings/${meetingId}`,
       listHref: `/workspace/${workspaceId}/projects/${project.id}?tab=meetings`,
       tasks,
+      moveTargets: {
+        list: async () =>
+          (await listWorkspaceProjects(workspaceId))
+            .filter((row) => row.id !== project.id && row.status !== 'archived')
+            .map((row) => ({ id: row.id, name: row.name })),
+        meetingHref: (projectId, meetingId) => `/workspace/${workspaceId}/projects/${projectId}/meetings/${meetingId}`,
+      },
       members,
       userDisplayName: self?.name ?? user.email ?? 'Hilm',
       workspaceName: workspace?.name ?? null,

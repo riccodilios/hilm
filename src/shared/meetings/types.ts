@@ -124,6 +124,15 @@ export type MeetingTaskBridge = {
   invalidateKeys: ReadonlyArray<readonly unknown[]>
 }
 
+export type MeetingProjectOption = { id: string; name: string }
+
+/** Other projects in the same OS scope a meeting can be moved to. */
+export type MeetingMoveTargets = {
+  /** Projects the meeting may move to, excluding the current one. */
+  list: () => Promise<MeetingProjectOption[]>
+  meetingHref: (projectId: string, meetingId: string) => string
+}
+
 export type MeetingsAdapter = {
   scope: MeetingScope
   projectName: string
@@ -132,6 +141,7 @@ export type MeetingsAdapter = {
   meetingHref: (meetingId: string) => string
   listHref: string
   tasks: MeetingTaskBridge
+  moveTargets?: MeetingMoveTargets
   members?: MeetingMember[]
   userDisplayName?: string
   workspaceName?: string | null

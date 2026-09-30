@@ -1484,6 +1484,28 @@
       "description": "The recording, transcript, summary, and action items will be permanently deleted. Tasks already created stay in the project.",
       "confirm": "Delete meeting"
     },
+    "menu": {
+      "label": "Meeting options",
+      "edit": "Edit meeting",
+      "move": "Move to project"
+    },
+    "edit": {
+      "title": "Edit meeting",
+      "description": "Update the meeting details. The recording, transcript and summary are not changed.",
+      "saved": "Meeting updated"
+    },
+    "move": {
+      "title": "Move to another project",
+      "description": "Move “{{title}}” with its recording, transcript, summary and action items.",
+      "search": "Search projects",
+      "loadFailed": "Projects could not be loaded.",
+      "noMatches": "No projects match your search.",
+      "noProjects": "There are no other projects to move this meeting to.",
+      "tasksNote": "Tasks already created from this meeting stay in their current project.",
+      "confirm": "Move meeting",
+      "done": "Meeting moved to {{project}}",
+      "failed": "The meeting could not be moved."
+    },
     "recorder": {
       "start": "Start recording",
       "startHint": "Audio is saved in parts as you record, so nothing is lost if the connection drops.",
