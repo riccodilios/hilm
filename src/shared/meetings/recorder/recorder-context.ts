@@ -47,6 +47,8 @@ export type RecorderApi = RecorderState & {
   pause: () => void
   resume: () => Promise<void>
   stop: () => Promise<void>
+  /** Swap mic ↔ tab+mic mid-meeting without ending the session. */
+  setCaptureMode: (mode: CaptureMode) => Promise<boolean>
   clearError: () => void
   clearInterrupted: () => void
   isActiveFor: (meetingId: string) => boolean
