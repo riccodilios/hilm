@@ -99,17 +99,17 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       drivingRef.current.add(key)
       void (async () => {
         const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-        const transient = (code: string) =>
-          code === 'rate_limited' ||
-          code === 'ai_limit' ||
+        const isRateLimited = (code: string) =>
+          code === 'rate_limited' || code === 'ai_limit' || code === 'http_429' || code.startsWith('http_429')
+        const isTransient = (code: string) =>
           code === 'provider_timeout' ||
           code === 'provider_error' ||
           code === 'network' ||
-          code.startsWith('http_429') ||
           code.startsWith('http_5')
         try {
           let step = 0
           let transientStrikes = 0
+          let rateLimitStrikes = 0
           do {
             rerunRef.current.delete(key)
             for (; step < 400; step += 1) {
@@ -119,8 +119,15 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
                 invalidateMeeting(os, meetingId)
               }
               if (!result.ok) {
-                if (transient(result.code) && transientStrikes < 12) {
-                  const delay = Math.min(60_000, 4_000 * 2 ** Math.min(transientStrikes, 4))
+                // Hard cool-down on quota/rate limits — keep hammering makes recovery impossible.
+                if (isRateLimited(result.code)) {
+                  rateLimitStrikes += 1
+                  await sleep(rateLimitStrikes === 1 ? 90_000 : 180_000)
+                  if (rateLimitStrikes >= 2) break
+                  continue
+                }
+                if (isTransient(result.code) && transientStrikes < 6) {
+                  const delay = Math.min(45_000, 5_000 * 2 ** Math.min(transientStrikes, 3))
                   transientStrikes += 1
                   await sleep(delay)
                   continue
@@ -128,9 +135,14 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
                 break
               }
               transientStrikes = 0
+              rateLimitStrikes = 0
               if (result.state === 'busy') {
-                await sleep(4_000)
+                await sleep(5_000)
                 continue
+              }
+              if (result.state === 'waiting') {
+                // waiting_quota / more audio expected — pause this driver; a slow panel tick will resume.
+                break
               }
               if (!result.more) break
             }
