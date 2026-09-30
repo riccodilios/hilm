@@ -3,8 +3,11 @@ import { z } from 'zod'
 
 export type MeetingOs = 'personal' | 'workspace'
 
-/** Per-segment automatic STT attempts before the meeting is marked failed. */
-export const MEETING_AUTO_ATTEMPTS = 4
+/**
+ * Per-segment automatic STT attempts before the meeting is marked failed.
+ * Kept modest so flaky provider calls cannot multiply OpenRouter spend.
+ */
+export const MEETING_AUTO_ATTEMPTS = 3
 export const MEETING_TRANSCRIBE_MODEL = 'google/gemini-2.5-flash'
 export const MEETING_AUDIO_PRICING_MODEL = 'google/gemini-2.5-flash:audio'
 export const MEETING_SEGMENT_ORDINAL_STRIDE = 10_000

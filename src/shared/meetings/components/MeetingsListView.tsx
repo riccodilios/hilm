@@ -29,6 +29,8 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
   const [creating, setCreating] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Meeting | null>(null)
   const recorder = useMeetingRecorder()
+  // Drive all processing meetings. Server cool-down returns state=waiting (no AI spend);
+  // skipping waiting_quota here stranded meetings that never got a detail-panel resume tick.
   const processingIds = (list.data ?? [])
     .filter((meeting) => meeting.status === 'processing')
     .map((meeting) => meeting.id)

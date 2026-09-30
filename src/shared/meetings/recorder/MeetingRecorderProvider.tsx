@@ -100,7 +100,17 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       void (async () => {
         const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
         const isRateLimited = (code: string) =>
-          code === 'rate_limited' || code === 'ai_limit' || code === 'http_429' || code.startsWith('http_429')
+          code === 'rate_limited' ||
+          code === 'ai_limit' ||
+          code === 'daily_token_limit' ||
+          code === 'monthly_token_limit' ||
+          code === 'daily_cost_limit' ||
+          code === 'monthly_cost_limit' ||
+          code === 'concurrent_limit' ||
+          code === 'in_flight' ||
+          code === 'duplicate_execution' ||
+          code === 'http_429' ||
+          code.startsWith('http_429')
         const isTransient = (code: string) =>
           code === 'provider_timeout' ||
           code === 'provider_error' ||

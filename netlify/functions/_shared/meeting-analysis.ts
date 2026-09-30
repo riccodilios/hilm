@@ -137,7 +137,8 @@ export async function runMeetingAnalysis(input: {
       temperature: 0.2,
       responseFormat: { type: 'json_object' },
       title: 'Hilm Meeting Analysis',
-      allowRetry: true,
+      // Single attempt under the Netlify function budget — retries waste credits on timeouts.
+      allowRetry: false,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Transcript:\n${fullTranscript}` },
@@ -194,7 +195,7 @@ Return the same JSON schema (language, summary, key_points, decisions, action_it
       temperature: 0.1,
       responseFormat: { type: 'json_object' },
       title: 'Hilm Meeting Chunk Analysis',
-      allowRetry: true,
+      allowRetry: false,
       messages: [
         { role: 'system', content: chunkPrompt },
         { role: 'user', content: `Transcript part ${i + 1}/${windows.length}:\n${chunkText}` },
@@ -241,7 +242,7 @@ Return the same JSON schema.`
     temperature: 0.2,
     responseFormat: { type: 'json_object' },
     title: 'Hilm Meeting Analysis Merge',
-    allowRetry: true,
+    allowRetry: false,
     messages: [
       { role: 'system', content: mergePrompt },
       { role: 'user', content: `Partials:\n${JSON.stringify(partials).slice(0, 120_000)}` },

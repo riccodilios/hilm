@@ -25,8 +25,8 @@ const roster: RosterSpeaker[] = [
 ]
 
 describe('meeting error UX', () => {
-  it('keeps enough auto-attempts for transient STT failures', () => {
-    expect(MEETING_AUTO_ATTEMPTS).toBeGreaterThanOrEqual(4)
+  it('caps auto-attempts so flaky STT cannot multiply spend', () => {
+    expect(MEETING_AUTO_ATTEMPTS).toBe(3)
   })
 
   it('surfaces specific copy for save failures instead of a bare Processing failed', () => {
