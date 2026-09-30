@@ -1,0 +1,1530 @@
+{
+  "label": "stt-flash-r1",
+  "createdAt": "2026-09-30T22:52:27.812Z",
+  "model": "google/gemini-2.5-flash",
+  "analysisModel": "google/gemini-2.5-flash",
+  "trimSilence": true,
+  "commit": "e65330f",
+  "scenarios": [
+    {
+      "name": "english_two_speakers",
+      "audioSeconds": 142.43,
+      "parts": [
+        {
+          "idx": 0,
+          "offsetMs": 0,
+          "durationMs": 90000,
+          "promptChars": 2696,
+          "latencyMs": 8234,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 19,
+          "outputChars": 1539,
+          "rawOutput": "{\"n\":{\"1\":\"female voice\",\"2\":\"male voice\"},\"s\":[[1,0.0,\"7.4\",\"Good morning everyone. Thanks for joining the weekly planning meeting for the mobile app redesign.\"],[2,8.0,\"8.5\",\"Morning.\"],[2,9.1,\"14.9\",\"I reviewed the design files yesterday and I have a few concerns about the onboarding flow.\"],[1,15.3,\"18.4\",\"Okay, let's start there. What is the main problem you noticed?\"],[2,18.9,\"23.4\",\"The sign up screen asks for too much information up front. Most people will abandon it before they finish.\"],[1,23.8,\"28.9\",\"That makes sense. Could we move the profile questions to a later step after the first login?\"],[2,29.3,\"31.5\",\"Yes, I think that would work.\"],[2,32.1,\"36.1\",\"We would only ask for an email address and a password at the beginning.\"],[1,36.4,\"37.0\",\"Great.\"],[1,37.4,\"41.9\",\"Then let's decide that the sign up screen will only collect email and password.\"],[2,42.2,\"42.8\",\"Agreed.\"],[2,43.2,\"47.2\",\"I will update the wire frames and share them with the team before Thursday.\"],[1,47.5,\"48.2\",\"Perfect.\"],[1,48.6,\"53.9\",\"The next topic is the notification settings. Customers keep asking for a quiet mode during the weekend.\"],[2,54.3,\"57.6\",\"We could add a simple toggle in the settings page. It should be easy to build.\"],[1,57.9,\"61.6\",\"I like that idea, but we need to check with the back end team about scheduling.\"],[2,61.9,\"66.6\",\"I can talk to Omar about it this afternoon and I will report back tomorrow.\"],[1,66.9,\"67.6\",\"Thank you.\"],[1,68.0,\"70.7\",\"Another item is the performance of the dashboard.\"]],\"l\":\"en\"}",
+          "sentAudioMs": 77370,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808762-jwk4VaJBocrQ0s1HHnHa"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 2657,
+            "completionTokens": 501,
+            "totalTokens": 3158,
+            "cachedTokens": 0,
+            "audioTokens": 1950,
+            "reasoningTokens": 0,
+            "costUsd": 0.003415,
+            "costReported": 1,
+            "textPromptTokens": 707
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 2657,
+              "completion_tokens": 501,
+              "total_tokens": 3158,
+              "cost": 0.0034146,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 1950,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0034146,
+                "upstream_inference_prompt_cost": 0.0021621,
+                "upstream_inference_completions_cost": 0.0012525
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        },
+        {
+          "idx": 1,
+          "offsetMs": 90000,
+          "durationMs": 52425,
+          "promptChars": 3191,
+          "latencyMs": 6076,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 13,
+          "outputChars": 928,
+          "rawOutput": "{\"n\":{\"1\":\"higher female voice\",\"2\":\"calm lower male voice\"},\"s\":[[1,0.0,5.2,\"It still takes several seconds to load on older phones.\"],[2,5.6,9.9,\"I measured it last week. Most of the delay comes from loading every chart at the same time.\"],[1,10.3,14.6,\"So should we load the charts only when the user scrolls to them?\"],[2,14.9,18.9,\"Exactly. Lazy loading should cut the waiting time roughly in half.\"],[1,19.2,23.9,\"All right. Let's make lazy loading the priority for the next sprint.\"],[2,24.3,25.1,\"Sounds good.\"],[2,25.5,29.2,\"Should we also invite the support team to the next review?\"],[1,29.5,31.9,\"Yes, please send them an invitation.\"],[1,32.3,36.4,\"Their feedback about customer complaints would be really helpful.\"],[2,36.7,37.3,\"Will do.\"],[2,37.7,40.5,\"Is there anything else we need to cover today?\"],[1,40.8,42.4,\"I think that is everything.\"],[1,42.8,45.2,\"Thanks everyone, and see you next week.\"]],\"l\":\"en\"}",
+          "sentAudioMs": 45210,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808770-9NhhYKijGRCsqQox65t0"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1978,
+            "completionTokens": 326,
+            "totalTokens": 2304,
+            "cachedTokens": 0,
+            "audioTokens": 1150,
+            "reasoningTokens": 0,
+            "costUsd": 0.002213,
+            "costReported": 1,
+            "textPromptTokens": 828
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 1978,
+              "completion_tokens": 326,
+              "total_tokens": 2304,
+              "cost": 0.0022134,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 1150,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0022134,
+                "upstream_inference_prompt_cost": 0.0013984,
+                "upstream_inference_completions_cost": 0.000815
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        }
+      ],
+      "stt": {
+        "calls": 2,
+        "promptTokens": 4635,
+        "completionTokens": 827,
+        "totalTokens": 5462,
+        "cachedTokens": 0,
+        "audioTokens": 3100,
+        "reasoningTokens": 0,
+        "costUsd": 0.005628,
+        "costReported": 2,
+        "textPromptTokens": 1535
+      },
+      "sttPerAudioMinute": {
+        "promptTokens": 1952.6,
+        "completionTokens": 348.4,
+        "totalTokens": 2301,
+        "costUsd": 0.002371
+      },
+      "quality": {
+        "referenceWords": 314,
+        "hypothesisWords": 319,
+        "wer": 0.0318,
+        "latinWer": 0.0318,
+        "arabicWer": null,
+        "speakerAccuracy": 0.9969,
+        "speakerLabels": {
+          "Speaker 1": "Microsoft Zira",
+          "Speaker 2": "Microsoft David"
+        },
+        "distinctVoicesFound": 2,
+        "expectedVoices": 2,
+        "brandsFound": [
+          "Omar"
+        ],
+        "brandsMissing": [],
+        "transliterations": [],
+        "arabicLines": 0,
+        "expectedArabicLines": 0,
+        "codeSwitchLines": 0,
+        "translatedToEnglish": false,
+        "startErrorMedianS": 1.65,
+        "startErrorP90S": 7.235,
+        "lines": 32,
+        "transcript": [
+          "Speaker 1 @0.0s [en]: Good morning everyone. Thanks for joining the weekly planning meeting for the mobile app redesign.",
+          "Speaker 2 @8.7s [en]: Morning.",
+          "Speaker 2 @9.8s [en]: I reviewed the design files yesterday and I have a few concerns about the onboarding flow.",
+          "Speaker 1 @16.8s [en]: Okay, let's start there. What is the main problem you noticed?",
+          "Speaker 2 @21.1s [en]: The sign up screen asks for too much information up front. Most people will abandon it before they finish.",
+          "Speaker 1 @26.0s [en]: That makes sense. Could we move the profile questions to a later step after the first login?",
+          "Speaker 2 @32.3s [en]: Yes, I think that would work.",
+          "Speaker 2 @35.9s [en]: We would only ask for an email address and a password at the beginning.",
+          "Speaker 1 @40.1s [en]: Great.",
+          "Speaker 1 @41.1s [en]: Then let's decide that the sign up screen will only collect email and password.",
+          "Speaker 2 @46.8s [en]: Agreed.",
+          "Speaker 2 @47.8s [en]: I will update the wire frames and share them with the team before Thursday.",
+          "Speaker 1 @52.8s [en]: Perfect.",
+          "Speaker 1 @53.9s [en]: The next topic is the notification settings. Customers keep asking for a quiet mode during the weekend.",
+          "Speaker 2 @60.4s [en]: We could add a simple toggle in the settings page. It should be easy to build.",
+          "Speaker 1 @64.0s [en]: I like that idea, but we need to check with the back end team about scheduling.",
+          "Speaker 2 @68.8s [en]: I can talk to Omar about it this afternoon and I will report back tomorrow.",
+          "Speaker 1 @74.6s [en]: Thank you.",
+          "Speaker 1 @75.7s [en]: Another item is the performance of the dashboard.",
+          "Speaker 1 @90.0s [en]: It still takes several seconds to load on older phones.",
+          "Speaker 2 @96.3s [en]: I measured it last week. Most of the delay comes from loading every chart at the same time.",
+          "Speaker 1 @101.9s [en]: So should we load the charts only when the user scrolls to them?",
+          "Speaker 2 @107.2s [en]: Exactly. Lazy loading should cut the waiting time roughly in half.",
+          "Speaker 1 @112.3s [en]: All right. Let's make lazy loading the priority for the next sprint.",
+          "Speaker 2 @118.2s [en]: Sounds good.",
+          "Speaker 2 @119.4s [en]: Should we also invite the support team to the next review?",
+          "Speaker 1 @124.2s [en]: Yes, please send them an invitation.",
+          "Speaker 1 @127.0s [en]: Their feedback about customer complaints would be really helpful.",
+          "Speaker 2 @132.1s [en]: Will do.",
+          "Speaker 2 @133.1s [en]: Is there anything else we need to cover today?",
+          "Speaker 1 @137.0s [en]: I think that is everything.",
+          "Speaker 1 @139.0s [en]: Thanks everyone, and see you next week."
+        ]
+      },
+      "analysis": {
+        "direct": {
+          "latencyMs": 5346,
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1286,
+            "completionTokens": 832,
+            "totalTokens": 2118,
+            "cachedTokens": 0,
+            "audioTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.002466,
+            "costReported": 1,
+            "textPromptTokens": 1286
+          },
+          "providerCalls": [
+            {
+              "title": "Hilm Meeting Analysis",
+              "requestChars": 5237,
+              "usage": {
+                "prompt_tokens": 1286,
+                "completion_tokens": 832,
+                "total_tokens": 2118,
+                "cost": 0.0024658,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0024658,
+                  "upstream_inference_prompt_cost": 0.0003858,
+                  "upstream_inference_completions_cost": 0.00208
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            }
+          ],
+          "ok": true,
+          "strategy": "direct",
+          "summary": "The meeting focused on the mobile app redesign, addressing concerns about the onboarding flow, notification settings, and dashboard performance. A key decision was made to simplify the sign-up process by only collecting email and password initially. The team also discussed adding a quiet mode for notifications and implementing lazy loading for the dashboard to improve performance. S2 committed to updating wireframes, checking with the backend team about notification scheduling, and inviting the support team to the next review.",
+          "decisions": [
+            "confirmed: The sign-up screen will only collect email and password initially, moving profile questions to a later step after the first login.",
+            "confirmed: Lazy loading will be implemented for the dashboard to improve performance and will be prioritized for the next sprint."
+          ],
+          "actions": [
+            "confirmed: Update wireframes for onboarding flow | owner=Speaker 2(confirmed) | due=before Thursday",
+            "confirmed: Discuss notification quiet mode with backend team | owner=Speaker 2(confirmed) | due=this afternoon",
+            "confirmed: Report back on notification quiet mode | owner=Speaker 2(confirmed) | due=tomorrow",
+            "confirmed: Invite support team to next review | owner=Speaker 2(confirmed) | due=-"
+          ],
+          "checks": {
+            "decisionsMatched": 2,
+            "decisionsExpected": 2,
+            "actionsMatched": 3,
+            "actionsExpected": 3,
+            "invalidRefs": 0,
+            "invalidOwners": 0
+          }
+        },
+        "hierarchical": {
+          "latencyMs": 14118,
+          "provider": {
+            "calls": 3,
+            "promptTokens": 3583,
+            "completionTokens": 2160,
+            "totalTokens": 5743,
+            "cachedTokens": 0,
+            "audioTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.006475,
+            "costReported": 3,
+            "textPromptTokens": 3583
+          },
+          "providerCalls": [
+            {
+              "title": "Hilm Meeting Chunk Analysis",
+              "requestChars": 4534,
+              "usage": {
+                "prompt_tokens": 1072,
+                "completion_tokens": 644,
+                "total_tokens": 1716,
+                "cost": 0.0019316,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0019316,
+                  "upstream_inference_prompt_cost": 0.0003216,
+                  "upstream_inference_completions_cost": 0.00161
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            },
+            {
+              "title": "Hilm Meeting Chunk Analysis",
+              "requestChars": 4111,
+              "usage": {
+                "prompt_tokens": 970,
+                "completion_tokens": 489,
+                "total_tokens": 1459,
+                "cost": 0.0015135,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0015135,
+                  "upstream_inference_prompt_cost": 0.000291,
+                  "upstream_inference_completions_cost": 0.0012225
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            },
+            {
+              "title": "Hilm Meeting Analysis Merge",
+              "requestChars": 7217,
+              "usage": {
+                "prompt_tokens": 1541,
+                "completion_tokens": 1027,
+                "total_tokens": 2568,
+                "cost": 0.0030298,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0030298,
+                  "upstream_inference_prompt_cost": 0.0004623,
+                  "upstream_inference_completions_cost": 0.0025675
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            }
+          ],
+          "ok": true,
+          "strategy": "hierarchical",
+          "summary": "The team discussed the mobile app redesign, focusing on the onboarding flow, notification settings, and dashboard performance. They decided to simplify the sign-up process by only collecting email and password initially and to implement lazy loading for dashboard charts to improve performance. S2 will update wireframes and consult with the backend team regarding notification implementation. The support team will also be invited to the next review meeting.",
+          "decisions": [
+            "confirmed: The sign-up screen will only collect email and password initially, moving other profile questions to a later step after the first login.",
+            "confirmed: Implement lazy loading for dashboard charts to improve performance.",
+            "confirmed: Invite the support team to the next review meeting."
+          ],
+          "actions": [
+            "confirmed: Update wireframes for simplified sign-up | owner=Speaker 2(confirmed) | due=before Thursday",
+            "confirmed: Talk to Omar about notification scheduling | owner=Speaker 2(confirmed) | due=this afternoon",
+            "confirmed: Report back on notification scheduling | owner=Speaker 2(confirmed) | due=tomorrow",
+            "confirmed: Prioritize lazy loading for next sprint | owner=Speaker 1(confirmed) | due=next sprint",
+            "confirmed: Send invitation to support team | owner=Speaker 2(confirmed) | due=-"
+          ],
+          "checks": {
+            "decisionsMatched": 2,
+            "decisionsExpected": 2,
+            "actionsMatched": 3,
+            "actionsExpected": 3,
+            "invalidRefs": 0,
+            "invalidOwners": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "mixed_arabic_english",
+      "audioSeconds": 101.64,
+      "parts": [
+        {
+          "idx": 0,
+          "offsetMs": 0,
+          "durationMs": 90000,
+          "promptChars": 2703,
+          "latencyMs": 7423,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 21,
+          "outputChars": 1270,
+          "rawOutput": "{\"n\":{\"1\":\"male voice\",\"2\":\"female voice\"},\"s\":[[1,0.0,\"2.429\",\"السلام عليكم.\"],[1,2.429,\"4.299\",\"خلينا نبدا الاجتماع.\"],[[1,4.299,\"7.299\",\"اليوم we need to review the integration.\"]],[2,7.539,\"8.199\",\"Sounds good.\"],[2,8.199,\"12.999\",\"I finished the API documentation yesterday and shared it with the team.\"],[1,13.339,\"14.099\",\"ممتازون.\"],[[1,14.099,\"18.099\",\"عندي ملاحظه على الاداء بطيء شوافي برودكشن.\"]],[2,18.399,\"19.599\",\"I noticed that too.\"],[[2,19.599,\"24.299\",\"The database queries on the reports page are not optimized.\"]],[1,24.699,\"27.999\",\"طيب وش رايك نوديت كاشين قبل نهايه الاسبوع؟\"]],[[2,28.299,\"32.299\",\"Yes, I can add caching to the reports endpoint by Thursday.\"]],[1,32.699,\"33.099\",\"زين.\"],[[1,33.099,\"36.299\",\"والشيء الثاني شركه طلبت ديمو للنظام الجديد.\"]],[2,36.599,\"38.099\",\"When do they want the demo?\"],[[1,38.399,\"43.999\",\"قالوا الاسبوع الجاي يوم الاحد ان شاء الله احمد بيجهز العرض وانا بتواصل مع عشان ناكد الموعد.\"]],[2,44.299,\"44.699\",\"Great.\"],[[2,44.699,\"47.999\",\"Should we also invite the support team to the demo?\"]],[[1,48.299,\"50.999\",\"اكيد ابعثي لهم دعوه بليز.\"]],[2,51.299,\"53.999\",\"I will send the invitation this afternoon.\"],[[1,54.299,\"59.499\",\"اخر نقطه عندي على لازم يكون جاهز قبل.\"]],[2,59.799,\"60.099\",\"Agreed.\"]],\"l\":\"mixed\"}",
+          "sentAudioMs": 75600,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": false,
+          "recovered": true,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808796-H2MA7CEE2vTpMV9OG61o"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 2608,
+            "completionTokens": 578,
+            "totalTokens": 3186,
+            "cachedTokens": 0,
+            "audioTokens": 1900,
+            "reasoningTokens": 0,
+            "costUsd": 0.003557,
+            "costReported": 1,
+            "textPromptTokens": 708
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 2608,
+              "completion_tokens": 578,
+              "total_tokens": 3186,
+              "cost": 0.0035574,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 1900,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0035574,
+                "upstream_inference_prompt_cost": 0.0021124,
+                "upstream_inference_completions_cost": 0.001445
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        },
+        {
+          "idx": 1,
+          "offsetMs": 90000,
+          "durationMs": 11635,
+          "promptChars": 3068,
+          "latencyMs": 3711,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 2,
+          "outputChars": 204,
+          "rawOutput": "{\"n\":{\"1\":\"higher female voice\",\"2\":\"calm lower male voice\"},\"s\":[[1,0.0,6.0,\"I will run the final tests on Supabase tomorrow morning.\"],[2,6.7,11.6,\"تمام شكرا للجميع نشوفكم الاسبوع الجاي.\"]],\"l\":\"mixed\"}",
+          "sentAudioMs": 11635,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808803-0jdLR1rRCjuhpfI2Mvgr"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1111,
+            "completionTokens": 73,
+            "totalTokens": 1184,
+            "cachedTokens": 0,
+            "audioTokens": 300,
+            "reasoningTokens": 0,
+            "costUsd": 0.000726,
+            "costReported": 1,
+            "textPromptTokens": 811
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 1111,
+              "completion_tokens": 73,
+              "total_tokens": 1184,
+              "cost": 0.0007258,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 300,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0007258,
+                "upstream_inference_prompt_cost": 0.0005433,
+                "upstream_inference_completions_cost": 0.0001825
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        }
+      ],
+      "stt": {
+        "calls": 2,
+        "promptTokens": 3719,
+        "completionTokens": 651,
+        "totalTokens": 4370,
+        "cachedTokens": 0,
+        "audioTokens": 2200,
+        "reasoningTokens": 0,
+        "costUsd": 0.004283,
+        "costReported": 2,
+        "textPromptTokens": 1519
+      },
+      "sttPerAudioMinute": {
+        "promptTokens": 2195.5,
+        "completionTokens": 384.3,
+        "totalTokens": 2579.8,
+        "costUsd": 0.002528
+      },
+      "quality": {
+        "referenceWords": 158,
+        "hypothesisWords": 146,
+        "wer": 0.1329,
+        "latinWer": 0.1304,
+        "arabicWer": 0.1818,
+        "speakerAccuracy": 0.8904,
+        "speakerLabels": {
+          "Speaker 1": "Microsoft Naayf",
+          "Speaker 2": "Microsoft Zira"
+        },
+        "distinctVoicesFound": 2,
+        "expectedVoices": 2,
+        "brandsFound": [
+          "Supabase",
+          "API"
+        ],
+        "brandsMissing": [
+          "Visma",
+          "Milkman",
+          "Netlify"
+        ],
+        "transliterations": [
+          "برودكشن"
+        ],
+        "arabicLines": 12,
+        "expectedArabicLines": 9,
+        "codeSwitchLines": 1,
+        "translatedToEnglish": false,
+        "startErrorMedianS": 4.491,
+        "startErrorP90S": 18.091,
+        "lines": 23,
+        "transcript": [
+          "Speaker 1 @0.0s [ar]: السلام عليكم.",
+          "Speaker 1 @2.4s [ar]: خلينا نبدا الاجتماع.",
+          "Speaker 1 @4.3s [mixed]: اليوم we need to review the integration.",
+          "Speaker 2 @8.4s [en]: Sounds good.",
+          "Speaker 2 @9.0s [en]: I finished the API documentation yesterday and shared it with the team.",
+          "Speaker 1 @14.2s [ar]: ممتازون.",
+          "Speaker 1 @15.7s [ar]: عندي ملاحظه على الاداء بطيء شوافي برودكشن.",
+          "Speaker 2 @20.0s [en]: I noticed that too.",
+          "Speaker 2 @21.2s [en]: The database queries on the reports page are not optimized.",
+          "Speaker 1 @27.1s [ar]: طيب وش رايك نوديت كاشين قبل نهايه الاسبوع؟",
+          "Speaker 2 @31.5s [en]: Yes, I can add caching to the reports endpoint by Thursday.",
+          "Speaker 1 @36.7s [ar]: زين.",
+          "Speaker 1 @37.1s [ar]: والشيء الثاني شركه طلبت ديمو للنظام الجديد.",
+          "Speaker 2 @41.3s [en]: When do they want the demo?",
+          "Speaker 1 @43.1s [ar]: قالوا الاسبوع الجاي يوم الاحد ان شاء الله احمد بيجهز العرض وانا بتواصل مع عشان ناكد الموعد.",
+          "Speaker 2 @49.8s [en]: Great.",
+          "Speaker 2 @50.2s [en]: Should we also invite the support team to the demo?",
+          "Speaker 1 @54.6s [ar]: اكيد ابعثي لهم دعوه بليز.",
+          "Speaker 2 @61.8s [en]: I will send the invitation this afternoon.",
+          "Speaker 1 @64.8s [ar]: اخر نقطه عندي على لازم يكون جاهز قبل.",
+          "Speaker 2 @71.0s [en]: Agreed.",
+          "Speaker 1 @90.0s [en]: I will run the final tests on Supabase tomorrow morning.",
+          "Speaker 2 @96.7s [ar]: تمام شكرا للجميع نشوفكم الاسبوع الجاي."
+        ]
+      },
+      "analysis": {
+        "direct": {
+          "latencyMs": 5945,
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1070,
+            "completionTokens": 809,
+            "totalTokens": 1879,
+            "cachedTokens": 0,
+            "audioTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.002344,
+            "costReported": 1,
+            "textPromptTokens": 1070
+          },
+          "providerCalls": [
+            {
+              "title": "Hilm Meeting Analysis",
+              "requestChars": 4195,
+              "usage": {
+                "prompt_tokens": 1070,
+                "completion_tokens": 809,
+                "total_tokens": 1879,
+                "cost": 0.0023435,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0023435,
+                  "upstream_inference_prompt_cost": 0.000321,
+                  "upstream_inference_completions_cost": 0.0020225
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            }
+          ],
+          "ok": true,
+          "strategy": "direct",
+          "summary": "الاجتماع ناقش مراجعة تكامل Visma. تم الانتهاء من توثيق الـ API ومشاركته مع الفريق. لوحظ بطء في أداء النظام في بيئة الإنتاج بسبب استعلامات قاعدة البيانات غير المحسّنة في صفحة التقارير. تم الاتفاق على إضافة التخزين المؤقت (caching) لحل هذه المشكلة. كما تم التخطيط لعرض توضيحي للنظام الجديد لشركة أخرى الأحد القادم، وسيتم دعوة فريق الدعم لحضوره. أخيرًا، سيتم إجراء الاختبارات النهائية على Supabase.",
+          "decisions": [
+            "confirmed: إضافة التخزين المؤقت (caching) إلى نقطة نهاية التقارير لتحسين الأداء.",
+            "confirmed: دعوة فريق الدعم لحضور العرض التوضيحي للنظام الجديد."
+          ],
+          "actions": [
+            "confirmed: إضافة التخزين المؤقت (caching) لنقطة نهاية التقارير | owner=Speaker 2(confirmed) | due=by Thursday",
+            "confirmed: إرسال دعوة لفريق الدعم | owner=Speaker 2(confirmed) | due=this afternoon",
+            "confirmed: إجراء الاختبارات النهائية على Supabase | owner=Speaker 1(confirmed) | due=tomorrow morning"
+          ],
+          "checks": {
+            "decisionsMatched": 1,
+            "decisionsExpected": 1,
+            "actionsMatched": 3,
+            "actionsExpected": 3,
+            "invalidRefs": 0,
+            "invalidOwners": 0
+          }
+        },
+        "hierarchical": null
+      }
+    },
+    {
+      "name": "arabic_conversation",
+      "audioSeconds": 123.03,
+      "parts": [
+        {
+          "idx": 0,
+          "offsetMs": 0,
+          "durationMs": 90000,
+          "promptChars": 2696,
+          "latencyMs": 5685,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 12,
+          "outputChars": 932,
+          "rawOutput": "{\"n\":{\"1\":\"male voice\",\"2\":\"female voice\"},\"s\":[[1,0.0,\"7.0\",\"صباح الخير يا جماعه خلونا نبدا اجتماع فريق المبيعات لهذا الاسبوع.\"],[2,7.5,\"12.9\",\"صباح النور عندي تحديث بسيط عن ارقام الشهر الماضي في فرع الرياض.\"],[1,13.3,\"15.7\",\"تفضلي يا ساره كيف كانت المبيعات؟\"],[2,16.1,\"22.9\",\"المبيعات زادت 20% مقارنه بالشهر اللي يقبله واغلب الزياده جات من العملاء الجدد.\"],[1,23.3,\"26.7\",\"ممتاز هذا خبر حلو وشو السبب برايك؟\"],[2,27.1,\"31.9\",\"اعتقد الحمله الاعلانيه ساعدت كثير وكمان خالد سوى زيارات للشركات الكبيره.\"],[1,32.4,\"38.0\",\"طيب والمشكله اللي كانت عندنا مع التوصيل انحلت ولا لا؟\"],[2,38.4,\"42.6\",\"للاسف لا لسه فيه تاخير في الطلبات اللي تروحوا لجده.\"],[1,43.0,\"46.4\",\"لازم نحل الموضوع بسرعه العملاء بداوا يشتكون.\"],[2,46.8,\"53.0\",\"اقترحنا فتح فرع صغير في جده بدل ما نشحن كل شيء من الرياض.\"],[1,53.4,\"57.9\",\"فكره زينه خلينا نعتمد فتح فرع في جده بدايه الربع الجلي.\"],[2,58.3,\"61.6\",\"تمام انا بجهز تقرير عن التكاليف وارسله لك.\"]],\"l\":\"ar-SA\"}",
+          "sentAudioMs": 78720,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808813-zyuwpGO5bMF7DioZv9aw"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 2683,
+            "completionTokens": 393,
+            "totalTokens": 3076,
+            "cachedTokens": 0,
+            "audioTokens": 1975,
+            "reasoningTokens": 0,
+            "costUsd": 0.00317,
+            "costReported": 1,
+            "textPromptTokens": 708
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 2683,
+              "completion_tokens": 393,
+              "total_tokens": 3076,
+              "cost": 0.0031699,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 1975,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0031699,
+                "upstream_inference_prompt_cost": 0.0021874,
+                "upstream_inference_completions_cost": 0.0009825
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        },
+        {
+          "idx": 1,
+          "offsetMs": 90000,
+          "durationMs": 33025,
+          "promptChars": 3176,
+          "latencyMs": 4693,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 7,
+          "outputChars": 440,
+          "rawOutput": "{\"n\":{\"1\":\"male voice\",\"2\":\"female voice\"},\"s\":[[1,0.0,\"2.077\",\"يوم الخميس.\"],[2,2.077,\"7.977\",\"وانا بتصل بالعملاء اللي اشتكوا واعتذر لهم عن التاخير.\"],[2,8.477,\"12.977\",\"شيء ثاني نحتاج نحدد موعد العرض التقديمي للاداره.\"],[2,13.477,\"16.977\",\"خليه يوم الاحد الساعه 10 الصبح ان شاء الله.\"],[2,17.477,\"20.477\",\"تمام بحجز القاعه وابلغ خالد.\"],[2,20.977,\"23.977\",\"شكرا ساره شكرا للجميع.\"],[2,24.477,\"26.477\",\"نلتقي الاسبوع الجاي.\"]],\"l\":\"ar-SA\"}",
+          "sentAudioMs": 28110,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808818-lMIdqvccdfVON5S2Y8xI"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1577,
+            "completionTokens": 221,
+            "totalTokens": 1798,
+            "cachedTokens": 0,
+            "audioTokens": 725,
+            "reasoningTokens": 0,
+            "costUsd": 0.001533,
+            "costReported": 1,
+            "textPromptTokens": 852
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 1577,
+              "completion_tokens": 221,
+              "total_tokens": 1798,
+              "cost": 0.0015331,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 725,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0015331,
+                "upstream_inference_prompt_cost": 0.0009806,
+                "upstream_inference_completions_cost": 0.0005525
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        }
+      ],
+      "stt": {
+        "calls": 2,
+        "promptTokens": 4260,
+        "completionTokens": 614,
+        "totalTokens": 4874,
+        "cachedTokens": 0,
+        "audioTokens": 2700,
+        "reasoningTokens": 0,
+        "costUsd": 0.004703,
+        "costReported": 2,
+        "textPromptTokens": 1560
+      },
+      "sttPerAudioMinute": {
+        "promptTokens": 2077.6,
+        "completionTokens": 299.5,
+        "totalTokens": 2377.1,
+        "costUsd": 0.002294
+      },
+      "quality": {
+        "referenceWords": 160,
+        "hypothesisWords": 159,
+        "wer": 0.0875,
+        "latinWer": 0,
+        "arabicWer": 0.0875,
+        "speakerAccuracy": 0.8302,
+        "speakerLabels": {
+          "Speaker 1": "Microsoft Naayf",
+          "Speaker 2": "Microsoft Naayf@+35%"
+        },
+        "distinctVoicesFound": 2,
+        "expectedVoices": 2,
+        "brandsFound": [
+          "خالد",
+          "الرياض"
+        ],
+        "brandsMissing": [
+          "سارة",
+          "جدة"
+        ],
+        "transliterations": [],
+        "arabicLines": 19,
+        "expectedArabicLines": 17,
+        "codeSwitchLines": 0,
+        "translatedToEnglish": false,
+        "startErrorMedianS": 3.575,
+        "startErrorP90S": 18.5,
+        "lines": 19,
+        "transcript": [
+          "Speaker 1 @0.0s [ar-SA]: صباح الخير يا جماعه خلونا نبدا اجتماع فريق المبيعات لهذا الاسبوع.",
+          "Speaker 2 @8.3s [ar-SA]: صباح النور عندي تحديث بسيط عن ارقام الشهر الماضي في فرع الرياض.",
+          "Speaker 1 @14.1s [ar-SA]: تفضلي يا ساره كيف كانت المبيعات؟",
+          "Speaker 2 @17.7s [ar-SA]: المبيعات زادت 20% مقارنه بالشهر اللي يقبله واغلب الزياده جات من العملاء الجدد.",
+          "Speaker 1 @25.7s [ar-SA]: ممتاز هذا خبر حلو وشو السبب برايك؟",
+          "Speaker 2 @29.5s [ar-SA]: اعتقد الحمله الاعلانيه ساعدت كثير وكمان خالد سوى زيارات للشركات الكبيره.",
+          "Speaker 1 @35.6s [ar-SA]: طيب والمشكله اللي كانت عندنا مع التوصيل انحلت ولا لا؟",
+          "Speaker 2 @42.4s [ar-SA]: للاسف لا لسه فيه تاخير في الطلبات اللي تروحوا لجده.",
+          "Speaker 1 @47.8s [ar-SA]: لازم نحل الموضوع بسرعه العملاء بداوا يشتكون.",
+          "Speaker 2 @51.6s [ar-SA]: اقترحنا فتح فرع صغير في جده بدل ما نشحن كل شيء من الرياض.",
+          "Speaker 1 @59.0s [ar-SA]: فكره زينه خلينا نعتمد فتح فرع في جده بدايه الربع الجلي.",
+          "Speaker 2 @67.1s [ar-SA]: تمام انا بجهز تقرير عن التكاليف وارسله لك.",
+          "Speaker 1 @90.0s [ar-SA]: يوم الخميس.",
+          "Speaker 2 @92.9s [ar-SA]: وانا بتصل بالعملاء اللي اشتكوا واعتذر لهم عن التاخير.",
+          "Speaker 2 @100.1s [ar-SA]: شيء ثاني نحتاج نحدد موعد العرض التقديمي للاداره.",
+          "Speaker 2 @105.8s [ar-SA]: خليه يوم الاحد الساعه 10 الصبح ان شاء الله.",
+          "Speaker 2 @109.8s [ar-SA]: تمام بحجز القاعه وابلغ خالد.",
+          "Speaker 2 @114.1s [ar-SA]: شكرا ساره شكرا للجميع.",
+          "Speaker 2 @118.4s [ar-SA]: نلتقي الاسبوع الجاي."
+        ]
+      },
+      "analysis": {
+        "direct": {
+          "latencyMs": 4416,
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1122,
+            "completionTokens": 721,
+            "totalTokens": 1843,
+            "cachedTokens": 0,
+            "audioTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.002139,
+            "costReported": 1,
+            "textPromptTokens": 1122
+          },
+          "providerCalls": [
+            {
+              "title": "Hilm Meeting Analysis",
+              "requestChars": 4209,
+              "usage": {
+                "prompt_tokens": 1122,
+                "completion_tokens": 721,
+                "total_tokens": 1843,
+                "cost": 0.0021391,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0021391,
+                  "upstream_inference_prompt_cost": 0.0003366,
+                  "upstream_inference_completions_cost": 0.0018025
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            }
+          ],
+          "ok": true,
+          "strategy": "direct",
+          "summary": "عقد فريق المبيعات اجتماعًا لمناقشة أداء الشهر الماضي لفرع الرياض، حيث زادت المبيعات بنسبة 20% بفضل الحملة الإعلانية وزيارات خالد للشركات. لا تزال هناك مشكلة في تأخير التوصيل لجدة، مما أدى إلى قرار بفتح فرع صغير في جدة. كما تم تحديد موعد لعرض تقديمي للإدارة.",
+          "decisions": [
+            "confirmed: اعتماد فتح فرع في جدة بداية الربع الجاي.",
+            "confirmed: تحديد موعد العرض التقديمي للادارة يوم الأحد الساعة 10 الصبح."
+          ],
+          "actions": [
+            "confirmed: تجهيز تقرير عن تكاليف فرع جدة | owner=Speaker 2(confirmed) | due=يوم الخميس",
+            "confirmed: الاتصال بالعملاء المشتكين والاعتذار لهم | owner=Speaker 2(confirmed) | due=-",
+            "confirmed: حجز القاعة وإبلاغ خالد | owner=Speaker 2(confirmed) | due=-"
+          ],
+          "checks": {
+            "decisionsMatched": 1,
+            "decisionsExpected": 1,
+            "actionsMatched": 2,
+            "actionsExpected": 2,
+            "invalidRefs": 0,
+            "invalidOwners": 0
+          }
+        },
+        "hierarchical": null
+      }
+    },
+    {
+      "name": "natural_meeting_long",
+      "audioSeconds": 236,
+      "parts": [
+        {
+          "idx": 0,
+          "offsetMs": 0,
+          "durationMs": 90000,
+          "promptChars": 2696,
+          "latencyMs": 7094,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 13,
+          "outputChars": 1314,
+          "rawOutput": "{\"n\":{\"1\":\"female voice\",\"2\":\"male voice\"},\"s\":[[1,0.0,\"6.999\",\"Hi everyone. Thanks for joining. This is the Q4 roadmap sync and we have a lot to cover, so let's get started.\"],[2,8.026,\"13.999\",\"Sure. Before we start, I want to mention that the Netlify deploys have been failing intermittently since Monday.\"],[1,14.499,\"19.499\",\"I saw that too. It looks like the build runs out of memory when it bundles the reports module.\"],[2,20.099,\"22.999\",\"Okay, let's put that on the list.\"],[1,23.299,\"26.999\",\"First, where are we with the Visma integration?\"],[2,27.999,\"34.999\",\"This is working for all of them, but customers and the still miss.\"],[1,35.799,\"40.999\",\"بالصراحه الجزء الاصعب هو لان عندهم على عدد الطلبات.\"],[2,41.599,\"43.999\",\"How many requests per minute do they allow?\"],[1,44.799,\"48.999\",\"60 per minute, so we need a queue.\"],[2,49.499,\"53.999\",\"Can we use the same queue we built for the Supabase web hooks?\"],[1,54.499,\"59.999\",\"Probably, yes. It already handles retries and back off, so it should be a small change.\"],[2,60.599,\"65.999\",\"Great. Let's decide that the Visma sync reuses the existing web hook queue.\"],[1,66.799,\"72.999\",\"تمام انا بخلص السنك للعملاء والدفعات قبل نهايه الاسبوع الجاي.\"], 然後,74.299,\"77.999\",\"Next topic is Milkman. Leila, you spoke with them yesterday.\"]],\"l\":\"mixed\"}",
+          "sentAudioMs": 90000,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": false,
+          "recovered": true,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808828-S4NlATYWRPedaHAYqtHX"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 2958,
+            "completionTokens": 487,
+            "totalTokens": 3445,
+            "cachedTokens": 0,
+            "audioTokens": 2250,
+            "reasoningTokens": 0,
+            "costUsd": 0.00368,
+            "costReported": 1,
+            "textPromptTokens": 708
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 2958,
+              "completion_tokens": 487,
+              "total_tokens": 3445,
+              "cost": 0.0036799,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 2250,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0036799,
+                "upstream_inference_prompt_cost": 0.0024624,
+                "upstream_inference_completions_cost": 0.0012175
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        },
+        {
+          "idx": 1,
+          "offsetMs": 90000,
+          "durationMs": 90000,
+          "promptChars": 3235,
+          "latencyMs": 8882,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 15,
+          "outputChars": 1175,
+          "rawOutput": "{\"n\":{\"1\":\"female voice\",\"2\":\"male voice\"},\"s\":[[1,0.0,0.9,\"Okay, right?\"],[2,2.0,7.8,\"Leila couldn't join today, but she sent me notes. Milkman wants a pilot for three of their warehouses.\"],[1,8.9,11.9,\"Do they want the pilot before or after the new year?\"],[2,12.6,16.9,\"Before the new year if possible. They also asked about pricing for more than 50 users.\"],[1,17.8,23.4,\"اعتقد لازم نجهز عرض سعر خاص لهم لان عميل كبير.\"],[2,24.1,28.9,\"Agreed. David, can you prepare the Milkman contract draft with Omar by Wednesday?\"],[1,29.7,35.4,\"Yes, I will work on it with Omar and send it to everyone by Wednesday afternoon.\"],[1,47.0,50.7,\"Sorry about that. I had to take a quick call.\"],[1,51.3,52.9,\"Where were we?\"],[1,53.4,54.5,\"Right, payments.\"],[2,55.4,59.9,\"We compared providers last week. Stripe has better documentation and supports the local cards we need.\"],[1,60.7,65.2,\"بس الرسوم عند سترايب اعلى شوي، لازم ناخذها بعين الاعتبار.\"],[2,66.0,70.9,\"True, but the integration time is much shorter and that matters more for Q4.\"],[1,71.7,75.9,\"Okay, then the decision is to go with Stripe for payments this quarter.\"],[1,76.9,78.9,\"Now back to the Netlify.\"]],\"l\":\"mixed\"}",
+          "sentAudioMs": 90000,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808835-WFYLixy5m67B9hZKDzNc"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 3101,
+            "completionTokens": 419,
+            "totalTokens": 3520,
+            "cachedTokens": 0,
+            "audioTokens": 2250,
+            "reasoningTokens": 0,
+            "costUsd": 0.003553,
+            "costReported": 1,
+            "textPromptTokens": 851
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 3101,
+              "completion_tokens": 419,
+              "total_tokens": 3520,
+              "cost": 0.0035528,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 2250,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0035528,
+                "upstream_inference_prompt_cost": 0.0025053,
+                "upstream_inference_completions_cost": 0.0010475
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        },
+        {
+          "idx": 2,
+          "offsetMs": 180000,
+          "durationMs": 55995,
+          "promptChars": 3178,
+          "latencyMs": 7155,
+          "attempts": 1,
+          "ok": true,
+          "code": null,
+          "lines": 12,
+          "outputChars": 928,
+          "rawOutput": "{\"n\":{\"1\":\"higher female voice\",\"2\":\"calm lower male voice\"},\"s\":[[1,0.0,\"5.285\",\"problem. Mark, what do you need to fix the build?\"],[2,6.216,\"10.996\",\"I want to split the reports bundle and raise the memory limit on the staging site first.\"],[1,11.735,\"14.995\",\"Can you test it on staging before we touch production?\"],[2,15.916,\"20.996\",\"Yes, I will deploy the fix to the Netlify staging site tomorrow and report back.\"],[1,21.835,\"26.495\",\"واذا نجحت نقدر ننزله على برودكشن يوم الاحد.\"],[2,27.016,\"29.096\",\"Last thing, the release freeze.\"],[2,29.716,\"33.496\",\"I propose we freeze new features on Friday the 20th.\"],[1,34.035,\"37.695\",\"That works for me, as long as bug fixes can still go out.\"],[2,38.316,\"42.996\",\"Yes, bug fixes are fine. So we freeze features on Friday the 20th.\"],[1,43.635,\"46.495\",\"تمام متفقين شكرا للجميع.\"],[2,47.016,\"48.096\",\"Thanks everyone.\"],[2,48.716,\"50.096\",\"See you next week.\"]],\"l\":\"mixed\"}",
+          "sentAudioMs": 55995,
+          "attemptCodes": [
+            null
+          ],
+          "strictJson": true,
+          "recovered": false,
+          "providers": [
+            "Google"
+          ],
+          "generationIds": [
+            "gen-1790808844-tfJeZhr7zDfmN0PUBF2J"
+          ],
+          "provider": {
+            "calls": 1,
+            "promptTokens": 2235,
+            "completionTokens": 374,
+            "totalTokens": 2609,
+            "cachedTokens": 0,
+            "audioTokens": 1400,
+            "reasoningTokens": 0,
+            "costUsd": 0.002586,
+            "costReported": 1,
+            "textPromptTokens": 835
+          },
+          "providerCalls": [
+            {
+              "prompt_tokens": 2235,
+              "completion_tokens": 374,
+              "total_tokens": 2609,
+              "cost": 0.0025855,
+              "is_byok": false,
+              "prompt_tokens_details": {
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "audio_tokens": 1400,
+                "video_tokens": 0
+              },
+              "cost_details": {
+                "upstream_inference_cost": 0.0025855,
+                "upstream_inference_prompt_cost": 0.0016505,
+                "upstream_inference_completions_cost": 0.000935
+              },
+              "completion_tokens_details": {
+                "reasoning_tokens": 0,
+                "image_tokens": 0,
+                "audio_tokens": 0
+              }
+            }
+          ]
+        }
+      ],
+      "stt": {
+        "calls": 3,
+        "promptTokens": 8294,
+        "completionTokens": 1280,
+        "totalTokens": 9574,
+        "cachedTokens": 0,
+        "audioTokens": 5900,
+        "reasoningTokens": 0,
+        "costUsd": 0.009818,
+        "costReported": 3,
+        "textPromptTokens": 2394
+      },
+      "sttPerAudioMinute": {
+        "promptTokens": 2108.7,
+        "completionTokens": 325.4,
+        "totalTokens": 2434.1,
+        "costUsd": 0.002496
+      },
+      "quality": {
+        "referenceWords": 451,
+        "hypothesisWords": 434,
+        "wer": 0.0998,
+        "latinWer": 0.1022,
+        "arabicWer": 0.12,
+        "speakerAccuracy": 0.3571,
+        "speakerLabels": {
+          "Speaker 1": "Microsoft Zira",
+          "Speaker 2": "Microsoft Zira"
+        },
+        "distinctVoicesFound": 1,
+        "expectedVoices": 4,
+        "brandsFound": [
+          "Visma",
+          "Milkman",
+          "Netlify",
+          "Supabase",
+          "Stripe",
+          "Omar"
+        ],
+        "brandsMissing": [
+          "Layla"
+        ],
+        "transliterations": [
+          "سترايب",
+          "برودكشن"
+        ],
+        "arabicLines": 6,
+        "expectedArabicLines": 6,
+        "codeSwitchLines": 0,
+        "translatedToEnglish": false,
+        "startErrorMedianS": 3.346,
+        "startErrorP90S": 9.745,
+        "lines": 40,
+        "transcript": [
+          "Speaker 1 @0.0s [en]: Hi everyone. Thanks for joining. This is the Q4 roadmap sync and we have a lot to cover, so let's get started.",
+          "Speaker 2 @8.0s [en]: Sure. Before we start, I want to mention that the Netlify deploys have been failing intermittently since Monday.",
+          "Speaker 1 @14.5s [en]: I saw that too. It looks like the build runs out of memory when it bundles the reports module.",
+          "Speaker 2 @20.1s [en]: Okay, let's put that on the list.",
+          "Speaker 1 @23.3s [en]: First, where are we with the Visma integration?",
+          "Speaker 2 @28.0s [en]: This is working for all of them, but customers and the still miss.",
+          "Speaker 1 @35.8s [ar]: بالصراحه الجزء الاصعب هو لان عندهم على عدد الطلبات.",
+          "Speaker 2 @41.6s [en]: How many requests per minute do they allow?",
+          "Speaker 1 @44.8s [en]: 60 per minute, so we need a queue.",
+          "Speaker 2 @49.5s [en]: Can we use the same queue we built for the Supabase web hooks?",
+          "Speaker 1 @54.5s [en]: Probably, yes. It already handles retries and back off, so it should be a small change.",
+          "Speaker 2 @60.6s [en]: Great. Let's decide that the Visma sync reuses the existing web hook queue.",
+          "Speaker 1 @66.8s [ar]: تمام انا بخلص السنك للعملاء والدفعات قبل نهايه الاسبوع الجاي.",
+          "Speaker 1 @90.0s [en]: Okay, right?",
+          "Speaker 2 @92.0s [en]: Leila couldn't join today, but she sent me notes. Milkman wants a pilot for three of their warehouses.",
+          "Speaker 1 @98.9s [en]: Do they want the pilot before or after the new year?",
+          "Speaker 2 @102.6s [en]: Before the new year if possible. They also asked about pricing for more than 50 users.",
+          "Speaker 1 @107.8s [ar]: اعتقد لازم نجهز عرض سعر خاص لهم لان عميل كبير.",
+          "Speaker 2 @114.1s [en]: Agreed. David, can you prepare the Milkman contract draft with Omar by Wednesday?",
+          "Speaker 1 @119.7s [en]: Yes, I will work on it with Omar and send it to everyone by Wednesday afternoon.",
+          "Speaker 1 @137.0s [en]: Sorry about that. I had to take a quick call.",
+          "Speaker 1 @141.3s [en]: Where were we?",
+          "Speaker 1 @143.4s [en]: Right, payments.",
+          "Speaker 2 @145.4s [en]: We compared providers last week. Stripe has better documentation and supports the local cards we need.",
+          "Speaker 1 @150.7s [ar]: بس الرسوم عند سترايب اعلى شوي، لازم ناخذها بعين الاعتبار.",
+          "Speaker 2 @156.0s [en]: True, but the integration time is much shorter and that matters more for Q4.",
+          "Speaker 1 @161.7s [en]: Okay, then the decision is to go with Stripe for payments this quarter.",
+          "Speaker 1 @166.9s [en]: Now back to the Netlify.",
+          "Speaker 1 @180.0s [en]: problem. Mark, what do you need to fix the build?",
+          "Speaker 2 @186.2s [en]: I want to split the reports bundle and raise the memory limit on the staging site first.",
+          "Speaker 1 @191.7s [en]: Can you test it on staging before we touch production?",
+          "Speaker 2 @195.9s [en]: Yes, I will deploy the fix to the Netlify staging site tomorrow and report back.",
+          "Speaker 1 @201.8s [ar]: واذا نجحت نقدر ننزله على برودكشن يوم الاحد.",
+          "Speaker 2 @207.0s [en]: Last thing, the release freeze.",
+          "Speaker 2 @209.7s [en]: I propose we freeze new features on Friday the 20th.",
+          "Speaker 1 @214.0s [en]: That works for me, as long as bug fixes can still go out.",
+          "Speaker 2 @218.3s [en]: Yes, bug fixes are fine. So we freeze features on Friday the 20th.",
+          "Speaker 1 @223.6s [ar]: تمام متفقين شكرا للجميع.",
+          "Speaker 2 @227.0s [en]: Thanks everyone.",
+          "Speaker 2 @228.7s [en]: See you next week."
+        ]
+      },
+      "analysis": {
+        "direct": {
+          "latencyMs": 6061,
+          "provider": {
+            "calls": 1,
+            "promptTokens": 1545,
+            "completionTokens": 822,
+            "totalTokens": 2367,
+            "cachedTokens": 0,
+            "audioTokens": 0,
+            "reasoningTokens": 0,
+            "costUsd": 0.002518,
+            "costReported": 1,
+            "textPromptTokens": 1545
+          },
+          "providerCalls": [
+            {
+              "title": "Hilm Meeting Analysis",
+              "requestChars": 5861,
+              "usage": {
+                "prompt_tokens": 1545,
+                "completion_tokens": 822,
+                "total_tokens": 2367,
+                "cost": 0.0025185,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "audio_tokens": 0,
+                  "video_tokens": 0
+                },
+                "cost_details": {
+                  "upstream_inference_cost": 0.0025185,
+                  "upstream_inference_prompt_cost": 0.0004635,
+                  "upstream_inference_completions_cost": 0.002055
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0,
+                  "image_tokens": 0,
+                  "audio_tokens": 0
+                }
+              }
+            }
+          ],
+          "ok": true,
+          "strategy": "direct",
+          "summary": "ناقش الاجتماع خارطة طريق الربع الرابع، بدءًا بمشكلة فشل نشر Netlify بسبب نفاد الذاكرة. تم الاتفاق على إعادة استخدام قائمة انتظار الويب هوك الحالية لمزامنة Visma. كما تم التطرق إلى طلب Milkman التجريبي وعرض التسعير الخاص بهم. تم اتخاذ قرار باستخدام Stripe للمدفوعات هذا الربع نظرًا لسرعة التكامل. أخيرًا، تم تحديد موعد تجميد الميزات الجديدة في 20 أكتوبر، مع السماح بإصلاحات الأخطاء.",
+          "decisions": [
+            "confirmed: إعادة استخدام قائمة انتظار الويب هوك الموجودة لمزامنة Visma.",
+            "confirmed: الذهاب مع Stripe للمدفوعات هذا الربع.",
+            "confirmed: تجميد الميزات الجديدة في 20 أكتوبر، مع السماح بإصلاحات الأخطاء."
+          ],
+          "actions": [
+            "confirmed: إصلاح مشكلة Netlify | owner=Speaker 2(confirmed) | due=tomorrow",
+            "confirmed: إنهاء مزامنة Visma | owner=Speaker 1(confirmed) | due=قبل نهايه الاسبوع الجاي",
+            "confirmed: إعداد مسودة عقد Milkman | owner=Speaker 1(confirmed) | due=by Wednesday afternoon"
+          ],
+          "checks": {
+            "decisionsMatched": 1,
+            "decisionsExpected": 2,
+            "actionsMatched": 3,
+            "actionsExpected": 3,
+            "invalidRefs": 0,
+            "invalidOwners": 0
+          }
+        },
+        "hierarchical": null
+      }
+    }
+  ],
+  "dirty": true,
+  "calibration": {
+    "promptChars": 2697,
+    "seconds": 8,
+    "sentMs": 8000,
+    "usage": {
+      "calls": 1,
+      "promptTokens": 905,
+      "completionTokens": 12,
+      "totalTokens": 917,
+      "cachedTokens": 0,
+      "audioTokens": 200,
+      "reasoningTokens": 0,
+      "costUsd": 0.000441,
+      "costReported": 1,
+      "textPromptTokens": 705
+    },
+    "audioTokensPerSecond": 25,
+    "textPromptTokens": 705,
+    "silenceSegments": 0,
+    "silenceText": ""
+  },
+  "noise": {
+    "audioSeconds": 32,
+    "parts": [
+      {
+        "idx": 0,
+        "offsetMs": 0,
+        "durationMs": 32000,
+        "promptChars": 2697,
+        "latencyMs": 4562,
+        "attempts": 1,
+        "ok": true,
+        "code": null,
+        "lines": 0,
+        "outputChars": 27,
+        "rawOutput": "{\"n\":{},\"s\":[],\"l\":\"mixed\"}",
+        "sentAudioMs": 32000,
+        "attemptCodes": [
+          null
+        ],
+        "strictJson": true,
+        "recovered": false,
+        "providers": [
+          "Google"
+        ],
+        "generationIds": [
+          "gen-1790808857-xPU2uBWMwpBrBOM5WQem"
+        ],
+        "provider": {
+          "calls": 1,
+          "promptTokens": 1507,
+          "completionTokens": 12,
+          "totalTokens": 1519,
+          "cachedTokens": 0,
+          "audioTokens": 800,
+          "reasoningTokens": 0,
+          "costUsd": 0.001042,
+          "costReported": 1,
+          "textPromptTokens": 707
+        },
+        "providerCalls": [
+          {
+            "prompt_tokens": 1507,
+            "completion_tokens": 12,
+            "total_tokens": 1519,
+            "cost": 0.0010421,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 800,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0010421,
+              "upstream_inference_prompt_cost": 0.0010121,
+              "upstream_inference_completions_cost": 0.00003
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          }
+        ]
+      }
+    ],
+    "stt": {
+      "calls": 1,
+      "promptTokens": 1507,
+      "completionTokens": 12,
+      "totalTokens": 1519,
+      "cachedTokens": 0,
+      "audioTokens": 800,
+      "reasoningTokens": 0,
+      "costUsd": 0.001042,
+      "costReported": 1,
+      "textPromptTokens": 707
+    },
+    "lines": 0,
+    "words": 0,
+    "transcript": []
+  },
+  "routing": {
+    "lookedUp": 11,
+    "byProvider": {
+      "Google": {
+        "calls": 10,
+        "costUsd": 0.024873
+      }
+    },
+    "samples": [
+      {
+        "created_at": "2026-09-30T22:52:37.422Z",
+        "model": "google/gemini-2.5-flash",
+        "app_id": 4545285,
+        "external_user": null,
+        "streamed": true,
+        "cancelled": false,
+        "latency": 2856,
+        "moderation_latency": null,
+        "generation_time": 2860,
+        "tokens_prompt": 771,
+        "tokens_completion": 7,
+        "native_tokens_prompt": 905,
+        "native_tokens_completion": 12,
+        "native_tokens_completion_images": 0,
+        "native_tokens_reasoning": 0,
+        "native_tokens_cached": 0,
+        "num_media_prompt": null,
+        "num_input_audio_prompt": 1,
+        "num_media_completion": 0,
+        "num_search_results": null,
+        "num_fetches": null,
+        "web_search_engine": null,
+        "origin": "https://hillm.netlify.app/",
+        "is_byok": false,
+        "finish_reason": "stop",
+        "native_finish_reason": "STOP",
+        "service_tier": "default",
+        "usage": 0.0004415,
+        "router": null,
+        "user_agent": "node",
+        "http_referer": null,
+        "request_id": "req-1790808757-Blwk2IV5Q27Jbu54Syxq",
+        "session_id": null,
+        "preset_id": null,
+        "api_type": "completions",
+        "id": "gen-1790808757-1yONxUp7HNUTeMQ43Kn8",
+        "upstream_id": "uJK9asWpOdK1mPUP6ZbqqAg",
+        "provider_responses": [
+          {
+            "endpoint_id": "b9b095f0-6448-46bb-8e4c-0111ba2bf1b0",
+            "id": "uJK9asWpOdK1mPUP6ZbqqAg",
+            "is_byok": false,
+            "latency": 2856,
+            "model_permaslug": "google/gemini-2.5-flash",
+            "provider_name": "Google",
+            "status": 200
+          }
+        ],
+        "total_cost": 0.0004415,
+        "cache_discount": null,
+        "upstream_inference_cost": 0,
+        "provider_name": "Google",
+        "response_cache_source_id": null,
+        "data_region": "global",
+        "workspace_id": "f0913745-2ebb-5a12-8e28-0f5d0483f8df"
+      },
+      {
+        "created_at": "2026-09-30T22:52:42.222Z",
+        "model": "google/gemini-2.5-flash",
+        "app_id": 4545285,
+        "external_user": null,
+        "streamed": true,
+        "cancelled": false,
+        "latency": 4947,
+        "moderation_latency": null,
+        "generation_time": 7306,
+        "tokens_prompt": 771,
+        "tokens_completion": 385,
+        "native_tokens_prompt": 2657,
+        "native_tokens_completion": 501,
+        "native_tokens_completion_images": 0,
+        "native_tokens_reasoning": 0,
+        "native_tokens_cached": 0,
+        "num_media_prompt": null,
+        "num_input_audio_prompt": 1,
+        "num_media_completion": 0,
+        "num_search_results": null,
+        "num_fetches": null,
+        "web_search_engine": null,
+        "origin": "https://hillm.netlify.app/",
+        "is_byok": false,
+        "finish_reason": "stop",
+        "native_finish_reason": "STOP",
+        "service_tier": "default",
+        "usage": 0.0034146,
+        "router": null,
+        "user_agent": "node",
+        "http_referer": null,
+        "request_id": "req-1790808762-EJpeksPRyz0fMHX6nQtv",
+        "session_id": null,
+        "preset_id": null,
+        "api_type": "completions",
+        "id": "gen-1790808762-jwk4VaJBocrQ0s1HHnHa",
+        "upstream_id": "vpK9au61HPuSz_IP7sC_0AY",
+        "provider_responses": [
+          {
+            "endpoint_id": "b9b095f0-6448-46bb-8e4c-0111ba2bf1b0",
+            "id": "vpK9au61HPuSz_IP7sC_0AY",
+            "is_byok": false,
+            "latency": 4947,
+            "model_permaslug": "google/gemini-2.5-flash",
+            "provider_name": "Google",
+            "status": 200
+          }
+        ],
+        "total_cost": 0.0034146,
+        "cache_discount": null,
+        "upstream_inference_cost": 0,
+        "provider_name": "Google",
+        "response_cache_source_id": null,
+        "data_region": "global",
+        "workspace_id": "f0913745-2ebb-5a12-8e28-0f5d0483f8df"
+      }
+    ]
+  }
+}

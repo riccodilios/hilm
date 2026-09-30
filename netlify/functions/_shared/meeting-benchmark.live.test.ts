@@ -22,24 +22,34 @@ import {
   type RosterSpeaker,
   type StitchedSegment,
   MEETING_DEFAULT_VOCABULARY,
+  MEETING_TRANSCRIBE_MODEL,
 } from './meeting-core'
 import { runMeetingAnalysis } from './meeting-analysis'
-import { transcribeAudioChunk } from './meeting-transcriber'
+import { parseTranscriptionContent, transcribeAudioChunk } from './meeting-transcriber'
 
 const enabled = process.env.MEETING_BENCHMARK === '1' && process.platform === 'win32'
 const LABEL = (process.env.MEETING_BENCHMARK_LABEL || 'run').replace(/[^a-z0-9_-]/gi, '')
-const MODEL = 'google/gemini-2.5-flash'
+/** Analysis always runs on the production analysis model so only the STT model varies. */
+const ANALYSIS_MODEL = 'google/gemini-2.5-flash'
+/** MEETING_BENCHMARK_STT_MODEL compares transcription models on identical audio/prompts/parsing. */
+const STT_MODEL = process.env.MEETING_BENCHMARK_STT_MODEL?.trim() || MEETING_TRANSCRIBE_MODEL
 const ENGINE_VOCABULARY = MEETING_DEFAULT_VOCABULARY
 /** MEETING_BENCHMARK_TRIM=0 sends untrimmed audio (A/B for silence trimming). */
 const TRIM = process.env.MEETING_BENCHMARK_TRIM !== '0'
+/** MEETING_BENCHMARK_ANALYSIS=0 skips analysis (STT-only comparisons). */
+const ANALYSIS = process.env.MEETING_BENCHMARK_ANALYSIS !== '0'
+const ONLY = (process.env.MEETING_BENCHMARK_SCENARIOS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 
-type Line = { voice: string; text: string; pauseAfterMs?: number }
+/** `pitch` renders the voice through SSML prosody so one installed voice can play two speakers. */
+type Line = { voice: string; text: string; pauseAfterMs?: number; pitch?: string }
 type Scenario = {
   name: string
   locale: 'en' | 'ar'
   projectName: string
   title: string
   lines: Line[]
+  /** Background noise amplitude (PCM16); default 160. */
+  noise?: number
   brands: string[]
   /** Arabic-letter spellings of English words — must not appear (English stays in Latin script). */
   forbidden: string[]
@@ -50,6 +60,7 @@ type Scenario = {
 
 const ZIRA = 'Microsoft Zira'
 const DAVID = 'Microsoft David'
+const MARK = 'Microsoft Mark'
 const NAAYF = 'Microsoft Naayf'
 
 const SCENARIOS: Scenario[] = [
@@ -116,9 +127,99 @@ const SCENARIOS: Scenario[] = [
       { voice: NAAYF, text: 'تمام، شكراً للجميع، نشوفكم الأسبوع الجاي.' },
     ],
   },
+  {
+    // Only one Arabic voice is installed; the second speaker is the same voice pitched up.
+    name: 'arabic_conversation',
+    locale: 'ar',
+    projectName: 'فرع الرياض',
+    title: 'اجتماع فريق المبيعات',
+    brands: ['خالد', 'سارة', 'الرياض', 'جدة'],
+    forbidden: [],
+    decisionPatterns: [/جده|جدة|فرع/],
+    actionPatterns: [/عرض|تقرير/, /عميل|عملاء|اتصال/],
+    lines: [
+      { voice: NAAYF, text: 'صباح الخير يا جماعة، خلونا نبدأ اجتماع فريق المبيعات لهذا الأسبوع.' },
+      { voice: NAAYF, pitch: '+35%', text: 'صباح النور. عندي تحديث بسيط عن أرقام الشهر الماضي في فرع الرياض.' },
+      { voice: NAAYF, text: 'تفضلي يا سارة، كيف كانت المبيعات؟' },
+      { voice: NAAYF, pitch: '+35%', text: 'المبيعات زادت عشرين بالمية مقارنة بالشهر اللي قبله، وأغلب الزيادة جات من العملاء الجدد.' },
+      { voice: NAAYF, text: 'ممتاز، هذا خبر حلو. وش السبب برأيك؟' },
+      { voice: NAAYF, pitch: '+35%', text: 'أعتقد الحملة الإعلانية ساعدت كثير، وكمان خالد سوى زيارات للشركات الكبيرة.' },
+      { voice: NAAYF, text: 'طيب، والمشكلة اللي كانت عندنا مع التوصيل، انحلت ولا لا؟' },
+      { voice: NAAYF, pitch: '+35%', text: 'للأسف لا، لسا فيه تأخير في الطلبات اللي تروح لجدة.', pauseAfterMs: 3000 },
+      { voice: NAAYF, text: 'لازم نحل هالموضوع بسرعة، العملاء بدوا يشتكون.' },
+      { voice: NAAYF, pitch: '+35%', text: 'اقترح نفتح فرع صغير في جدة بدل ما نشحن كل شي من الرياض.' },
+      { voice: NAAYF, text: 'فكرة زينة، خلينا نعتمد فتح فرع في جدة بداية الربع الجاي.' },
+      { voice: NAAYF, pitch: '+35%', text: 'تمام، أنا بجهز تقرير عن التكاليف وأرسله لك يوم الخميس.' },
+      { voice: NAAYF, text: 'وأنا بتصل بالعملاء اللي اشتكوا وأعتذر لهم عن التأخير.' },
+      { voice: NAAYF, pitch: '+35%', text: 'شي ثاني، نحتاج نحدد موعد العرض التقديمي للإدارة.' },
+      { voice: NAAYF, text: 'خليه يوم الأحد الساعة عشرة الصبح إن شاء الله.' },
+      { voice: NAAYF, pitch: '+35%', text: 'تمام، بحجز القاعة وأبلغ خالد.' },
+      { voice: NAAYF, text: 'شكراً سارة، شكراً للجميع، نلتقي الأسبوع الجاي.' },
+    ],
+  },
+  {
+    // Several parts: four speakers, a speaker switching between full English and Arabic
+    // sentences, company names, a long pause, and louder background noise.
+    name: 'natural_meeting_long',
+    locale: 'en',
+    projectName: 'Q4 roadmap',
+    title: 'Q4 roadmap sync',
+    noise: 450,
+    brands: ['Visma', 'Milkman', 'Netlify', 'Supabase', 'Stripe', 'Omar', 'Layla'],
+    forbidden: ['فيزما', 'فيسما', 'ميلكمان', 'ملكمان', 'نتلفاي', 'سوبابيس', 'سترايب', 'برودكشن', 'ريليز', 'داشبورد'],
+    decisionPatterns: [/stripe|payment|دفع/, /freeze|release|friday/],
+    actionPatterns: [/milkman|contract|عقد/, /visma|sync/, /netlify|staging|deploy/],
+    lines: [
+      { voice: ZIRA, text: "Hi everyone, thanks for joining. This is the Q4 roadmap sync, and we have a lot to cover, so let's get started." },
+      { voice: DAVID, text: 'Sure. Before we start, I want to mention that the Netlify deploys have been failing intermittently since Monday.' },
+      { voice: MARK, text: 'I saw that too. It looks like the build runs out of memory when it bundles the reports module.' },
+      { voice: ZIRA, text: "Okay, let's put that on the list. First, where are we with the Visma integration?" },
+      { voice: NAAYF, text: 'The Visma sync is working for invoices, but customers and payments are still missing.' },
+      { voice: NAAYF, text: 'بصراحة الجزء الأصعب هو الـ payments، لأن Visma عندهم limits على عدد الطلبات.' },
+      { voice: DAVID, text: 'How many requests per minute do they allow?' },
+      { voice: NAAYF, text: 'Around sixty per minute, so we need a queue on our side.' },
+      { voice: ZIRA, text: 'Can we use the same queue we built for the Supabase webhooks?' },
+      { voice: MARK, text: 'Probably, yes. It already handles retries and backoff, so it should be a small change.' },
+      { voice: ZIRA, text: "Great. Let's decide that the Visma sync reuses the existing webhook queue." },
+      { voice: NAAYF, text: 'تمام، أنا بخلص الـ sync للعملاء والدفعات قبل نهاية الأسبوع الجاي.', pauseAfterMs: 2500 },
+      { voice: ZIRA, text: 'Next topic is Milkman. Layla, you spoke with them yesterday, right?' },
+      { voice: DAVID, text: "Layla couldn't join today, but she sent me notes. Milkman wants a pilot for three of their warehouses." },
+      { voice: MARK, text: 'Do they want the pilot before or after the new year?' },
+      { voice: DAVID, text: 'Before the new year if possible. They also asked about pricing for more than fifty users.' },
+      { voice: NAAYF, text: 'أعتقد لازم نجهز عرض سعر خاص لهم، لأن Milkman عميل كبير.' },
+      { voice: ZIRA, text: 'Agreed. David, can you prepare the Milkman contract draft with Omar by Wednesday?' },
+      { voice: DAVID, text: 'Yes, I will work on it with Omar and send it to everyone by Wednesday afternoon.', pauseAfterMs: 15000 },
+      { voice: ZIRA, text: 'Sorry about that, I had to take a quick call. Where were we? Right, payments.' },
+      { voice: MARK, text: 'We compared providers last week. Stripe has better documentation and supports the local cards we need.' },
+      { voice: NAAYF, text: 'بس الرسوم عند Stripe أعلى شوي، لازم ناخذها بعين الاعتبار.' },
+      { voice: MARK, text: 'True, but the integration time is much shorter, and that matters more for Q4.' },
+      { voice: ZIRA, text: "Okay, then the decision is to go with Stripe for payments this quarter." },
+      { voice: ZIRA, text: 'Now back to the Netlify problem. Mark, what do you need to fix the build?' },
+      { voice: MARK, text: 'I want to split the reports bundle and raise the memory limit on the staging site first.' },
+      { voice: DAVID, text: 'Can you test it on staging before we touch production?' },
+      { voice: MARK, text: 'Yes, I will deploy the fix to the Netlify staging site tomorrow and report back.' },
+      { voice: NAAYF, text: 'وإذا نجح، نقدر ننزله على production يوم الأحد.' },
+      { voice: ZIRA, text: "Last thing: the release freeze. I propose we freeze new features on Friday the twentieth." },
+      { voice: DAVID, text: 'That works for me, as long as bug fixes can still go out.' },
+      { voice: ZIRA, text: "Yes, bug fixes are fine. So we freeze features on Friday the twentieth." },
+      { voice: NAAYF, text: 'تمام، متفقين. شكراً للجميع.' },
+      { voice: ZIRA, text: 'Thanks everyone. See you next week.' },
+    ],
+  },
 ]
 
+const ACTIVE_SCENARIOS = ONLY.length ? SCENARIOS.filter((s) => ONLY.includes(s.name)) : SCENARIOS
+
 const GAP_MS = 600
+
+function speakerKey(line: Line) {
+  return line.pitch ? `${line.voice}@${line.pitch}` : line.voice
+}
+
+function pitchedSsml(text: string, pitch: string) {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ar-SA"><prosody pitch="${pitch}" rate="1.05">${escaped}</prosody></speak>`
+}
 
 // ── Provider usage capture ─────────────────────────────────────────────────
 
@@ -127,31 +228,52 @@ type ProviderCall = {
   status: number
   requestChars: number
   usage: Record<string, unknown> | null
+  /** OpenRouter generation id and the upstream provider that served the call. */
+  generationId?: string | null
+  provider?: string | null
 }
 
 const calls: ProviderCall[] = []
 const pending: Promise<void>[] = []
 const originalFetch = globalThis.fetch
 
-function lastUsageFromSse(text: string): Record<string, unknown> | null {
+function lastUsageFromSse(text: string) {
   let usage: Record<string, unknown> | null = null
+  let generationId: string | null = null
+  let provider: string | null = null
   for (const line of text.split('\n')) {
     const data = line.startsWith('data:') ? line.slice(5).trim() : ''
     if (!data || data === '[DONE]') continue
     try {
-      const chunk = JSON.parse(data) as { usage?: Record<string, unknown> }
+      const chunk = JSON.parse(data) as { usage?: Record<string, unknown>; id?: string; provider?: string }
       if (chunk.usage) usage = chunk.usage
+      if (chunk.id) generationId = chunk.id
+      if (chunk.provider) provider = chunk.provider
     } catch {
       // keep-alive comments and partial frames
     }
   }
-  return usage
+  return { usage, generationId, provider }
+}
+
+/**
+ * MEETING_BENCHMARK_STT_ENDPOINT pins transcription calls to one OpenRouter endpoint tag
+ * (e.g. google-ai-studio/flex) without fallbacks. Benchmark-only; production routing is untouched.
+ */
+const STT_ENDPOINT = process.env.MEETING_BENCHMARK_STT_ENDPOINT?.trim() || null
+
+function withSttRouting(init?: RequestInit): RequestInit | undefined {
+  if (!STT_ENDPOINT || typeof init?.body !== 'string') return init
+  if (new Headers(init.headers).get('X-Title') !== 'Hilm Meeting Transcription') return init
+  const body = JSON.parse(init.body) as Record<string, unknown>
+  return { ...init, body: JSON.stringify({ ...body, provider: { only: [STT_ENDPOINT], allow_fallbacks: false } }) }
 }
 
 function installFetchCapture() {
-  globalThis.fetch = async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-    const response = await originalFetch(input, init)
+  globalThis.fetch = async (input: Parameters<typeof fetch>[0], rawInit?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const init = url.includes('openrouter.ai') ? withSttRouting(rawInit) : rawInit
+    const response = await originalFetch(input, init)
     if (!url.includes('openrouter.ai')) return response
     const headers = new Headers(init?.headers)
     const record: ProviderCall = {
@@ -167,7 +289,7 @@ function installFetchCapture() {
         .text()
         .then((text) => {
           if ((copy.headers.get('content-type') ?? '').includes('text/event-stream') || text.startsWith('data:')) {
-            record.usage = lastUsageFromSse(text)
+            Object.assign(record, lastUsageFromSse(text))
           } else {
             record.usage = (JSON.parse(text) as { usage?: Record<string, unknown> }).usage ?? null
           }
@@ -223,7 +345,7 @@ function loadApiKey() {
 }
 
 /** WinRT SpeechSynthesizer: OneCore voices (incl. ar-SA) render 16 kHz mono PCM16. */
-function synthesize(dir: string, jobs: Array<{ voice: string; text: string; path: string }>) {
+function synthesize(dir: string, jobs: Array<{ voice: string; text: string; path: string; ssml?: string | null }>) {
   const jobsPath = join(dir, 'jobs.json')
   const scriptPath = join(dir, 'synth.ps1')
   writeFileSync(jobsPath, JSON.stringify(jobs), 'utf8')
@@ -239,7 +361,8 @@ function synthesize(dir: string, jobs: Array<{ voice: string; text: string; path
       '$jobs = Get-Content -Raw -Encoding UTF8 $JobsPath | ConvertFrom-Json',
       'foreach ($job in $jobs) {',
       '  $synth.Voice = ($voices | Where-Object { $_.DisplayName -eq $job.voice })[0]',
-      '  $task = $asTask.MakeGenericMethod([Windows.Media.SpeechSynthesis.SpeechSynthesisStream]).Invoke($null, @($synth.SynthesizeTextToStreamAsync($job.text)))',
+      '  $op = if ($job.ssml) { $synth.SynthesizeSsmlToStreamAsync($job.ssml) } else { $synth.SynthesizeTextToStreamAsync($job.text) }',
+      '  $task = $asTask.MakeGenericMethod([Windows.Media.SpeechSynthesis.SpeechSynthesisStream]).Invoke($null, @($op))',
       '  $task.Wait(-1) | Out-Null',
       '  $net = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($task.Result)',
       '  $fs = [System.IO.File]::Create($job.path); $net.CopyTo($fs); $fs.Close()',
@@ -427,8 +550,31 @@ type PartResult = {
   /** Raw model reply for the (synthetic) part, for debugging parse/format issues. */
   rawOutput: string | null
   sentAudioMs: number | null
+  /** Result code of every attempt, in order (null = ok). */
+  attemptCodes: Array<string | null>
+  /** Reply of the final attempt was already valid JSON without repair. */
+  strictJson: boolean | null
+  /** Reply was not valid JSON but the parser recovered usable rows from it. */
+  recovered: boolean
+  providers: Array<string | null>
+  generationIds: Array<string | null>
   provider: ReturnType<typeof summarizeCalls>
   providerCalls: Array<Record<string, unknown> | null>
+}
+
+function strictJsonReply(content: string | null | undefined) {
+  if (!content) return null
+  // Split-path replies are two JSON documents joined by a newline.
+  const docs = content.includes('}\n{') ? content.split(/\n(?=\{)/) : [content]
+  return docs.every((doc) => {
+    const text = doc.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
+    try {
+      const parsed = JSON.parse(text) as { s?: unknown }
+      return Array.isArray(parsed.s) && parsed.s.every((row) => Array.isArray(row) && row.length === 4)
+    } catch {
+      return false
+    }
+  })
 }
 
 async function transcribeScenario(apiKey: string, pcm: Int16Array, projectName: string) {
@@ -454,16 +600,19 @@ async function transcribeScenario(apiKey: string, pcm: Int16Array, projectName: 
     const audioBase64 = wavBase64(segment.chunks)
     const firstCall = calls.length
     const started = Date.now()
-    let result = await transcribeAudioChunk({ apiKey, audioBase64, prompt, model: MODEL, trimSilence: TRIM })
+    let result = await transcribeAudioChunk({ apiKey, audioBase64, prompt, model: STT_MODEL, trimSilence: TRIM })
     let attempts = 1
+    const attemptCodes: Array<string | null> = [result.ok ? null : result.code]
     // Mirrors the engine: a failed attempt is retried; attempt >= 2 uses the split path.
     while (!result.ok && attempts < 3) {
       attempts += 1
-      result = await transcribeAudioChunk({ apiKey, audioBase64, prompt, model: MODEL, split: attempts >= 2, trimSilence: TRIM })
+      result = await transcribeAudioChunk({ apiKey, audioBase64, prompt, model: STT_MODEL, split: attempts >= 2, trimSilence: TRIM })
+      attemptCodes.push(result.ok ? null : result.code)
     }
     const latencyMs = Date.now() - started
     const partCalls = await drainCalls(firstCall)
     const sent = (result as { audio?: { sentMs?: number } }).audio?.sentMs
+    const strictJson = strictJsonReply(result.content)
     const part: PartResult = {
       idx: segment.idx,
       offsetMs: segment.offsetMs,
@@ -477,6 +626,11 @@ async function transcribeScenario(apiKey: string, pcm: Int16Array, projectName: 
       outputChars: result.content?.length ?? 0,
       rawOutput: result.content ?? null,
       sentAudioMs: typeof sent === 'number' ? sent : null,
+      attemptCodes,
+      strictJson,
+      recovered: strictJson === false && result.ok && Boolean(result.content && parseTranscriptionContent(result.content)),
+      providers: partCalls.map((call) => call.provider ?? null),
+      generationIds: partCalls.map((call) => call.generationId ?? null),
       provider: summarizeCalls(partCalls),
       providerCalls: partCalls.map((call) => call.usage),
     }
@@ -539,7 +693,7 @@ async function analyze(
       locale: scenario.locale,
       timeZone: 'Asia/Riyadh',
       lines,
-      model: MODEL,
+      model: ANALYSIS_MODEL,
     })
     const latencyMs = Date.now() - started
     const analysisCalls = await drainCalls(firstCall)
@@ -591,7 +745,10 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
   const report: Record<string, unknown> = {
     label: LABEL,
     createdAt: new Date().toISOString(),
-    model: MODEL,
+    model: STT_MODEL,
+    analysisModel: ANALYSIS_MODEL,
+    sttEndpoint: STT_ENDPOINT,
+    trimSilence: TRIM,
     commit: '',
     scenarios: [] as unknown[],
   }
@@ -606,15 +763,20 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
     }
     installFetchCapture()
     dir = mkdtempSync(join(tmpdir(), 'hilm-meeting-bench-'))
-    for (const scenario of SCENARIOS) {
-      const jobs = scenario.lines.map((line, i) => ({ voice: line.voice, text: line.text, path: join(dir, `${scenario.name}-${i}.wav`) }))
+    for (const scenario of ACTIVE_SCENARIOS) {
+      const jobs = scenario.lines.map((line, i) => ({
+        voice: line.voice,
+        text: line.text,
+        ssml: line.pitch ? pitchedSsml(line.text, line.pitch) : null,
+        path: join(dir, `${scenario.name}-${i}.wav`),
+      }))
       synthesize(dir, jobs)
       const pieces: Int16Array[] = []
       const utterances: Utterance[] = []
       let cursor = 0
       scenario.lines.forEach((line, i) => {
         const pcm = readWavPcm(jobs[i]!.path)
-        utterances.push({ voice: line.voice, text: line.text, startMs: samplesToMs(cursor), endMs: samplesToMs(cursor + pcm.length) })
+        utterances.push({ voice: speakerKey(line), text: line.text, startMs: samplesToMs(cursor), endMs: samplesToMs(cursor + pcm.length) })
         const gap = new Int16Array(Math.round(((line.pauseAfterMs ?? GAP_MS) / 1000) * MEETING_SAMPLE_RATE))
         pieces.push(pcm, gap)
         cursor += pcm.length + gap.length
@@ -625,7 +787,7 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
         pcm.set(piece, at)
         at += piece.length
       }
-      addNoise(pcm)
+      addNoise(pcm, scenario.noise)
       audio.set(scenario.name, { pcm, utterances })
     }
   }, 180_000)
@@ -651,7 +813,7 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
         apiKey,
         audioBase64: wavBase64([addNoise(new Int16Array(seconds * MEETING_SAMPLE_RATE))]),
         prompt,
-        model: MODEL,
+        model: STT_MODEL,
       })
       const usage = summarizeCalls(await drainCalls(first))
       const sent = (result as { audio?: { sentMs?: number } }).audio?.sentMs
@@ -671,15 +833,15 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
     90_000,
   )
 
-  for (const scenario of SCENARIOS) {
+  for (const scenario of ACTIVE_SCENARIOS) {
     it(
       `${scenario.name}: transcribes and analyzes with measured provider usage`,
       async () => {
         const { pcm, utterances } = audio.get(scenario.name)!
         const { stitched, roster, parts } = await transcribeScenario(apiKey, pcm, scenario.projectName)
         const quality = measureQuality(scenario, utterances, stitched)
-        const direct = await analyze(apiKey, scenario, stitched, roster, false)
-        const hierarchical = scenario.hierarchical ? await analyze(apiKey, scenario, stitched, roster, true) : null
+        const direct = ANALYSIS ? await analyze(apiKey, scenario, stitched, roster, false) : null
+        const hierarchical = ANALYSIS && scenario.hierarchical ? await analyze(apiKey, scenario, stitched, roster, true) : null
         const stt = summarizeCalls(parts.flatMap((part) => part.providerCalls.map((usage) => ({ title: '', status: 200, requestChars: 0, usage }))))
         const audioSeconds = samplesToMs(pcm.length) / 1000
         ;(report.scenarios as unknown[]).push({
@@ -702,4 +864,59 @@ describe.skipIf(!enabled)('meeting AI benchmark (live OpenRouter)', () => {
       600_000,
     )
   }
+
+  it(
+    'noise and silence only: no invented speech',
+    async () => {
+      // 8 s near-silence, 12 s loud broadband noise, 4 s of clicks, 8 s near-silence.
+      const rate = MEETING_SAMPLE_RATE
+      const pcm = new Int16Array(32 * rate)
+      addNoise(pcm.subarray(0, 8 * rate), 120)
+      addNoise(pcm.subarray(8 * rate, 20 * rate), 3500)
+      for (let t = 20 * rate; t < 24 * rate; t += Math.round(rate / 3)) {
+        for (let k = 0; k < 400 && t + k < pcm.length; k += 1) pcm[t + k] = k % 2 ? 9000 : -9000
+      }
+      addNoise(pcm.subarray(24 * rate), 120)
+      const { stitched, parts } = await transcribeScenario(apiKey, pcm, 'Noise check')
+      const stt = summarizeCalls(parts.flatMap((part) => part.providerCalls.map((usage) => ({ title: '', status: 200, requestChars: 0, usage }))))
+      report.noise = {
+        audioSeconds: 32,
+        parts,
+        stt,
+        lines: stitched.length,
+        words: normalizeWords(stitched.map((row) => row.text).join(' ')).length,
+        transcript: stitched.map((row) => `${row.speakerLabel} @${(row.start_ms / 1000).toFixed(1)}s: ${row.text}`),
+      }
+      expect(parts.every((part) => part.ok)).toBe(true)
+    },
+    120_000,
+  )
+
+  it(
+    'records which upstream provider/endpoint OpenRouter routed each STT call to',
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 4000))
+      const ids = calls
+        .filter((call) => call.title === 'Hilm Meeting Transcription' && call.generationId)
+        .map((call) => call.generationId!)
+      const tally: Record<string, { calls: number; costUsd: number }> = {}
+      const samples: unknown[] = []
+      for (const id of ids) {
+        const res = await originalFetch(`https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(id)}`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        })
+        if (!res.ok) continue
+        const data = ((await res.json()) as { data?: Record<string, unknown> }).data
+        if (!data) continue
+        const key = `${String(data.provider_name ?? '?')}`
+        tally[key] ??= { calls: 0, costUsd: 0 }
+        tally[key].calls += 1
+        tally[key].costUsd = round(tally[key].costUsd + num(data.total_cost), 6)
+        if (samples.length < 2) samples.push(data)
+      }
+      report.routing = { lookedUp: ids.length, byProvider: tally, samples }
+      expect(ids.length).toBeGreaterThan(0)
+    },
+    120_000,
+  )
 })
