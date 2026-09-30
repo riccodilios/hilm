@@ -1510,17 +1510,13 @@
       "interruptedDescription_one": "{{count}} part was saved. Continue recording or finish and process what was captured.",
       "interruptedDescription_other": "{{count}} parts were saved. Continue recording or finish and process what was captured.",
       "captureMode": {
-        "title": "How are you joining?",
-        "subtitle": "Choose what audio Hilm should capture.",
-        "micTitle": "In person (microphone)",
-        "micDescription": "Records only your microphone — best for rooms and face-to-face meetings.",
-        "meetingTitle": "Online meeting (tab + microphone)",
-        "meetingDescription": "Captures the meeting tab audio and your microphone so remote speakers are transcribed too.",
-        "meetingUnsupported": "This browser cannot share tab audio. Use Chrome or Edge on desktop, or pick microphone-only.",
-        "shareTabHint": "In the share dialog, select the Meet / Zoom / Teams tab and turn on “Share tab audio”.",
-        "confirm": "Start recording",
         "badgeMic": "Mic only",
-        "badgeMeeting": "Tab + mic"
+        "badgeMeeting": "Tab + mic",
+        "switchToMeeting": "Capture tab audio",
+        "switchToMic": "Mic only",
+        "onlineHint": "On a video call? Use “Capture tab audio” and share the meeting tab with audio.",
+        "shareTabHint": "In the share dialog, select the Meet / Zoom / Teams tab and turn on “Share tab audio”.",
+        "meetingUnsupported": "This browser cannot share tab audio. Use Chrome or Edge on desktop."
       },
       "notice": {
         "interrupted": "Recording paused because the app went to the background or the microphone was taken by another app.",

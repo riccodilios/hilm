@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useQueryClient } from '@tanstack/react-query'
 import { callMeetingProcess, finalizeRecording, meetingKeys, uploadMeetingSegment } from '../api'
 import type { MeetingOs } from '../types'
-import { CaptureError, PcmCapture, type CaptureInterruption } from './capture'
+import { CaptureError, PcmCapture, type CaptureInterruption, type CaptureMode } from './capture'
 import { PcmSegmenter, type PcmSegment } from './segmenter'
 import {
   enqueueSegment,
@@ -362,6 +362,77 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
     void acquireWakeLock()
   }, [acquireWakeLock, createCapture, setStatus])
 
+  const setCaptureMode = useCallback(
+    async (mode: CaptureMode) => {
+      const session = sessionRef.current
+      if (!session) return false
+      if (statusRef.current !== 'recording' && statusRef.current !== 'paused') return false
+      if (session.captureMode === mode && captureRef.current?.isAlive && statusRef.current === 'recording') {
+        return true
+      }
+
+      // Keep the same meeting timeline — flush the open part, then swap capture pipelines.
+      const flushed = segmenterRef.current?.flush()
+      if (flushed) void handleSegment(flushed)
+
+      const previousMode = session.captureMode
+      const oldCapture = captureRef.current
+      captureRef.current = null
+      await oldCapture?.stop()
+
+      const nextSession = { ...session, captureMode: mode }
+      sessionRef.current = nextSession
+      statusRef.current = 'requesting'
+      setState((prev) => ({
+        ...prev,
+        session: nextSession,
+        status: 'requesting',
+        error: null,
+        notice: null,
+        level: 0,
+      }))
+
+      const capture = createCapture()
+      try {
+        await capture.start(mode)
+      } catch (error) {
+        await capture.stop()
+        const code = error instanceof CaptureError ? error.code : 'unknown'
+        // Prefer restoring the previous mode so the meeting keeps going.
+        if (previousMode !== mode) {
+          const fallback = createCapture()
+          try {
+            await fallback.start(previousMode)
+            captureRef.current = fallback
+            const restored = { ...session, captureMode: previousMode }
+            sessionRef.current = restored
+            statusRef.current = 'recording'
+            setState((prev) => ({
+              ...prev,
+              session: restored,
+              status: 'recording',
+              error: { code },
+              level: 0,
+            }))
+            void acquireWakeLock()
+            return false
+          } catch {
+            await fallback.stop()
+          }
+        }
+        statusRef.current = 'paused'
+        setState((prev) => ({ ...prev, status: 'paused', error: { code }, level: 0 }))
+        return false
+      }
+
+      captureRef.current = capture
+      setStatus('recording')
+      void acquireWakeLock()
+      return true
+    },
+    [acquireWakeLock, createCapture, handleSegment, setStatus],
+  )
+
   const stop = useCallback(async () => {
     const session = sessionRef.current
     if (!session || statusRef.current === 'idle' || statusRef.current === 'finishing') return
@@ -461,6 +532,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       pause,
       resume,
       stop,
+      setCaptureMode,
       clearError: () => setState((prev) => ({ ...prev, error: null })),
       clearInterrupted: () => {
         writePersisted(null)
@@ -469,7 +541,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       isActiveFor: (meetingId: string) => state.session?.meetingId === meetingId && state.status !== 'idle',
       driveProcessing,
     }),
-    [driveProcessing, pause, resume, start, state, stop],
+    [driveProcessing, pause, resume, setCaptureMode, start, state, stop],
   )
 
   return (
