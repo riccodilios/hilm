@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { MeetingOs } from '../types'
-import type { CaptureErrorCode } from './capture'
+import type { CaptureErrorCode, CaptureMode } from './capture'
 
 export type RecorderStatus = 'idle' | 'requesting' | 'recording' | 'paused' | 'finishing'
 
@@ -14,6 +14,8 @@ export type RecorderSession = {
   startOffsetMs: number
   /** Plan limit for a single meeting; recording stops automatically at this length. */
   maxMs: number | null
+  /** How audio is captured for this session. Defaults to mic-only when omitted. */
+  captureMode: CaptureMode
   locale?: string
 }
 
@@ -24,7 +26,7 @@ export type RecorderErrorCode =
   | 'tier_disabled'
   | 'upload_failed'
 
-export type RecorderNotice = 'interrupted' | 'device_lost' | 'limit_reached' | null
+export type RecorderNotice = 'interrupted' | 'device_lost' | 'display_ended' | 'limit_reached' | null
 
 export type PersistedSession = { os: MeetingOs; meetingId: string; title: string; href: string; startedAt: number }
 

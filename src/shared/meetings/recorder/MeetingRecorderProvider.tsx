@@ -250,7 +250,9 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       const segment = segmenterRef.current?.flush()
       if (segment) void handleSegment(segment)
       setStatus('paused')
-      setState((prev) => ({ ...prev, notice: reason === 'device_lost' ? 'device_lost' : 'interrupted', level: 0 }))
+      const notice =
+        reason === 'device_lost' ? 'device_lost' : reason === 'display_ended' ? 'display_ended' : 'interrupted'
+      setState((prev) => ({ ...prev, notice, level: 0 }))
     },
     [handleSegment, setStatus],
   )
@@ -290,7 +292,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       statusRef.current = 'requesting'
       const capture = createCapture()
       try {
-        await capture.start()
+        await capture.start(session.captureMode)
       } catch (error) {
         await capture.stop()
         sessionRef.current = null
@@ -327,12 +329,18 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
 
   const resume = useCallback(async () => {
     if (statusRef.current !== 'paused') return
+    const session = sessionRef.current
     let capture = captureRef.current
+    // Display share ending makes capture not alive — user must pick the tab again on resume.
     if (!capture || !capture.isAlive) {
       await capture?.stop()
+      if (!session) {
+        setState((prev) => ({ ...prev, notice: 'interrupted' }))
+        return
+      }
       capture = createCapture()
       try {
-        await capture.start()
+        await capture.start(session.captureMode)
       } catch (error) {
         const code = error instanceof CaptureError ? error.code : 'unknown'
         setState((prev) => ({ ...prev, error: { code } }))
@@ -346,7 +354,10 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
         return
       }
     }
-    setState((prev) => ({ ...prev, notice: prev.notice === 'limit_reached' ? prev.notice : null }))
+    setState((prev) => ({
+      ...prev,
+      notice: prev.notice === 'limit_reached' ? prev.notice : null,
+    }))
     setStatus('recording')
     void acquireWakeLock()
   }, [acquireWakeLock, createCapture, setStatus])

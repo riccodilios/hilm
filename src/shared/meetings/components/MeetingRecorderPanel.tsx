@@ -1,8 +1,19 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, Mic, Pause, Play, ShieldCheck, Square, UploadCloud } from 'lucide-react'
+import {
+  AlertTriangle,
+  Laptop,
+  Loader2,
+  Mic,
+  MonitorSpeaker,
+  Pause,
+  Play,
+  ShieldCheck,
+  Square,
+  UploadCloud,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AiAmbientBackground } from '@/features/ai/components/AiAmbientBackground'
 import { AiThinkingOrbs, type ThinkingOrbState } from '@/features/ai/components/AiThinkingOrbs'
@@ -10,7 +21,11 @@ import { cn } from '@/lib/utils'
 import { finalizeRecording, meetingStoragePath } from '../api'
 import { formatClock } from '../format'
 import { useMeetingMutations, useMeetingQuota } from '../hooks'
-import { isRecordingSupported } from '../recorder/capture'
+import {
+  isDisplayAudioCaptureSupported,
+  isRecordingSupported,
+  type CaptureMode,
+} from '../recorder/capture'
 import { useMeetingRecorder } from '../recorder/recorder-context'
 import { useVoiceActivity } from '../recorder/useVoiceActivity'
 import type { MeetingDetail, MeetingsAdapter } from '../types'
@@ -52,6 +67,87 @@ function LiveBackdrop({ level, speaking }: { level: number; speaking: boolean })
   )
 }
 
+function CaptureModeChooser({
+  selected,
+  onSelect,
+  onConfirm,
+  onCancel,
+  displaySupported,
+  confirming,
+}: {
+  selected: CaptureMode
+  onSelect: (mode: CaptureMode) => void
+  onConfirm: () => void
+  onCancel?: () => void
+  displaySupported: boolean
+  confirming?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="mx-auto w-full max-w-md space-y-4 text-start">
+      <div className="text-center">
+        <p className="font-medium">{t('meetings.recorder.captureMode.title')}</p>
+        <p className="mt-1 text-sm text-muted">{t('meetings.recorder.captureMode.subtitle')}</p>
+      </div>
+      <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={() => onSelect('mic')}
+          className={cn(
+            'flex items-start gap-3 rounded-2xl border px-3 py-3 text-start transition-colors',
+            selected === 'mic'
+              ? 'border-foreground/30 bg-foreground/[0.04]'
+              : 'border-border-subtle hover:bg-surface-2',
+          )}
+        >
+          <Mic className="mt-0.5 size-4 shrink-0" />
+          <span>
+            <span className="block text-sm font-medium">{t('meetings.recorder.captureMode.micTitle')}</span>
+            <span className="mt-0.5 block text-xs text-muted">{t('meetings.recorder.captureMode.micDescription')}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => displaySupported && onSelect('meeting')}
+          disabled={!displaySupported}
+          className={cn(
+            'flex items-start gap-3 rounded-2xl border px-3 py-3 text-start transition-colors disabled:opacity-50',
+            selected === 'meeting'
+              ? 'border-foreground/30 bg-foreground/[0.04]'
+              : 'border-border-subtle hover:bg-surface-2',
+          )}
+        >
+          <MonitorSpeaker className="mt-0.5 size-4 shrink-0" />
+          <span>
+            <span className="block text-sm font-medium">{t('meetings.recorder.captureMode.meetingTitle')}</span>
+            <span className="mt-0.5 block text-xs text-muted">
+              {displaySupported
+                ? t('meetings.recorder.captureMode.meetingDescription')
+                : t('meetings.recorder.captureMode.meetingUnsupported')}
+            </span>
+          </span>
+        </button>
+      </div>
+      {selected === 'meeting' ? (
+        <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+          {t('meetings.recorder.captureMode.shareTabHint')}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button onClick={onConfirm} disabled={confirming || (selected === 'meeting' && !displaySupported)}>
+          {confirming ? <Loader2 className="animate-spin" /> : selected === 'meeting' ? <Laptop /> : <Mic />}
+          {t('meetings.recorder.captureMode.confirm')}
+        </Button>
+        {onCancel ? (
+          <Button variant="secondary" onClick={onCancel} disabled={confirming}>
+            {t('common.cancel')}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export function MeetingRecorderPanel({
   adapter,
   detail,
@@ -78,9 +174,13 @@ export function MeetingRecorderPanel({
   const active = recorder.isActiveFor(meeting.id)
   const otherActive = recorder.status !== 'idle' && !active && recorder.session
   const supported = isRecordingSupported()
+  const displaySupported = isDisplayAudioCaptureSupported()
   const recording = active && recorder.status === 'recording'
   const voice = useVoiceActivity(recorder.level, recording)
   const autoStartedRef = useRef(false)
+  const [chooserOpen, setChooserOpen] = useState(false)
+  const [selectedMode, setSelectedMode] = useState<CaptureMode>('mic')
+  const [starting, setStarting] = useState(false)
 
   const quotaData = quota.data
   const monthlyLeftMs = quotaData
@@ -88,7 +188,12 @@ export function MeetingRecorderPanel({
     : null
   const quotaBlocked = Boolean(quotaData && (!quotaData.enabled || (monthlyLeftMs !== null && monthlyLeftMs < 30_000)))
 
-  const startRecording = async () => {
+  const openChooser = () => {
+    setSelectedMode(displaySupported ? 'meeting' : 'mic')
+    setChooserOpen(true)
+  }
+
+  const startRecording = async (mode: CaptureMode) => {
     const { startIdx, startOffsetMs } = nextPart(detail)
     const maxMs = quotaData
       ? Math.min(quotaData.maxMinutes * 60_000, startOffsetMs + (monthlyLeftMs ?? Number.POSITIVE_INFINITY))
@@ -98,20 +203,27 @@ export function MeetingRecorderPanel({
       return
     }
     const startedAt = new Date().toISOString()
-    const started = await recorder.start({
-      os: adapter.scope.os,
-      meetingId: meeting.id,
-      title: meeting.title,
-      href: location.pathname,
-      storagePathFor: (idx) => meetingStoragePath(adapter.scope, meeting.id, idx),
-      startIdx,
-      startOffsetMs,
-      maxMs,
-      locale: i18n.language,
-    })
-    // The meeting time is when the first recording actually started.
-    if (started && startIdx === 0) {
-      await mutations.update.mutateAsync({ heldAt: startedAt }).catch(() => undefined)
+    setStarting(true)
+    try {
+      const started = await recorder.start({
+        os: adapter.scope.os,
+        meetingId: meeting.id,
+        title: meeting.title,
+        href: location.pathname,
+        storagePathFor: (idx) => meetingStoragePath(adapter.scope, meeting.id, idx),
+        startIdx,
+        startOffsetMs,
+        maxMs,
+        captureMode: mode,
+        locale: i18n.language,
+      })
+      // The meeting time is when the first recording actually started.
+      if (started && startIdx === 0) {
+        await mutations.update.mutateAsync({ heldAt: startedAt }).catch(() => undefined)
+      }
+      if (started) setChooserOpen(false)
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -132,7 +244,8 @@ export function MeetingRecorderPanel({
     if (quota.isLoading) return
     autoStartedRef.current = true
     onAutoStartHandled?.()
-    if (supported && !quotaBlocked) void startRecording()
+    // Open the capture chooser — do not silently start mic-only.
+    if (supported && !quotaBlocked) openChooser()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, meeting.status, recorder.status, quota.isLoading, quotaBlocked, supported, adapter.canEdit])
 
@@ -158,12 +271,23 @@ export function MeetingRecorderPanel({
         {recorder.error.code === 'permission_denied' ? (
           <p className="mt-1 text-muted">{t('meetings.recorder.errors.permissionHelp')}</p>
         ) : null}
+        {recorder.error.code === 'display_no_audio' ? (
+          <p className="mt-1 text-muted">{t('meetings.recorder.errors.display_no_audioHelp')}</p>
+        ) : null}
+        {recorder.error.code === 'display_permission_denied' || recorder.error.code === 'display_cancelled' ? (
+          <p className="mt-1 text-muted">{t('meetings.recorder.errors.displayHelp')}</p>
+        ) : null}
       </div>
       <button type="button" className="text-xs text-muted hover:text-foreground" onClick={recorder.clearError}>
         {t('common.dismiss')}
       </button>
     </div>
   ) : null
+
+  const modeBadge =
+    recorder.session?.captureMode === 'meeting'
+      ? t('meetings.recorder.captureMode.badgeMeeting')
+      : t('meetings.recorder.captureMode.badgeMic')
 
   if (!adapter.canEdit) return null
 
@@ -181,7 +305,9 @@ export function MeetingRecorderPanel({
   if (active) {
     const statusLabel =
       recorder.status === 'requesting'
-        ? t('meetings.recorder.requesting')
+        ? recorder.session?.captureMode === 'meeting'
+          ? t('meetings.recorder.requestingMeeting')
+          : t('meetings.recorder.requesting')
         : recorder.status === 'finishing'
           ? t('meetings.recorder.finishing')
           : recording
@@ -223,6 +349,8 @@ export function MeetingRecorderPanel({
                 aria-hidden
               />
               {statusLabel}
+              <span className="text-border-subtle">·</span>
+              <span>{modeBadge}</span>
             </p>
           </div>
           <div className="flex items-center justify-center gap-3">
@@ -264,6 +392,25 @@ export function MeetingRecorderPanel({
     )
   }
 
+  if (chooserOpen) {
+    return (
+      <div className="relative overflow-hidden rounded-3xl border border-border-subtle bg-surface/70 px-4 py-6 sm:px-6">
+        <AiAmbientBackground intensity={0.25} />
+        <div className="relative space-y-4">
+          {errorBanner ? <div className="mx-auto max-w-md">{errorBanner}</div> : null}
+          <CaptureModeChooser
+            selected={selectedMode}
+            onSelect={setSelectedMode}
+            onConfirm={() => void startRecording(selectedMode)}
+            onCancel={() => setChooserOpen(false)}
+            displaySupported={displaySupported}
+            confirming={starting || recorder.status === 'requesting'}
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (meeting.status === 'recording') {
     return (
       <div className="space-y-3 rounded-2xl border border-warning/30 bg-warning/5 p-4">
@@ -277,7 +424,7 @@ export function MeetingRecorderPanel({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => void startRecording()} disabled={!supported || quotaBlocked}>
+          <Button onClick={openChooser} disabled={!supported || quotaBlocked}>
             <Mic /> {t('meetings.recorder.continue')}
           </Button>
           <Button variant="secondary" onClick={() => void finishInterrupted()}>
@@ -295,7 +442,7 @@ export function MeetingRecorderPanel({
         <Button
           variant="secondary"
           size="sm"
-          onClick={() => void startRecording()}
+          onClick={openChooser}
           disabled={!supported || quotaBlocked || meeting.status === 'processing'}
         >
           <Mic /> {t('meetings.recorder.recordMore')}
@@ -313,7 +460,7 @@ export function MeetingRecorderPanel({
         {errorBanner ? <div className="mx-auto max-w-md">{errorBanner}</div> : null}
         <button
           type="button"
-          onClick={() => void startRecording()}
+          onClick={openChooser}
           disabled={!canStart}
           className="group relative mx-auto flex size-44 items-center justify-center rounded-full outline-none transition-transform duration-300 hover:scale-[1.04] focus-visible:ring-2 focus-visible:ring-ring active:scale-95 disabled:pointer-events-none disabled:opacity-40"
           aria-label={t('meetings.recorder.start')}
