@@ -16,7 +16,13 @@ import {
 import { tokensFromOpenRouterUsage, type AiUsageTokens } from './ai-guard'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+/** Default for chat/analysis completions. */
 export const AI_GATEWAY_TIMEOUT_MS = 21_000
+/**
+ * Meeting STT of ~90s WAV regularly exceeds the default chat timeout.
+ * Kept under the Netlify meeting-process function limit (60s) with room for download/DB.
+ */
+export const MEETING_STT_TIMEOUT_MS = 52_000
 
 export type GatewayMessage =
   | { role: 'system' | 'user' | 'assistant'; content: string }

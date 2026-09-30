@@ -9,9 +9,9 @@ import {
   type TranscriptionResponse,
 } from './meeting-core'
 import { getAiRuntimeConfig } from './ai-config'
-import { AI_GATEWAY_TIMEOUT_MS, runAiCompletion } from './ai-gateway'
+import { AI_GATEWAY_TIMEOUT_MS, MEETING_STT_TIMEOUT_MS, runAiCompletion } from './ai-gateway'
 
-export { AI_GATEWAY_TIMEOUT_MS as PROVIDER_TIMEOUT_MS }
+export { AI_GATEWAY_TIMEOUT_MS as PROVIDER_TIMEOUT_MS, MEETING_STT_TIMEOUT_MS }
 
 export type OpenRouterResult =
   | { ok: true; content: string; usage: unknown }
@@ -76,9 +76,11 @@ export async function transcribeAudioChunk(input: {
     maxTokens: 4096,
     temperature: 0,
     responseFormat: { type: 'json_object' },
-    timeoutMs: input.timeoutMs,
+    // Single long attempt: in-gateway retries of 21s×2 used to exceed the old 26s Netlify
+    // function timeout and surface as opaque HTTP 500s. Segment-level retries handle recovery.
+    timeoutMs: input.timeoutMs ?? MEETING_STT_TIMEOUT_MS,
     title: 'Hilm Meeting Transcription',
-    allowRetry: config.meeting.providerMaxRetries > 0,
+    allowRetry: false,
     messages: [
       {
         role: 'user',

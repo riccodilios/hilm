@@ -98,16 +98,38 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
       }
       drivingRef.current.add(key)
       void (async () => {
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+        const transient = (code: string) =>
+          code === 'rate_limited' ||
+          code === 'ai_limit' ||
+          code === 'provider_timeout' ||
+          code === 'provider_error' ||
+          code === 'network' ||
+          code.startsWith('http_429') ||
+          code.startsWith('http_5')
         try {
           let step = 0
+          let transientStrikes = 0
           do {
             rerunRef.current.delete(key)
             for (; step < 400; step += 1) {
               const result = await callMeetingProcess({ action: 'advance', os, meetingId, locale })
-              invalidateMeeting(os, meetingId)
-              if (!result.ok) break
+              // Refresh UI periodically — not every busy poll — to avoid query churn storms.
+              if (step % 2 === 0 || !result.ok || (result.ok && !result.more)) {
+                invalidateMeeting(os, meetingId)
+              }
+              if (!result.ok) {
+                if (transient(result.code) && transientStrikes < 12) {
+                  const delay = Math.min(60_000, 4_000 * 2 ** Math.min(transientStrikes, 4))
+                  transientStrikes += 1
+                  await sleep(delay)
+                  continue
+                }
+                break
+              }
+              transientStrikes = 0
               if (result.state === 'busy') {
-                await new Promise((resolve) => setTimeout(resolve, 4000))
+                await sleep(4_000)
                 continue
               }
               if (!result.more) break

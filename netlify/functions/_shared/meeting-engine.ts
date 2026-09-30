@@ -309,6 +309,30 @@ export async function transcribeSegment(
   })
   if (!result.ok && result.code !== 'parse_error') {
     await complete('failed', { errorCode: result.code, errorMessage: result.detail.slice(0, 500) })
+    // Rate limits / transient provider pressure: put the part back in the queue instead of
+    // burning auto-attempts and failing the whole meeting.
+    if (result.code === 'rate_limited' || result.code === 'provider_timeout') {
+      await ctx.client
+        .from(tables.audio)
+        .update({
+          status: 'uploaded',
+          attempts: Math.max(0, attempt - 1),
+          error: null,
+        })
+        .eq('id', segment.id)
+      await softUpdate(
+        ctx,
+        tables.meetings,
+        { processing_stage: 'waiting_quota', processing_error: friendlyMeetingError(result.code) },
+        { column: 'id', value: meeting.id },
+      )
+      return {
+        ok: false,
+        code: result.code,
+        message: friendlyMeetingError(result.code),
+        status: result.code === 'rate_limited' ? 429 : 503,
+      }
+    }
     await failSegment(result.code, result.detail)
     const status = result.code === 'disabled' ? 403 : 502
     return {

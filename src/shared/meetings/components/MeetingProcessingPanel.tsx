@@ -74,9 +74,10 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
 
   useEffect(() => {
     if (canDrive && meeting.status === 'processing') recorder.driveProcessing(os, meeting.id, i18n.language)
-    // Re-drive when a new part lands or the stage changes.
+    // Kick (or re-queue) the driver when processing starts or a new audio part lands.
+    // Do NOT depend on processingStage — every transcribed part would restart a request storm.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canDrive, meeting.id, meeting.status, meeting.processingStage, audio.length, os])
+  }, [canDrive, meeting.id, meeting.status, audio.length, os])
 
   useEffect(() => {
     const was = previousStatus.current
