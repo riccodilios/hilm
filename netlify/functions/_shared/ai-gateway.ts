@@ -59,7 +59,7 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function isRetryable(code: GatewayResult extends { ok: false } ? GatewayResult['code'] : never, status?: number) {
+function isRetryable(code: Extract<GatewayResult, { ok: false }>['code'], status?: number) {
   if (code === 'provider_timeout') return true
   if (code === 'provider_error' && status != null && status >= 500) return true
   return false

@@ -32,16 +32,6 @@ export function OnboardingPage() {
     void resolvePostAuthDestination().then(setDoneRedirect)
   }, [settings.data?.onboarding_completed])
 
-  if (settings.isLoading || (settings.data?.onboarding_completed && !doneRedirect)) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <Skeleton className="h-10 w-48" />
-      </div>
-    )
-  }
-
-  if (doneRedirect) return <Navigate to={doneRedirect} replace />
-
   const finish = useMutation({
     mutationFn: async (startup: StartupMode) => {
       await updateSettings({
@@ -93,6 +83,16 @@ export function OnboardingPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   })
+
+  if (settings.isLoading || (settings.data?.onboarding_completed && !doneRedirect)) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Skeleton className="h-10 w-48" />
+      </div>
+    )
+  }
+
+  if (doneRedirect) return <Navigate to={doneRedirect} replace />
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10">
