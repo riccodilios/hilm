@@ -827,7 +827,7 @@ export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): P
       { processing_stage: null, processing_error: null },
       { column: 'id', value: meeting.id },
     )
-    meeting = { ...meeting, processing_stage: null, processing_error: null }
+    meeting = { ...meeting, processing_stage: null }
   }
   const tables = meetingTables(ctx.os)
   const { data: rows, error } = await ctx.client
