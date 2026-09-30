@@ -35,7 +35,16 @@ export type GatewayMessage =
     }
 
 export type GatewayResult =
-  | { ok: true; content: string; usage: unknown; tokens: AiUsageTokens; model: string; attempts: number }
+  | {
+      ok: true
+      content: string
+      usage: unknown
+      tokens: AiUsageTokens
+      model: string
+      attempts: number
+      /** True when the provider stopped at max_tokens (output is cut off). */
+      truncated: boolean
+    }
   | {
       ok: false
       code: 'disabled' | 'provider_error' | 'provider_timeout' | 'rate_limited' | 'invalid_request'
@@ -159,12 +168,19 @@ export async function runAiCompletion(input: {
       }
 
       const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>
+        choices?: Array<{
+          message?: { content?: string }
+          finish_reason?: string | null
+          native_finish_reason?: string | null
+        }>
         usage?: unknown
       }
-      const content = payload.choices?.[0]?.message?.content ?? ''
+      const choice = payload.choices?.[0]
+      const content = choice?.message?.content ?? ''
       const tokens = tokensFromOpenRouterUsage(payload.usage)
-      return { ok: true, content, usage: payload.usage, tokens, model, attempts: attempt }
+      const truncated =
+        choice?.finish_reason === 'length' || choice?.native_finish_reason === 'MAX_TOKENS'
+      return { ok: true, content, usage: payload.usage, tokens, model, attempts: attempt, truncated }
     } catch (error) {
       const aborted = error instanceof Error && error.name === 'AbortError'
       lastFailure = {

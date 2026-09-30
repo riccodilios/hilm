@@ -4,7 +4,9 @@
  */
 import {
   MEETING_TRANSCRIBE_MODEL,
+  dedupeTranscriptionLoops,
   extractJsonObject,
+  salvageTruncatedTranscription,
   transcriptionResponseSchema,
   type TranscriptionResponse,
 } from './meeting-core'
@@ -12,6 +14,8 @@ import { getAiRuntimeConfig } from './ai-config'
 import { AI_GATEWAY_TIMEOUT_MS, MEETING_STT_TIMEOUT_MS, runAiCompletion } from './ai-gateway'
 
 export { AI_GATEWAY_TIMEOUT_MS as PROVIDER_TIMEOUT_MS, MEETING_STT_TIMEOUT_MS }
+
+export const MEETING_STT_MAX_TOKENS = 8192
 
 export type OpenRouterResult =
   | { ok: true; content: string; usage: unknown }
@@ -72,8 +76,9 @@ export async function transcribeAudioChunk(input: {
     apiKey: input.apiKey,
     feature: 'meeting_transcription',
     model: input.model || config.models.meeting_transcription || MEETING_TRANSCRIBE_MODEL,
-    // STT JSON segments — keep output bounded; audio is the main cost.
-    maxTokens: 4096,
+    // Dense 90s parts (esp. Arabic, which tokenizes heavily) can exceed 4096 tokens of
+    // JSON; at ~220 tok/s 8192 still finishes well inside MEETING_STT_TIMEOUT_MS.
+    maxTokens: MEETING_STT_MAX_TOKENS,
     temperature: 0,
     responseFormat: { type: 'json_object' },
     // Single long attempt: in-gateway retries of 21s×2 used to exceed the old 26s Netlify
@@ -95,16 +100,27 @@ export async function transcribeAudioChunk(input: {
     return { ok: false, code: result.code, detail: result.detail, usage: result.usage }
   }
 
-  const json = extractJsonObject(result.content)
-  const parsed = json ? transcriptionResponseSchema.safeParse(json) : null
-  if (!parsed?.success) {
+  const data = parseTranscriptionContent(result.content)
+  if (!data) {
     return {
       ok: false,
       code: 'parse_error',
-      detail: result.content.slice(0, 300),
+      detail: `${result.truncated ? '[truncated] ' : ''}${result.content.slice(0, 300)}`,
       content: result.content,
       usage: result.usage,
     }
   }
-  return { ok: true, data: parsed.data, content: result.content, usage: result.usage }
+  return { ok: true, data, content: result.content, usage: result.usage }
+}
+
+/**
+ * Parses the model's transcription JSON. A reply cut off at max_tokens is salvaged down
+ * to its complete segments rather than discarded — re-running the same audio would be
+ * billed again and truncate the same way.
+ */
+export function parseTranscriptionContent(content: string): TranscriptionResponse | null {
+  const json = extractJsonObject(content)
+  const parsed = json ? transcriptionResponseSchema.safeParse(json) : null
+  const data = parsed?.success ? parsed.data : salvageTruncatedTranscription(content)
+  return data ? dedupeTranscriptionLoops(data) : null
 }

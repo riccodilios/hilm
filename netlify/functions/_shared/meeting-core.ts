@@ -611,6 +611,103 @@ export function extractJsonObject(text: string): Record<string, unknown> | null 
   return null
 }
 
+const transcriptionSegmentSchema = transcriptionResponseSchema.shape.segments.element
+
+/**
+ * Collapses a phrase the model repeated back-to-back (a known Gemini audio failure
+ * mode) down to one occurrence. Real speech rarely repeats a 4+ word run 4+ times.
+ */
+export function collapseRepeatedPhrases(text: string): string {
+  const words = text.split(/\s+/).filter(Boolean)
+  if (words.length < 16) return text
+  const norm = words.map((word) => word.toLowerCase().replace(/\p{P}/gu, ''))
+  const sameRun = (a: number, b: number, len: number) => {
+    for (let k = 0; k < len; k++) if (norm[a + k] !== norm[b + k]) return false
+    return true
+  }
+  const out: string[] = []
+  let changed = false
+  let i = 0
+  scan: while (i < words.length) {
+    for (let len = 4; len <= 16 && i + len * 4 <= words.length; len++) {
+      let reps = 1
+      while (i + (reps + 1) * len <= words.length && sameRun(i, i + reps * len, len)) reps++
+      if (reps >= 4) {
+        out.push(...words.slice(i, i + len))
+        i += reps * len
+        changed = true
+        continue scan
+      }
+    }
+    out.push(words[i]!)
+    i++
+  }
+  return changed ? out.join(' ') : text
+}
+
+/**
+ * Removes runaway repetition from a transcription: phrase loops inside a segment and
+ * segments whose text repeats one of the last few segments verbatim.
+ */
+export function dedupeTranscriptionLoops(response: TranscriptionResponse): TranscriptionResponse {
+  const recent: string[] = []
+  const segments: TranscriptionResponse['segments'] = []
+  for (const segment of response.segments) {
+    const text = collapseRepeatedPhrases(segment.text)
+    const key = text.replace(/\s+/g, ' ').trim().toLowerCase()
+    if (key && key.split(' ').length >= 3 && recent.includes(key)) continue
+    segments.push(text === segment.text ? segment : { ...segment, text })
+    recent.push(key)
+    if (recent.length > 3) recent.shift()
+  }
+  return { ...response, segments }
+}
+
+/**
+ * Recovers the complete segment objects from a transcription JSON reply that was cut
+ * off mid-output (max_tokens). Returns null when nothing usable can be recovered.
+ */
+export function salvageTruncatedTranscription(text: string): TranscriptionResponse | null {
+  const keyAt = text.search(/"segments"\s*:\s*\[/)
+  if (keyAt < 0) return null
+  let i = text.indexOf('[', keyAt) + 1
+  const segments: TranscriptionResponse['segments'] = []
+  while (i < text.length) {
+    while (i < text.length && /[\s,]/.test(text[i]!)) i++
+    if (text[i] !== '{') break
+    const start = i
+    let depth = 0
+    let inString = false
+    let escaped = false
+    let end = -1
+    for (; i < text.length; i++) {
+      const ch = text[i]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') inString = true
+      else if (ch === '{') depth++
+      else if (ch === '}' && --depth === 0) {
+        end = i
+        break
+      }
+    }
+    if (end < 0) break
+    i = end + 1
+    try {
+      const parsed = transcriptionSegmentSchema.safeParse(JSON.parse(text.slice(start, end + 1)))
+      if (parsed.success) segments.push(parsed.data)
+    } catch {
+      // skip a malformed object, keep the rest
+    }
+    if (segments.length >= 1500) break
+  }
+  return segments.length ? { segments } : null
+}
+
 /** Friendly, non-leaky error codes for the client. */
 export function friendlyMeetingError(code: string) {
   switch (code) {
