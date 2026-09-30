@@ -700,6 +700,14 @@ export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): P
   if (meeting.status !== 'recording' && meeting.status !== 'processing') {
     return { ok: true, state: 'idle', more: false }
   }
+  // After a rate-limit/timeout re-queue, pause briefly so the client cools down instead of
+  // immediately burning more quota with advance→429 loops.
+  if (meeting.status === 'processing' && meeting.processing_stage === 'waiting_quota') {
+    const ageMs = Date.now() - new Date(meeting.updated_at).getTime()
+    if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 90_000) {
+      return { ok: true, state: 'waiting', more: false }
+    }
+  }
   const tables = meetingTables(ctx.os)
   const { data: rows, error } = await ctx.client
     .from(tables.audio)

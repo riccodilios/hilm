@@ -79,6 +79,16 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canDrive, meeting.id, meeting.status, audio.length, os])
 
+  // Slow resume after rate-limit / waiting_quota cool-downs (driver stops itself on 429).
+  useEffect(() => {
+    if (!canDrive || meeting.status !== 'processing') return
+    const timer = window.setInterval(() => {
+      recorder.driveProcessing(os, meeting.id, i18n.language)
+    }, 90_000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDrive, meeting.id, meeting.status, os])
+
   useEffect(() => {
     const was = previousStatus.current
     previousStatus.current = meeting.status

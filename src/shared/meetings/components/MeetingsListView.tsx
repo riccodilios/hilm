@@ -36,7 +36,16 @@ export function MeetingsListView({ adapter }: { adapter: MeetingsAdapter }) {
 
   useEffect(() => {
     if (!adapter.canEdit || !processingIds) return
-    for (const id of processingIds.split(',')) recorder.driveProcessing(adapter.scope.os, id, i18n.language)
+    // Stagger list-driven advances so multiple processing meetings don't stampede the API.
+    const ids = processingIds.split(',').filter(Boolean)
+    const timers = ids.map((id, index) =>
+      window.setTimeout(() => {
+        recorder.driveProcessing(adapter.scope.os, id, i18n.language)
+      }, index * 2_500),
+    )
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adapter.canEdit, adapter.scope.os, processingIds])
 
