@@ -21,7 +21,9 @@ import {
 import { transcribeAudioChunk } from './meeting-transcriber'
 
 export const MEETING_BUCKET = 'meeting-audio'
-const STALE_CLAIM_MS = 2 * 60_000
+/** Slightly above the 60s function timeout so killed STT claims can be reclaimed promptly. */
+const STALE_CLAIM_MS = 75_000
+const TRANSIENT_STT_CODES = new Set(['rate_limited', 'provider_timeout', 'provider_error'])
 
 export type EngineContext = {
   client: SupabaseClient
@@ -74,7 +76,13 @@ const MEETING_COLUMNS =
 
 function isMissingColumnError(message: string | undefined) {
   const text = (message || '').toLowerCase()
-  return text.includes('does not exist') || text.includes('could not find') || text.includes('analysis_input_hash') || text.includes('content_hash')
+  return (
+    text.includes('does not exist') ||
+    text.includes('could not find') ||
+    text.includes('analysis_input_hash') ||
+    text.includes('content_hash') ||
+    text.includes('languages')
+  )
 }
 
 /** Soft-write optional migration-0028 columns so deploys stay safe before the SQL lands. */
@@ -309,9 +317,9 @@ export async function transcribeSegment(
   })
   if (!result.ok && result.code !== 'parse_error') {
     await complete('failed', { errorCode: result.code, errorMessage: result.detail.slice(0, 500) })
-    // Rate limits / transient provider pressure: put the part back in the queue instead of
-    // burning auto-attempts and failing the whole meeting.
-    if (result.code === 'rate_limited' || result.code === 'provider_timeout') {
+    // Transient provider pressure: re-queue the part instead of burning auto-attempts
+    // and flipping the whole meeting to "Processing failed".
+    if (TRANSIENT_STT_CODES.has(result.code)) {
       await ctx.client
         .from(tables.audio)
         .update({
@@ -404,20 +412,24 @@ export async function transcribeSegment(
 
   await ctx.client.from(tables.transcript).delete().eq('audio_segment_id', segment.id)
   if (stitched.length) {
-    const { error: insertError } = await ctx.client.from(tables.transcript).insert(
-      stitched.map((row) => ({
-        ...scope,
-        meeting_id: meeting.id,
-        audio_segment_id: segment.id,
-        speaker_id: idByLabel.get(row.speakerLabel) ?? null,
-        ordinal: row.ordinal,
-        start_ms: row.start_ms,
-        end_ms: row.end_ms,
-        text: row.text,
-        language: row.language,
-        languages: row.languages,
-      })),
-    )
+    const rows = stitched.map((row) => ({
+      ...scope,
+      meeting_id: meeting.id,
+      audio_segment_id: segment.id,
+      speaker_id: idByLabel.get(row.speakerLabel) ?? null,
+      ordinal: row.ordinal,
+      start_ms: row.start_ms,
+      end_ms: row.end_ms,
+      text: row.text,
+      language: row.language,
+      languages: row.languages,
+    }))
+    let insertError = (await ctx.client.from(tables.transcript).insert(rows)).error
+    // Migration 0027 adds `languages`; stay compatible if that SQL has not landed yet.
+    if (insertError && isMissingColumnError(insertError.message)) {
+      const withoutLanguages = rows.map(({ languages: _languages, ...rest }) => rest)
+      insertError = (await ctx.client.from(tables.transcript).insert(withoutLanguages)).error
+    }
     if (insertError) {
       await complete('failed', {
         errorCode: 'save_error',
@@ -434,6 +446,13 @@ export async function transcribeSegment(
     .from(tables.audio)
     .update({ status: 'transcribed', error: null, transcribed_at: new Date().toISOString() })
     .eq('id', segment.id)
+  // Clear transient waiting copy once a part succeeds.
+  await softUpdate(
+    ctx,
+    tables.meetings,
+    { processing_stage: null, processing_error: null },
+    { column: 'id', value: meeting.id },
+  )
   await complete('completed', { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens })
   return { ok: true, state: 'transcribed', more: true }
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MEETING_AUTO_ATTEMPTS,
   analysisResponseSchema,
   buildAnalysisPrompt,
   buildAnalysisTranscript,
   buildTranscriptionPrompt,
   extractJsonObject,
+  friendlyMeetingError,
   inferSpokenLanguages,
   normalizeLanguageCode,
   normalizeSpeakerLabel,
@@ -21,6 +23,18 @@ const roster: RosterSpeaker[] = [
   { id: 's1', label: 'Speaker 1', description: null, display_name: 'Rakan' },
   { id: 's2', label: 'Speaker 2', description: null, display_name: null },
 ]
+
+describe('meeting error UX', () => {
+  it('keeps enough auto-attempts for transient STT failures', () => {
+    expect(MEETING_AUTO_ATTEMPTS).toBeGreaterThanOrEqual(4)
+  })
+
+  it('surfaces specific copy for save failures instead of a bare Processing failed', () => {
+    expect(friendlyMeetingError('save_error')).toMatch(/audio is safe/i)
+    expect(friendlyMeetingError('save_error')).not.toBe('Processing failed.')
+    expect(friendlyMeetingError('provider_error')).toMatch(/AI service/i)
+  })
+})
 
 describe('transcription parsing and stitching', () => {
   it('accepts clock strings and numbers for timestamps', () => {

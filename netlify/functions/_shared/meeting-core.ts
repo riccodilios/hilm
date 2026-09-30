@@ -3,7 +3,8 @@ import { z } from 'zod'
 
 export type MeetingOs = 'personal' | 'workspace'
 
-export const MEETING_AUTO_ATTEMPTS = 2
+/** Per-segment automatic STT attempts before the meeting is marked failed. */
+export const MEETING_AUTO_ATTEMPTS = 4
 export const MEETING_TRANSCRIBE_MODEL = 'google/gemini-2.5-flash'
 export const MEETING_AUDIO_PRICING_MODEL = 'google/gemini-2.5-flash:audio'
 export const MEETING_SEGMENT_ORDINAL_STRIDE = 10_000
@@ -624,7 +625,11 @@ export function friendlyMeetingError(code: string) {
       return "You've reached your AI usage limit. Please wait and try again."
     case 'ai_limit':
       return "You've reached your AI usage limit for today."
+    case 'save_error':
+      return 'Transcript could not be saved. Your audio is safe — retry processing.'
+    case 'segment_failed':
+      return 'Part of the recording could not be transcribed. Retry processing.'
     default:
-      return 'Processing failed.'
+      return 'Processing failed. Your audio is safe — retry processing.'
   }
 }
