@@ -45,11 +45,11 @@ const allTabs = [
   'overview',
   'tasks',
   'kanban',
+  'meetings',
   'roadmap',
   'notes',
   'settings',
   'ideas',
-  'meetings',
   'documentation',
 ] as const
 type Tab = (typeof allTabs)[number]

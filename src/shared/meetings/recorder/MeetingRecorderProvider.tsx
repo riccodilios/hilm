@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { holdAppUpdates } from '@/lib/app-update'
 import { callMeetingProcess, finalizeRecording, meetingKeys, uploadMeetingSegment } from '../api'
 import type { MeetingOs } from '../types'
 import { CaptureError, PcmCapture, type CaptureInterruption, type CaptureMode } from './capture'
@@ -542,12 +543,16 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const active = state.status !== 'idle' || state.pendingUploads > 0
     if (!active) return
+    const releaseUpdates = holdAppUpdates()
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
       event.returnValue = ''
     }
     window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      releaseUpdates()
+    }
   }, [state.pendingUploads, state.status])
 
   // Returning to the app: re-acquire wake lock and detect suspended audio (iOS background, calls).

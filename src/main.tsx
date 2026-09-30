@@ -8,6 +8,7 @@ import { QueryProvider } from '@/lib/query/client'
 import { AppRouter } from '@/app/router'
 import { ThemeProvider, useTheme } from '@/hooks/useTheme'
 import { ThemeAccountSync } from '@/features/settings/ThemeAccountSync'
+import { requestAppReload } from '@/lib/app-update'
 import { NotificationListener } from '@/features/notifications/NotificationListener'
 import { WorkspaceRealtime } from '@/features/home/WorkspaceRealtime'
 import '@/i18n'
@@ -18,6 +19,7 @@ const updateSW = registerSW({
   onNeedRefresh() {
     void updateSW(true)
   },
+  onNeedReload: requestAppReload,
   onRegisteredSW(_url, registration) {
     if (!registration) return
     const check = () => {
@@ -32,12 +34,7 @@ const updateSW = registerSW({
 })
 
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-  let refreshing = false
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return
-    refreshing = true
-    window.location.reload()
-  })
+  navigator.serviceWorker.addEventListener('controllerchange', requestAppReload)
 }
 
 function App() {
