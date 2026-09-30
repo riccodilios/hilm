@@ -43,7 +43,11 @@ export function MeetingRecorderDock() {
           <span className="block text-xs tabular-nums text-muted">
             {status === 'finishing'
               ? t('meetings.recorder.finishing')
-              : `${recording ? t('meetings.recorder.recording') : t('meetings.recorder.paused')} · ${formatClock(recorder.elapsedMs)}`}
+              : `${recording ? t('meetings.recorder.recording') : t('meetings.recorder.paused')} · ${formatClock(recorder.elapsedMs)} · ${
+                  session.captureMode === 'meeting'
+                    ? t('meetings.recorder.captureMode.badgeMeeting')
+                    : t('meetings.recorder.captureMode.badgeMic')
+                }`}
           </span>
         </Link>
         {status === 'finishing' || status === 'requesting' ? (

@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  CaptureError,
+  isDisplayAudioCaptureSupported,
+  isMicCaptureSupported,
+  isRecordingSupported,
+  mapGetDisplayMediaError,
+  PcmCapture,
+} from './capture'
 import { createDownsampler, encodeWav, floatToInt16, MEETING_SAMPLE_RATE, mixToMono, samplesToMs } from './wav-encoder'
 import { PcmSegmenter } from './segmenter'
 
@@ -112,3 +120,203 @@ describe('PcmSegmenter', () => {
     expect(segmenter.totalMs).toBe(95 * 60 * 1000)
   })
 })
+
+describe('capture capability + errors', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('treats mic support as the baseline for IRL recording', () => {
+    vi.stubGlobal('window', {
+      AudioContext: class {},
+      isSecureContext: true,
+    })
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: vi.fn() },
+    })
+    expect(isMicCaptureSupported()).toBe(true)
+    expect(isRecordingSupported()).toBe(true)
+  })
+
+  it('requires getDisplayMedia for online meeting capture', () => {
+    vi.stubGlobal('window', {
+      AudioContext: class {},
+      isSecureContext: true,
+    })
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: vi.fn() },
+    })
+    expect(isDisplayAudioCaptureSupported()).toBe(false)
+
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia: vi.fn(), getDisplayMedia: vi.fn() },
+    })
+    expect(isDisplayAudioCaptureSupported()).toBe(true)
+  })
+
+  it('maps display share errors to CaptureError codes', () => {
+    expect(mapGetDisplayMediaError(new DOMException('denied', 'NotAllowedError')).code).toBe(
+      'display_permission_denied',
+    )
+    expect(mapGetDisplayMediaError(new DOMException('abort', 'AbortError')).code).toBe('display_cancelled')
+    expect(mapGetDisplayMediaError(new DOMException('nope', 'NotSupportedError')).code).toBe('display_unsupported')
+    expect(mapGetDisplayMediaError(new Error('weird')).code).toBe('unknown')
+  })
+
+  it('rejects meeting mode when the shared surface has no live audio track', async () => {
+    const videoTrack = {
+      kind: 'video',
+      readyState: 'live',
+      stop: vi.fn(),
+      addEventListener: vi.fn(),
+    }
+    const displayStream = {
+      getVideoTracks: () => [videoTrack],
+      getAudioTracks: () => [],
+      getTracks: () => [videoTrack],
+      removeTrack: vi.fn(),
+    }
+
+    class FakeAudioContext {
+      state = 'running'
+      sampleRate = 48_000
+      createMediaStreamSource = vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() }))
+      createGain = vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }))
+      createScriptProcessor = vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        onaudioprocess: null,
+      }))
+      createChannelMerger = vi.fn()
+      destination = {}
+      resume = vi.fn(async () => undefined)
+      close = vi.fn(async () => undefined)
+      addEventListener = vi.fn()
+    }
+
+    vi.stubGlobal('window', {
+      AudioContext: FakeAudioContext,
+      isSecureContext: true,
+    })
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getAudioTracks: () => [{ readyState: 'live', stop: vi.fn(), addEventListener: vi.fn() }],
+          getTracks: () => [],
+        })),
+        getDisplayMedia: vi.fn(async () => displayStream),
+      },
+    })
+
+    const capture = new PcmCapture({
+      onPcm: () => undefined,
+      onLevel: () => undefined,
+      onInterrupted: () => undefined,
+    })
+    await expect(capture.start('meeting')).rejects.toMatchObject({
+      code: 'display_no_audio',
+    } satisfies Partial<CaptureError>)
+    expect(videoTrack.stop).toHaveBeenCalled()
+  })
+
+  it('mixes mic + display sources in meeting mode when audio is present', async () => {
+    const micTrack = { readyState: 'live', stop: vi.fn(), addEventListener: vi.fn() }
+    const displayAudioTrack = { readyState: 'live', stop: vi.fn(), addEventListener: vi.fn() }
+    const videoTrack = { kind: 'video', readyState: 'live', stop: vi.fn(), addEventListener: vi.fn() }
+
+    const micStream = {
+      getAudioTracks: () => [micTrack],
+      getTracks: () => [micTrack],
+    }
+    const displayStream = {
+      getVideoTracks: () => [videoTrack],
+      getAudioTracks: () => [displayAudioTrack],
+      getTracks: () => [videoTrack, displayAudioTrack],
+      removeTrack: vi.fn((track: { stop: () => void }) => {
+        // after stop+remove, only audio remains for MediaStream constructor
+        void track
+      }),
+    }
+
+    const connects: string[] = []
+    const micSource = {
+      connect: vi.fn(() => {
+        connects.push('mic')
+      }),
+      disconnect: vi.fn(),
+    }
+    const displaySource = {
+      connect: vi.fn(() => {
+        connects.push('display')
+      }),
+      disconnect: vi.fn(),
+    }
+    let sourceCalls = 0
+
+    class FakeAudioContext {
+      state = 'running'
+      sampleRate = 48_000
+      createMediaStreamSource = vi.fn(() => {
+        sourceCalls += 1
+        return sourceCalls === 1 ? micSource : displaySource
+      })
+      createGain = vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }))
+      createScriptProcessor = vi.fn(() => ({
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        onaudioprocess: null as ((event: unknown) => void) | null,
+      }))
+      destination = {}
+      resume = vi.fn(async () => undefined)
+      close = vi.fn(async () => undefined)
+      addEventListener = vi.fn()
+    }
+
+    // MediaStream constructor used to rebuild audio-only stream
+    vi.stubGlobal(
+      'MediaStream',
+      class {
+        private tracks: Array<{ readyState: string; stop: () => void; addEventListener: () => void }>
+        constructor(tracks: Array<{ readyState: string; stop: () => void; addEventListener: () => void }>) {
+          this.tracks = tracks
+        }
+        getAudioTracks() {
+          return this.tracks
+        }
+        getVideoTracks() {
+          return []
+        }
+        getTracks() {
+          return this.tracks
+        }
+      },
+    )
+
+    vi.stubGlobal('window', {
+      AudioContext: FakeAudioContext,
+      isSecureContext: true,
+    })
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => micStream),
+        getDisplayMedia: vi.fn(async () => displayStream),
+      },
+    })
+
+    const capture = new PcmCapture({
+      onPcm: () => undefined,
+      onLevel: () => undefined,
+      onInterrupted: () => undefined,
+    })
+    await capture.start('meeting')
+    expect(capture.captureMode).toBe('meeting')
+    expect(videoTrack.stop).toHaveBeenCalled()
+    expect(connects).toEqual(['mic', 'display'])
+    expect(capture.isAlive).toBe(true)
+    await capture.stop()
+    expect(micTrack.stop).toHaveBeenCalled()
+    expect(displayAudioTrack.stop).toHaveBeenCalled()
+  })
+})
+
