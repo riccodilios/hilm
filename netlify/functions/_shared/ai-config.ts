@@ -27,13 +27,6 @@ function envInt(name: string, fallback: number) {
   return Number.isFinite(n) ? Math.trunc(n) : fallback
 }
 
-function envFloat(name: string, fallback: number) {
-  const raw = process.env[name]
-  if (raw == null || raw.trim() === '') return fallback
-  const n = Number(raw)
-  return Number.isFinite(n) ? n : fallback
-}
-
 function envModel(name: string, fallback: string) {
   const raw = process.env[name]?.trim()
   return raw || fallback
@@ -50,8 +43,6 @@ export function getAiRuntimeConfig() {
     aiEnabled: envBool('AI_ENABLED', true),
     transcriptionEnabled: envBool('TRANSCRIPTION_ENABLED', true),
     analysisEnabled: envBool('ANALYSIS_ENABLED', true),
-    /** Soft global daily spend ceiling (USD). 0 = disabled. Enforced in gateway when > 0. */
-    maxGlobalDailyCostUsd: envFloat('MAX_GLOBAL_DAILY_AI_COST', 0),
 
     models: {
       chat: envModel('AI_MODEL_CHAT', defaultModel),
@@ -83,8 +74,6 @@ export function getAiRuntimeConfig() {
       hierarchicalChunkChars: envInt('AI_MEETING_HIERARCHICAL_CHUNK_CHARS', 36_000),
       /** Prior transcript lines for STT continuity (not language locking). */
       previousContextLines: envInt('AI_MEETING_PREVIOUS_LINES', 4),
-      /** Provider retries for transient STT/analysis failures only. */
-      providerMaxRetries: envInt('AI_MEETING_PROVIDER_RETRIES', 1),
     },
 
     retry: {
@@ -126,7 +115,6 @@ export async function mergeDbRuntimeControls(
     ai_enabled?: boolean
     transcription_enabled?: boolean
     analysis_enabled?: boolean
-    max_global_daily_cost_usd?: number | null
   } | null>,
 ): Promise<AiRuntimeConfig> {
   try {
@@ -147,12 +135,6 @@ export async function mergeDbRuntimeControls(
         process.env.ANALYSIS_ENABLED != null && process.env.ANALYSIS_ENABLED.trim() !== ''
           ? config.analysisEnabled
           : row.analysis_enabled !== false,
-      maxGlobalDailyCostUsd:
-        process.env.MAX_GLOBAL_DAILY_AI_COST != null && process.env.MAX_GLOBAL_DAILY_AI_COST.trim() !== ''
-          ? config.maxGlobalDailyCostUsd
-          : typeof row.max_global_daily_cost_usd === 'number'
-            ? row.max_global_daily_cost_usd
-            : config.maxGlobalDailyCostUsd,
     }
   } catch {
     return config

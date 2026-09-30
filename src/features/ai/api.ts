@@ -43,6 +43,19 @@ export type ChatStreamEvent =
 export type AiUsageSummary = {
   tier: string
   tier_name: string
+  /** Present once usage tokens exclude meeting transcription (metered in minutes instead). */
+  tokens_scope?: 'excludes_meeting_transcription'
+  meeting?: {
+    minutes_used_month: number
+    minutes_limit_month: number
+    max_minutes_per_meeting: number
+    transcription_tokens_day: number
+    transcription_tokens_month: number
+    analysis_tokens_day: number
+    analysis_tokens_month: number
+    cost_day: number
+    cost_month: number
+  }
   usage: {
     requests_day: number
     requests_month: number

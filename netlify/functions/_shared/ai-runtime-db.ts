@@ -11,7 +11,6 @@ export async function loadEffectiveAiConfig(client: SupabaseClient): Promise<AiR
       ai_enabled?: boolean
       transcription_enabled?: boolean
       analysis_enabled?: boolean
-      max_global_daily_cost_usd?: number | null
     }
   })
 }

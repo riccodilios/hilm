@@ -107,6 +107,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
           code === 'monthly_token_limit' ||
           code === 'daily_cost_limit' ||
           code === 'monthly_cost_limit' ||
+          code === 'global_cost_limit' ||
           code === 'concurrent_limit' ||
           code === 'in_flight' ||
           code === 'duplicate_execution' ||

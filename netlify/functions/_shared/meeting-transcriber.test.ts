@@ -109,6 +109,44 @@ describe('transcribeAudioChunk (streamed)', () => {
     ])
     expect(result.usage).toMatchObject({ total_tokens: 300 })
   })
+
+  it('trims a long silent gap before sending and maps timestamps back to the recorded part', async () => {
+    // 3s speech, 10s silence, 3s speech.
+    const rate = 16_000
+    const speech = (s: number) => Array.from({ length: s * rate }, (_, i) => Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 6000))
+    const samples = Int16Array.from([...speech(3), ...new Array(10 * rate).fill(0), ...speech(3)])
+    const header = makeWav(0).subarray(0, 44)
+    header.writeUInt32LE(36 + samples.length * 2, 4)
+    header.writeUInt32LE(samples.length * 2, 40)
+    const wav = Buffer.concat([header, Buffer.from(samples.buffer)])
+
+    let sentBytes = 0
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        messages: Array<{ content: Array<{ input_audio?: { data: string } }> }>
+      }
+      sentBytes = Buffer.from(body.messages[0]!.content.find((c) => c.input_audio)!.input_audio!.data, 'base64').length
+      // Second speech burst sits right after the kept padding in the trimmed audio (~3.35s + 0.35s).
+      return sseResponse(JSON.stringify({ s: [[1, 0, 3, 'first'], [2, 3.7, 6.7, 'second']], l: 'en' }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64: wav.toString('base64'), prompt: 'p' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.audio).toMatchObject({ trimmed: true, originalMs: 16_000 })
+    expect(result.audio.sentMs).toBeLessThan(8_000)
+    expect(sentBytes).toBeLessThan(wav.length / 2)
+    const [first, second] = result.data.segments
+    expect(first!.start).toBeCloseTo(0, 1)
+    expect(second!.start).toBeCloseTo(13, 0)
+    expect(second!.end!).toBeCloseTo(16, 0)
+  })
+
+  it('sends the original audio when trimming is disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse(reply('x'))))
+    const result = await transcribeAudioChunk({ apiKey: 'k', audioBase64, prompt: 'p', trimSilence: false })
+    expect(result.ok && result.audio.trimmed).toBe(false)
+  })
 })
 
 const seg = (speaker: string, start: number, text: string) =>

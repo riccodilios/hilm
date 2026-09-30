@@ -11,13 +11,19 @@ import {
   normalizeLanguageCode,
   normalizeSpeakerLabel,
   parseClockOrSeconds,
+  parseTranscriptionJson,
   resolveSegmentLanguageMeta,
+  salvageTruncatedTranscription,
   sanitizeAnalysis,
   stitchChunkSegments,
   transcriptionResponseSchema,
   type AnalysisLine,
   type RosterSpeaker,
 } from './meeting-core'
+
+function parseTranscriptionContentLike(text: string) {
+  return salvageTruncatedTranscription(text)?.segments.map((s) => [s.speaker, s.text])
+}
 
 const roster: RosterSpeaker[] = [
   { id: 's1', label: 'Speaker 1', description: null, display_name: 'Rakan' },
@@ -46,6 +52,82 @@ describe('transcription parsing and stitching', () => {
       segments: [{ speaker: 'Speaker 1', start: '00:03', end: 5, text: 'hi' }],
     })
     expect(parsed.segments[0]!.start).toBe(3)
+  })
+
+  it('parses compact transcription rows with speakers, timestamps and cues', () => {
+    const parsed = parseTranscriptionJson({
+      s: [
+        [1, 0, 4.2, 'مرحبا، today we review the API.'],
+        [2, 4.6, 6.1, 'Sounds good.'],
+        [2, 7, 'No end time given.'],
+        ['3', '00:09', 11, 'Third voice.'],
+      ],
+      n: { '2': 'calm lower voice', '3': 'fast' },
+      l: 'mixed',
+    })
+    expect(parsed).not.toBeNull()
+    expect(parsed!.segments).toEqual([
+      expect.objectContaining({ speaker: 'Speaker 1', start: 0, end: 4.2, text: 'مرحبا، today we review the API.' }),
+      expect.objectContaining({ speaker: 'Speaker 2', start: 4.6, end: 6.1, text: 'Sounds good.' }),
+      expect.objectContaining({ speaker: 'Speaker 2', start: 7, text: 'No end time given.' }),
+      expect.objectContaining({ speaker: 'Speaker 3', start: 9, end: 11, text: 'Third voice.' }),
+    ])
+    expect(parsed!.speakers).toEqual(
+      expect.arrayContaining([
+        { label: 'Speaker 2', description: 'calm lower voice' },
+        { label: 'Speaker 3', description: 'fast' },
+      ]),
+    )
+    const stitched = stitchChunkSegments({ response: parsed!, chunkIdx: 1, offsetMs: 90_000, durationMs: 90_000, roster })
+    expect(stitched[0]).toMatchObject({ speakerLabel: 'Speaker 1', start_ms: 90_000, end_ms: 94_200, language: 'mixed' })
+    expect(stitched[1]).toMatchObject({ speakerLabel: 'Speaker 2', start_ms: 94_600, language: 'en' })
+  })
+
+  it('tags Arabic-only compact rows with the dialect only when the chunk tag is a dialect', () => {
+    const dialect = parseTranscriptionJson({ s: [[1, 0, 2, 'شلونكم اليوم'], [1, 2, 3, 'OK then']], l: 'ar-SA' })
+    expect(dialect!.segments.map((s) => s.language ?? null)).toEqual(['ar-SA', null])
+    const mixed = parseTranscriptionJson({ s: [[1, 0, 2, 'شلونكم اليوم']], l: 'mixed' })
+    expect(mixed!.segments[0]!.language ?? null).toBeNull()
+  })
+
+  it('still accepts the legacy object format', () => {
+    const parsed = parseTranscriptionJson({
+      segments: [{ speaker: 'Speaker 1', start: 0, end: 1, text: 'legacy', language: 'en' }],
+    })
+    expect(parsed!.segments[0]).toMatchObject({ speaker: 'Speaker 1', text: 'legacy' })
+    expect(parseTranscriptionJson({ s: 'bad' })).toBeNull()
+  })
+
+  it('salvages complete compact rows from a truncated reply', () => {
+    const cut = '{"l":"en","s":[[1,0,3.5,"First full line."],[2,3.9,7,"Second, with \\"quotes\\" and ] bracket."],[1,7.2,9,"Cut off mid'
+    const salvaged = salvageTruncatedTranscription(cut)
+    expect(salvaged!.segments.map((s) => [s.speaker, s.text])).toEqual([
+      ['Speaker 1', 'First full line.'],
+      ['Speaker 2', 'Second, with "quotes" and ] bracket.'],
+    ])
+    // Observed from Gemini: stray non-JSON text between rows makes the reply invalid JSON.
+    const stray =
+      '{"n":{"1":"male voice","2":"female voice"},"s":[[1,0.0,"3.099","السلام عليكم خلينا نبدا الاجتماع."],[1,3.719,"6.419","اليوم we need to review the integration."],音が聞こえません。],["2",6.419,"7.099","Sounds good."],["2",7.519,"11.799","I finished the API documentation."]],"l":"mixed"}'
+    expect(parseTranscriptionContentLike(stray)).toEqual([
+      ['Speaker 1', 'السلام عليكم خلينا نبدا الاجتماع.'],
+      ['Speaker 1', 'اليوم we need to review the integration.'],
+      ['Speaker 2', 'Sounds good.'],
+      ['Speaker 2', 'I finished the API documentation.'],
+    ])
+    // Observed from Gemini: rows wrapped in an extra array and a stray `]` that closes "s" early.
+    const nested =
+      '{"n":{"1":"male voice"},"s":[[1,0.0,"2.4","السلام عليكم."],[[1,4.3,"7.3","اليوم we need to review the integration."]],[2,7.5,"8.2","Sounds good."],[1,24.7,"27.9","طيب وش رايك نضيف كاش؟"]],[[2,28.3,"32.3","Yes, I can add caching by Thursday."]],[2,59.8,"60.1","Agreed."]],"l":"mixed"}'
+    expect(parseTranscriptionContentLike(nested)?.map(([, text]) => text)).toEqual([
+      'السلام عليكم.',
+      'اليوم we need to review the integration.',
+      'Sounds good.',
+      'طيب وش رايك نضيف كاش؟',
+      'Yes, I can add caching by Thursday.',
+      'Agreed.',
+    ])
+    expect(parseTranscriptionJson({ s: [[[1, 0, 1, 'a']], [2, 1, 2, 'b'], 'junk', [[3, 2, 3, 'c'], [3, 3, 4, 'd']]] })!.segments.map((s) => s.text)).toEqual(['a', 'b', 'c', 'd'])
+    const legacyCut = '{"segments":[{"speaker":"Speaker 1","start":0,"end":2,"text":"ok"},{"speaker":"Speaker 2","start":2,"te'
+    expect(salvageTruncatedTranscription(legacyCut)!.segments).toHaveLength(1)
   })
 
   it('offsets chunk-relative times to meeting-absolute times with stable ordinals', () => {
@@ -164,16 +246,38 @@ describe('transcription parsing and stitching', () => {
       chunkIdx: 0,
       vocabulary: ['Visma', 'Milkman'],
     })
-    expect(prompt).toMatch(/language-agnostic/i)
-    expect(prompt).toMatch(/NO MEETING-LEVEL LANGUAGE LOCK/i)
-    expect(prompt).toMatch(/THIS IS TRANSCRIPTION, NOT TRANSLATION/i)
-    expect(prompt).toMatch(/Do NOT transliterate English into Arabic/i)
-    expect(prompt).toMatch(/Visma/)
-    expect(prompt).toMatch(/Milkman/)
-    expect(prompt).toMatch(/speaker continuity ONLY/i)
-    expect(prompt).toMatch(/code-switching|CODE-SWITCHING/i)
-    expect(prompt).toMatch(/UI language.*MUST NOT decide/i)
+    expect(prompt).toMatch(/transcription, not translation/i)
+    expect(prompt).toMatch(/Never translate Arabic↔English/)
+    expect(prompt).toMatch(/never write English words in Arabic letters/i)
+    expect(prompt).toMatch(/per segment from this audio only/i)
+    expect(prompt).toMatch(/UI language or the dominant language must not decide/i)
+    expect(prompt).toMatch(/switch mid-sentence/i)
+    expect(prompt).toMatch(/dialects/i)
+    expect(prompt).toMatch(/Latin script, even inside Arabic sentences/i)
+    expect(prompt).toMatch(/never insert one that was not said/i)
+    expect(prompt).toMatch(/Never guess real names/i)
+    expect(prompt).toMatch(/Keep fillers/i)
+    expect(prompt).toMatch(/Hint terms: Visma, Milkman/)
+    expect(prompt).toMatch(/NOT in this audio: never output it again and do not copy its language/i)
+    expect(prompt).toMatch(/speaker 1 said "السلام عليكم"/)
+    expect(prompt).toMatch(/Good: "بكرة we deploy to production"/)
+    expect(prompt).toMatch(/Silence, noise or music is not speech/i)
     expect(prompt).not.toMatch(/languageHint/)
+  })
+
+  it('transcription prompt keeps the static rules as a stable prefix and stays compact', () => {
+    const a = buildTranscriptionPrompt({ roster: [], previousLines: [], chunkIdx: 0, vocabulary: ['Hilm'] })
+    const b = buildTranscriptionPrompt({
+      roster,
+      previousLines: [{ label: 'Speaker 2', text: 'next' }],
+      chunkIdx: 7,
+      vocabulary: ['Visma'],
+    })
+    const prefixA = a.slice(0, a.indexOf('PART 1 CONTEXT'))
+    expect(prefixA.length).toBeGreaterThan(1000)
+    expect(b.startsWith(prefixA)).toBe(true)
+    // Old prompt measured 979 provider text tokens (3,765 chars); keep the compact one well below it.
+    expect(a.length).toBeLessThan(2900)
   })
 
   it('analysis prompt understands Arabic dates and multilingual actions', () => {
@@ -271,6 +375,18 @@ describe('sanitizeAnalysis', () => {
     ])
   })
 
+  it('maps compact S<n> owners from the analysis transcript back to roster labels', () => {
+    const result = run({
+      summary: '',
+      action_items: [
+        { title: 'A', certainty: 'confirmed', owner: 'S2', owner_certainty: 'confirmed', sources: [2] },
+        { title: 'B', certainty: 'confirmed', owner: 's1', owner_certainty: 'confirmed', sources: [1] },
+        { title: 'C', certainty: 'confirmed', owner: 'S9', owner_certainty: 'confirmed', sources: [1] },
+      ],
+    })
+    expect(result.action_items.map((item) => item.ownerLabel)).toEqual(['Speaker 2', 'Speaker 1', null])
+  })
+
   it('keeps due dates only when a deadline was stated and the date is valid', () => {
     const result = run({
       summary: '',
@@ -338,7 +454,7 @@ describe('sanitizeAnalysis', () => {
 
   it('formats the analysis transcript with refs and respects the size cap', () => {
     const text = buildAnalysisTranscript(lines)
-    expect(text).toBe("[#1] (00:00) Speaker 1: We will ship on Thursday.\n[#2] (00:05) Speaker 2: I'll write the release notes.")
+    expect(text).toBe("#1 S1: We will ship on Thursday.\n#2 S2: I'll write the release notes.")
     expect(buildAnalysisTranscript(lines, 60).split('\n')).toHaveLength(1)
   })
 })

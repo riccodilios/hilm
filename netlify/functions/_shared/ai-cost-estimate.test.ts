@@ -1,17 +1,27 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   estimateCostTable,
   estimateMeetingPipelineCost,
+  projectSttUsage,
+  type MeasuredPerMinute,
 } from './ai-cost-estimate'
 import { splitTranscriptWindows, hashAnalysisInput } from './meeting-analysis'
 import { getAiRuntimeConfig } from './ai-config'
 import { trimChatHistory } from './ai-gateway'
 import type { AnalysisLine } from './meeting-core'
 
-describe('meeting cost estimates (bookkeeping rates)', () => {
+type BenchmarkFile = {
+  scenarios: Array<{ name: string; sttPerAudioMinute: MeasuredPerMinute; quality: { wer: number; speakerAccuracy: number } }>
+}
+
+function benchmark(label: string): BenchmarkFile {
+  return JSON.parse(readFileSync(`benchmarks/meeting-ai/${label}.json`, 'utf8')) as BenchmarkFile
+}
+
+describe('meeting cost estimates (measured rates)', () => {
   it('shows STT dominates cost for 15–120 minute meetings', () => {
     const table = estimateCostTable([15, 30, 60, 120])
-    // Baseline STT call counts at 90s chunks, no overlap.
     expect(table.map((row) => [row.durationMinutes, row.segmentCount])).toEqual([
       [15, 10],
       [30, 20],
@@ -20,21 +30,49 @@ describe('meeting cost estimates (bookkeeping rates)', () => {
     ])
     for (const row of table) {
       expect(row.segmentCount).toBe(Math.ceil((row.durationMinutes * 60) / 90))
-      // Audio STT is the primary driver vs analysis for typical lengths.
       expect(row.transcriptionEstimatedUsd).toBeGreaterThan(row.analysisDirectEstimatedUsd)
       expect(row.totalTranscriptionPlusDirectUsd).toBeGreaterThan(0)
-      // Explicit machine-readable cost line for production reports.
-      // eslint-disable-next-line no-console
-      console.log(
-        `COST_ROW minutes=${row.durationMinutes} segments=${row.segmentCount} stt_usd=${row.transcriptionEstimatedUsd.toFixed(6)} analysis_usd=${row.analysisDirectEstimatedUsd.toFixed(6)} total_usd=${row.totalTranscriptionPlusDirectUsd.toFixed(6)}`,
-      )
     }
     const hour = table.find((row) => row.durationMinutes === 60)!
-    // Sanity band for current bookkeeping rates (~$0.10–$0.30 / hour audio-heavy).
-    expect(hour.transcriptionEstimatedUsd).toBeGreaterThan(0.05)
-    expect(hour.transcriptionEstimatedUsd).toBeLessThan(1.5)
-    // eslint-disable-next-line no-console
-    console.log(`COST_PER_HOUR_STT_USD=${hour.transcriptionEstimatedUsd.toFixed(6)}`)
+    // 90,000 audio + 33,200 prompt + 24,000 output tokens ≈ $0.16 per hour of audio at list price.
+    expect(hour.transcriptionTokens).toBe(147_200)
+    expect(hour.transcriptionEstimatedUsd).toBeCloseTo(0.16, 2)
+  })
+
+  it('silence trimming lowers only the audio share', () => {
+    const full = estimateMeetingPipelineCost({ durationMinutes: 60 })
+    const trimmed = estimateMeetingPipelineCost({ durationMinutes: 60, sentAudioRatio: 0.86 })
+    expect(trimmed.transcriptionAudioTokens).toBe(Math.ceil(3600 * 0.86 * 25))
+    expect(trimmed.transcriptionPromptTokens).toBe(full.transcriptionPromptTokens)
+    expect(trimmed.transcriptionOutputTokens).toBe(full.transcriptionOutputTokens)
+  })
+})
+
+describe('benchmark-backed STT projections (no live calls)', () => {
+  const baseline = benchmark('baseline')
+  const optimized = benchmark('optimized')
+
+  it('optimized per-minute STT usage is below baseline in every scenario without losing quality', () => {
+    for (const before of baseline.scenarios) {
+      const after = optimized.scenarios.find((s) => s.name === before.name)!
+      expect(after.sttPerAudioMinute.totalTokens).toBeLessThan(before.sttPerAudioMinute.totalTokens)
+      expect(after.sttPerAudioMinute.completionTokens).toBeLessThan(before.sttPerAudioMinute.completionTokens)
+      // Quality guard: WER within 0.01 absolute and speaker accuracy within 0.01 of the baseline.
+      expect(after.quality.wer).toBeLessThanOrEqual(before.quality.wer + 0.01)
+      expect(after.quality.speakerAccuracy).toBeGreaterThanOrEqual(before.quality.speakerAccuracy - 0.01)
+    }
+  })
+
+  it('projects 5 min to 5 h linearly from measured per-minute usage', () => {
+    for (const minutes of [5, 15, 30, 60, 180, 300]) {
+      for (const before of baseline.scenarios) {
+        const after = optimized.scenarios.find((s) => s.name === before.name)!
+        const b = projectSttUsage(before.sttPerAudioMinute, minutes)
+        const a = projectSttUsage(after.sttPerAudioMinute, minutes)
+        expect(a.totalTokens).toBeLessThan(b.totalTokens)
+        expect(b.totalTokens).toBe(Math.round(before.sttPerAudioMinute.totalTokens * minutes))
+      }
+    }
   })
 
   it('uses hierarchical analysis token estimate for long transcripts', () => {

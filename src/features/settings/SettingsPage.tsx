@@ -5,7 +5,7 @@ import { Download, LogOut, Save, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings, deleteAccount } from '@/features/settings/api'
-import { aiKeys, getAiUsageSummary } from '@/features/ai/api'
+import { aiKeys, getAiUsageSummary, type AiUsageSummary } from '@/features/ai/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,6 +36,17 @@ import {
   getPushBlockerReason,
 } from '@/features/notifications/push'
 import { syncUnsentReminderChannels } from '@/features/notifications/api'
+
+const MEETING_REQUEST_KINDS = ['meeting_transcribe', 'meeting_analyze']
+
+/** Request limits apply to chat/daily-log only; meeting calls are governed by minutes. */
+function chatRequests(summary: AiUsageSummary, period: 'requests_day' | 'requests_month') {
+  const meeting = MEETING_REQUEST_KINDS.reduce(
+    (sum, kind) => sum + Number(summary.by_feature?.[kind]?.[period] ?? 0),
+    0,
+  )
+  return Math.max(0, summary.usage[period] - meeting)
+}
 
 export function SettingsPage({
   exportPath = '/personal/export',
@@ -522,7 +533,7 @@ export function SettingsPage({
                   <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
                     <p className="text-xs text-muted">{t('settings.aiRequestsToday')}</p>
                     <p className="mt-1 text-sm font-medium">
-                      {aiUsage.data.usage.requests_day} / {aiUsage.data.limits.requests_per_day}
+                      {chatRequests(aiUsage.data, 'requests_day')} / {aiUsage.data.limits.requests_per_day}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
@@ -542,10 +553,45 @@ export function SettingsPage({
                   <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
                     <p className="text-xs text-muted">{t('settings.aiRequestsMonth')}</p>
                     <p className="mt-1 text-sm font-medium">
-                      {aiUsage.data.usage.requests_month} / {aiUsage.data.limits.requests_per_month}
+                      {chatRequests(aiUsage.data, 'requests_month')} / {aiUsage.data.limits.requests_per_month}
                     </p>
                   </div>
                 </div>
+                {aiUsage.data.meeting ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">{t('settings.aiMeetingUsage')}</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                        <p className="text-xs text-muted">{t('settings.aiMeetingMinutes')}</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {Number(aiUsage.data.meeting.minutes_used_month).toLocaleString(undefined, {
+                            maximumFractionDigits: 1,
+                          })}{' '}
+                          / {aiUsage.data.meeting.minutes_limit_month.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                        <p className="text-xs text-muted">{t('settings.aiMeetingSpend')}</p>
+                        <p className="mt-1 text-sm font-medium">
+                          ${Number(aiUsage.data.meeting.cost_month).toFixed(4)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                        <p className="text-xs text-muted">{t('settings.aiMeetingTranscriptionTokens')}</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {Number(aiUsage.data.meeting.transcription_tokens_month).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
+                        <p className="text-xs text-muted">{t('settings.aiMeetingAnalysisTokens')}</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {Number(aiUsage.data.meeting.analysis_tokens_month).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted">{t('settings.aiMeetingHint')}</p>
+                  </div>
+                ) : null}
                 <p className="text-xs text-muted">{t('settings.aiUsageHint')}</p>
               </>
             ) : (

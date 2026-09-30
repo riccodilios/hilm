@@ -2,13 +2,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { featureDisabledMessage } from './ai-config'
 import { loadEffectiveAiConfig } from './ai-runtime-db'
-import { beginAiRequest, completeAiRequest, estimateTokensFromText, tokensFromOpenRouterUsage } from './ai-guard'
+import {
+  beginAiRequest,
+  completeAiRequest,
+  estimateTokensFromText,
+  tokensFromOpenRouterUsage,
+  type AiUsageTokens,
+} from './ai-guard'
 import { hashBytes } from './ai-gateway'
 import { resolveAllowedAiModel } from './ai-limits'
 import { hashAnalysisInput, runMeetingAnalysis } from './meeting-analysis'
 import {
   MEETING_AUDIO_PRICING_MODEL,
+  MEETING_AUDIO_TOKENS_PER_SECOND,
   MEETING_AUTO_ATTEMPTS,
+  MEETING_DEFAULT_VOCABULARY,
   MEETING_TRANSCRIBE_MODEL,
   buildTranscriptionPrompt,
   friendlyMeetingError,
@@ -21,6 +29,17 @@ import {
 import { transcribeAudioChunk } from './meeting-transcriber'
 
 export const MEETING_BUCKET = 'meeting-audio'
+
+type CompleteExtra = Omit<Parameters<typeof completeAiRequest>[1], 'eventId' | 'status' | 'model'>
+
+function analysisUsageFields(usage: AiUsageTokens): CompleteExtra {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cachedTokens: usage.cachedTokens,
+    costUsd: usage.costUsd,
+  }
+}
 /** Slightly above the 60s function timeout so killed STT claims can be reclaimed promptly. */
 const STALE_CLAIM_MS = 75_000
 const TRANSIENT_STT_CODES = new Set(['rate_limited', 'provider_timeout', 'provider_error'])
@@ -337,10 +356,7 @@ export async function transcribeSegment(
     { column: 'id', value: meeting.id },
   )
 
-  const complete = async (
-    status: 'completed' | 'failed',
-    extra: { inputTokens?: number; outputTokens?: number; errorCode?: string; errorMessage?: string } = {},
-  ) => {
+  const complete = async (status: 'completed' | 'failed', extra: CompleteExtra = {}) => {
     if (!eventId) return
     await completeAiRequest(ctx.client, {
       eventId,
@@ -384,16 +400,7 @@ export async function transcribeSegment(
     roster,
     previousLines,
     chunkIdx: idx,
-    vocabulary: [
-      ...(projectName ? [projectName] : []),
-      'Hilm',
-      'Visma',
-      'Milkman',
-      'API',
-      'Supabase',
-      'Netlify',
-      'GitHub',
-    ],
+    vocabulary: [...(projectName ? [projectName] : []), ...MEETING_DEFAULT_VOCABULARY],
   })
 
   const result = await transcribeAudioChunk({
@@ -406,19 +413,28 @@ export async function transcribeSegment(
   })
 
   let usage = tokensFromOpenRouterUsage(result.usage)
+  const sentAudioMs = result.audio.sentMs || segment.duration_ms
   if (!usage.totalTokens && (result.ok || result.content)) {
-    // Gemini bills ~32 tokens per second of audio.
-    const inputTokens = Math.ceil((segment.duration_ms / 1000) * 32) + estimateTokensFromText(prompt)
+    // Provider omitted usage (e.g. aborted stream): Gemini bills 25 tokens per second of audio sent.
+    const audioTokens = Math.ceil((sentAudioMs / 1000) * MEETING_AUDIO_TOKENS_PER_SECOND)
+    const inputTokens = audioTokens + estimateTokensFromText(prompt)
     const outputTokens = estimateTokensFromText(result.content ?? '')
-    usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }
+    usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, audioTokens, costUsd: null }
+  }
+  const usageFields: CompleteExtra = {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cachedTokens: usage.cachedTokens,
+    audioTokens: usage.audioTokens,
+    costUsd: usage.costUsd,
+    audioMs: sentAudioMs,
   }
 
   if (!result.ok && result.code === 'output_truncated') {
     await complete('failed', {
       errorCode: result.code,
       errorMessage: result.detail.slice(0, 500),
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
+      ...usageFields,
     })
     if (attempt >= MEETING_AUTO_ATTEMPTS) {
       await failSegment(result.code, result.detail)
@@ -435,8 +451,7 @@ export async function transcribeSegment(
     await complete('failed', {
       errorCode: result.code,
       errorMessage: result.detail.slice(0, 500),
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
+      ...usageFields,
     })
     // Transient provider pressure: re-queue, but keep the attempt count so we cannot
     // loop forever and multiply OpenRouter spend on the same part.
@@ -485,8 +500,7 @@ export async function transcribeSegment(
     await complete('failed', {
       errorCode: 'parse_error',
       errorMessage: 'Unreadable transcription',
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
+      ...usageFields,
     })
     await failSegment('parse_error', result.detail)
     return { ok: false, code: 'parse_error', message: friendlyMeetingError('parse_error'), status: 502 }
@@ -556,8 +570,7 @@ export async function transcribeSegment(
       await complete('failed', {
         errorCode: 'save_error',
         errorMessage: insertError.message,
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
+        ...usageFields,
       })
       await failSegment('save_error', insertError.message)
       return { ok: false, code: 'save_error', message: friendlyMeetingError('save_error'), status: 500 }
@@ -575,7 +588,7 @@ export async function transcribeSegment(
     { processing_stage: null, processing_error: null },
     { column: 'id', value: meeting.id },
   )
-  await complete('completed', { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens })
+  await complete('completed', usageFields)
   return { ok: true, state: 'transcribed', more: true }
 }
 
@@ -754,10 +767,7 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
       }
     }
   }
-  const complete = async (
-    status: 'completed' | 'failed',
-    extra: { inputTokens?: number; outputTokens?: number; errorCode?: string; errorMessage?: string } = {},
-  ) => {
+  const complete = async (status: 'completed' | 'failed', extra: CompleteExtra = {}) => {
     if (!eventId) return
     await completeAiRequest(ctx.client, { eventId, status, model, ...extra })
   }
@@ -772,15 +782,13 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
     timeZone: ctx.timeZone ?? null,
     lines,
     model,
-    existing: null,
   })
 
   if (!result.ok) {
     await complete('failed', {
       errorCode: result.code,
       errorMessage: result.detail.slice(0, 500),
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
+      ...analysisUsageFields(result.usage),
     })
     await markMeetingFailed(ctx, meeting.id, 'analysis_failed', friendlyMeetingError(result.code))
     return {
@@ -848,7 +856,7 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
     analysis_model: result.model,
     analysis_input_hash: result.analysisInputHash,
   })
-  await complete('completed', { inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens })
+  await complete('completed', analysisUsageFields(result.usage))
   return { ok: true, state: 'analyzed', more: false }
 }
 

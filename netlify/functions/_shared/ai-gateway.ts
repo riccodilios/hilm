@@ -114,6 +114,7 @@ export async function runAiCompletion(input: {
         temperature: input.temperature ?? 0.2,
         max_tokens: input.maxTokens ?? 2048,
         messages: input.messages,
+        usage: { include: true },
       }
       if (input.responseFormat) body.response_format = input.responseFormat
 

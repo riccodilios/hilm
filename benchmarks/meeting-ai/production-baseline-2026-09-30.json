@@ -1,0 +1,41 @@
+{
+  "source": "Production ai_usage_events ledger, UTC day 2026-09-30, one free-tier user (read-only query during the token audit)",
+  "meeting": {
+    "durationSeconds": 883,
+    "segments": 10,
+    "segmentSeconds": 90,
+    "transcriptLines": 254,
+    "transcriptChars": 12114
+  },
+  "dailyQuotaTokensCounted": 76937,
+  "breakdown": {
+    "chat": { "completedTokens": 13773 },
+    "meeting_transcribe": {
+      "completedCalls": 10,
+      "inputTokens": 33516,
+      "outputTokens": 19890,
+      "totalTokens": 53406,
+      "perFullPartInputTokens": [3230, 3346],
+      "perFullPartOutputTokensAvg": 1989,
+      "estimatedCostUsd": 0.0832
+    },
+    "meeting_transcribe_failed": {
+      "calls": 25,
+      "totalTokens": 90862,
+      "note": "Failed attempts from the pre-fix incident (killed functions / retries). Billed by the provider, not counted in the quota."
+    },
+    "meeting_analyze": {
+      "calls": 1,
+      "inputTokens": 8258,
+      "outputTokens": 1500,
+      "totalTokens": 9758,
+      "estimatedCostUsd": 0.0021
+    }
+  },
+  "derived": {
+    "audioTokensPerSecond": 25,
+    "sttTextPromptTokensPerPart": 980,
+    "meetingQuotaTokensPer15Min": 63164,
+    "note": "audio tokens/second and text prompt tokens confirmed by provider-reported prompt_tokens_details.audio_tokens in benchmarks/meeting-ai/baseline.json"
+  }
+}

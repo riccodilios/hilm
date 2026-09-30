@@ -18,6 +18,12 @@ export type AiUsageTokens = {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  /** Prompt tokens served from the provider cache (0 unless the provider reports them). */
+  cachedTokens?: number
+  /** Audio share of the prompt tokens, as reported by the provider. */
+  audioTokens?: number
+  /** Provider-reported USD cost; null/undefined when the provider did not report it. */
+  costUsd?: number | null
 }
 
 const CORS_HEADERS = {
@@ -157,6 +163,10 @@ export async function completeAiRequest(
     errorCode?: string | null
     errorMessage?: string | null
     userId?: string | null
+    cachedTokens?: number
+    audioTokens?: number
+    audioMs?: number
+    costUsd?: number | null
   },
 ) {
   const { error } = await client.rpc('complete_ai_request', {
@@ -168,10 +178,19 @@ export async function completeAiRequest(
     p_error_code: input.errorCode ?? null,
     p_error_message: input.errorMessage ?? null,
     p_user_id: input.userId ?? null,
+    p_cached_tokens: Math.max(0, Math.round(input.cachedTokens ?? 0)),
+    p_audio_tokens: Math.max(0, Math.round(input.audioTokens ?? 0)),
+    p_audio_ms: Math.max(0, Math.round(input.audioMs ?? 0)),
+    p_cost_usd: typeof input.costUsd === 'number' && Number.isFinite(input.costUsd) ? input.costUsd : null,
   })
   if (error) {
     console.error('complete_ai_request failed', error.message)
   }
+}
+
+function usageNumber(value: unknown) {
+  const n = Number(value ?? 0)
+  return Number.isFinite(n) && n > 0 ? n : 0
 }
 
 export function tokensFromOpenRouterUsage(usage: unknown): AiUsageTokens {
@@ -181,11 +200,33 @@ export function tokensFromOpenRouterUsage(usage: unknown): AiUsageTokens {
     total_tokens?: number
     input_tokens?: number
     output_tokens?: number
+    cost?: number
+    prompt_tokens_details?: { cached_tokens?: number; audio_tokens?: number }
   }
-  const inputTokens = Number(u.prompt_tokens ?? u.input_tokens ?? 0) || 0
-  const outputTokens = Number(u.completion_tokens ?? u.output_tokens ?? 0) || 0
-  const totalTokens = Number(u.total_tokens ?? inputTokens + outputTokens) || inputTokens + outputTokens
-  return { inputTokens, outputTokens, totalTokens }
+  const inputTokens = usageNumber(u.prompt_tokens ?? u.input_tokens)
+  const outputTokens = usageNumber(u.completion_tokens ?? u.output_tokens)
+  const totalTokens = usageNumber(u.total_tokens) || inputTokens + outputTokens
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    cachedTokens: usageNumber(u.prompt_tokens_details?.cached_tokens),
+    audioTokens: usageNumber(u.prompt_tokens_details?.audio_tokens),
+    costUsd: typeof u.cost === 'number' && Number.isFinite(u.cost) && u.cost >= 0 ? u.cost : null,
+  }
+}
+
+/** Adds two usage records; cost stays null unless both sides reported it. */
+export function addUsage(a: AiUsageTokens, b: AiUsageTokens): AiUsageTokens {
+  const costKnown = typeof a.costUsd === 'number' && typeof b.costUsd === 'number'
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+    cachedTokens: (a.cachedTokens ?? 0) + (b.cachedTokens ?? 0),
+    audioTokens: (a.audioTokens ?? 0) + (b.audioTokens ?? 0),
+    costUsd: costKnown ? a.costUsd! + b.costUsd! : null,
+  }
 }
 
 export function estimateTokensFromText(text: string) {

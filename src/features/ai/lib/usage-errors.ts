@@ -20,6 +20,8 @@ export function formatAiLimitError(payload: {
       return 'You have reached your daily AI spend limit.'
     case 'monthly_cost_limit':
       return 'You have reached your monthly AI spend limit.'
+    case 'global_cost_limit':
+      return 'Hilm AI is paused for today because the service budget was reached. Please try again tomorrow.'
     case 'concurrent_limit':
     case 'in_flight':
     case 'duplicate_execution':

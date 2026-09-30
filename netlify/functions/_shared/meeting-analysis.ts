@@ -13,7 +13,7 @@ import {
 } from './meeting-core'
 import { getAiRuntimeConfig } from './ai-config'
 import { hashStable, runAiCompletion } from './ai-gateway'
-import { estimateTokensFromText, type AiUsageTokens } from './ai-guard'
+import { addUsage, estimateTokensFromText, type AiUsageTokens } from './ai-guard'
 
 export function hashAnalysisInput(lines: AnalysisLine[]): string {
   // Stable fingerprint of what the model would see (text + speakers + timing).
@@ -45,15 +45,15 @@ export function splitTranscriptWindows(lines: AnalysisLine[], maxChars: number):
 }
 
 function emptyTokens(): AiUsageTokens {
-  return { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  return { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 }
 }
 
-function addTokens(a: AiUsageTokens, b: AiUsageTokens): AiUsageTokens {
-  return {
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    totalTokens: a.totalTokens + b.totalTokens,
-  }
+/** Provider usage for one call, or a text-length estimate when the provider omitted it. */
+function callUsage(tokens: AiUsageTokens | undefined, sentText: string, reply: string): AiUsageTokens {
+  if (tokens?.totalTokens) return tokens
+  const inputTokens = estimateTokensFromText(sentText)
+  const outputTokens = estimateTokensFromText(reply)
+  return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, costUsd: null }
 }
 
 export type MeetingAnalysisRun = {
@@ -61,7 +61,7 @@ export type MeetingAnalysisRun = {
   analysis: ReturnType<typeof sanitizeAnalysis>
   model: string
   usage: AiUsageTokens
-  strategy: 'direct' | 'hierarchical' | 'cached'
+  strategy: 'direct' | 'hierarchical'
   analysisInputHash: string
 } | {
   ok: false
@@ -81,32 +81,10 @@ export async function runMeetingAnalysis(input: {
   timeZone?: string | null
   lines: AnalysisLine[]
   model: string
-  /** Skip AI when hash matches a prior successful analysis. */
-  existing?: { summary: string | null; analysisInputHash: string | null } | null
 }): Promise<MeetingAnalysisRun> {
+  // Callers skip this entirely when analysis_input_hash matches a stored analysis.
   const config = getAiRuntimeConfig()
   const analysisInputHash = hashAnalysisInput(input.lines)
-
-  if (
-    input.existing?.analysisInputHash &&
-    input.existing.analysisInputHash === analysisInputHash &&
-    input.existing.summary
-  ) {
-    return {
-      ok: true,
-      analysis: {
-        language: null,
-        summary: input.existing.summary,
-        key_points: [],
-        decisions: [],
-        action_items: [],
-      },
-      model: input.model,
-      usage: emptyTokens(),
-      strategy: 'cached',
-      analysisInputHash,
-    }
-  }
 
   const displayNames: Record<string, string> = {}
   for (const speaker of input.roster) {
@@ -153,12 +131,7 @@ export async function runMeetingAnalysis(input: {
         model: result.model,
       }
     }
-    let usage = result.tokens
-    if (!usage.totalTokens) {
-      const inputTokens = estimateTokensFromText(systemPrompt + fullTranscript)
-      const outputTokens = estimateTokensFromText(result.content)
-      usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }
-    }
+    const usage = callUsage(result.tokens, systemPrompt + fullTranscript, result.content)
     const parsedJson = extractJsonObject(result.content)
     const parsed = parsedJson ? analysisResponseSchema.safeParse(parsedJson) : null
     if (!parsed?.success) {
@@ -184,9 +157,7 @@ export async function runMeetingAnalysis(input: {
     const chunkText = buildAnalysisTranscript(windowLines)
     const chunkPrompt = `${systemPrompt}
 
-This is part ${i + 1} of ${windows.length} of a long meeting. Extract structured JSON for THIS PART only.
-Keep English technical terms and proper nouns in Latin script. Do not translate the transcript.
-Return the same JSON schema (language, summary, key_points, decisions, action_items).`
+The transcript below is one part of a long meeting. Extract structured JSON for THAT PART only, same schema.`
     const result = await runAiCompletion({
       apiKey: input.apiKey,
       feature: 'meeting_chunk_summary',
@@ -206,18 +177,11 @@ Return the same JSON schema (language, summary, key_points, decisions, action_it
         ok: false,
         code: result.code,
         detail: result.detail,
-        usage: addTokens(usage, result.tokens ?? emptyTokens()),
+        usage: addUsage(usage, result.tokens ?? emptyTokens()),
         model: result.model,
       }
     }
-    usage = addTokens(usage, result.tokens.totalTokens ? result.tokens : {
-      inputTokens: estimateTokensFromText(chunkPrompt + chunkText),
-      outputTokens: estimateTokensFromText(result.content),
-      totalTokens: 0,
-    })
-    if (!usage.totalTokens) {
-      usage.totalTokens = usage.inputTokens + usage.outputTokens
-    }
+    usage = addUsage(usage, callUsage(result.tokens, chunkPrompt + chunkText, result.content))
     const parsedJson = extractJsonObject(result.content)
     const parsed = parsedJson ? analysisResponseSchema.safeParse(parsedJson) : null
     if (parsed?.success) partials.push(parsed.data)
@@ -227,6 +191,7 @@ Return the same JSON schema (language, summary, key_points, decisions, action_it
     return { ok: false, code: 'parse_error', detail: 'No chunk analyses produced', usage, model: input.model }
   }
 
+  const partialsJson = JSON.stringify(partials).slice(0, 120_000)
   const mergePrompt = `${systemPrompt}
 
 You are merging ${partials.length} partial analyses of one long multilingual meeting into a single final JSON.
@@ -245,7 +210,7 @@ Return the same JSON schema.`
     allowRetry: false,
     messages: [
       { role: 'system', content: mergePrompt },
-      { role: 'user', content: `Partials:\n${JSON.stringify(partials).slice(0, 120_000)}` },
+      { role: 'user', content: `Partials:\n${partialsJson}` },
     ],
   })
   if (!mergeResult.ok) {
@@ -253,16 +218,11 @@ Return the same JSON schema.`
       ok: false,
       code: mergeResult.code,
       detail: mergeResult.detail,
-      usage: addTokens(usage, mergeResult.tokens ?? emptyTokens()),
+      usage: addUsage(usage, mergeResult.tokens ?? emptyTokens()),
       model: mergeResult.model,
     }
   }
-  usage = addTokens(usage, mergeResult.tokens.totalTokens ? mergeResult.tokens : {
-    inputTokens: estimateTokensFromText(mergePrompt + JSON.stringify(partials)),
-    outputTokens: estimateTokensFromText(mergeResult.content),
-    totalTokens: 0,
-  })
-  if (!usage.totalTokens) usage.totalTokens = usage.inputTokens + usage.outputTokens
+  usage = addUsage(usage, callUsage(mergeResult.tokens, mergePrompt + partialsJson, mergeResult.content))
 
   const mergedJson = extractJsonObject(mergeResult.content)
   const merged = mergedJson ? analysisResponseSchema.safeParse(mergedJson) : null
