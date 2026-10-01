@@ -1,0 +1,23 @@
+{
+ "label": "g31lite-think",
+ "model": "google/gemini-3.1-flash-lite",
+ "createdAt": "2026-10-01T18:36:54.880Z",
+ "meetings": [
+  {
+   "meeting": "ba0778d1",
+   "audioSeconds": 1629.013,
+   "parts": 20,
+   "failedParts": 4,
+   "attempts": 32,
+   "maxLatencyMs": 32864,
+   "sttCostUsd": 0.030051,
+   "sttPerHourUsd": 0.0664,
+   "outputTokens": 6625,
+   "reasoningTokens": 0,
+   "lines": 254,
+   "speakers": 2,
+   "analysisOk": null,
+   "analysisCostUsd": null
+  }
+ ]
+}

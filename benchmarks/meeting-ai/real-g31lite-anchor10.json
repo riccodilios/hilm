@@ -1,0 +1,55 @@
+{
+ "label": "g31lite-anchor10",
+ "model": "google/gemini-3.1-flash-lite",
+ "createdAt": "2026-10-01T18:12:46.043Z",
+ "meetings": [
+  {
+   "meeting": "ba0778d1",
+   "audioSeconds": 1629.013,
+   "parts": 20,
+   "failedParts": 0,
+   "attempts": 21,
+   "maxLatencyMs": 10636,
+   "sttCostUsd": 0.044386,
+   "sttPerHourUsd": 0.0981,
+   "outputTokens": 11350,
+   "reasoningTokens": 0,
+   "lines": 332,
+   "speakers": 2,
+   "analysisOk": null,
+   "analysisCostUsd": null
+  },
+  {
+   "meeting": "9aa3bb0c",
+   "audioSeconds": 882.688,
+   "parts": 10,
+   "failedParts": 0,
+   "attempts": 10,
+   "maxLatencyMs": 10611,
+   "sttCostUsd": 0.023289,
+   "sttPerHourUsd": 0.095,
+   "outputTokens": 5885,
+   "reasoningTokens": 0,
+   "lines": 164,
+   "speakers": 1,
+   "analysisOk": null,
+   "analysisCostUsd": null
+  },
+  {
+   "meeting": "a9a56177",
+   "audioSeconds": 195.754,
+   "parts": 3,
+   "failedParts": 0,
+   "attempts": 3,
+   "maxLatencyMs": 6186,
+   "sttCostUsd": 0.003804,
+   "sttPerHourUsd": 0.0699,
+   "outputTokens": 710,
+   "reasoningTokens": 0,
+   "lines": 4,
+   "speakers": 2,
+   "analysisOk": null,
+   "analysisCostUsd": null
+  }
+ ]
+}

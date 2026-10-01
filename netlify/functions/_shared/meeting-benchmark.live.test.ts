@@ -261,12 +261,16 @@ function lastUsageFromSse(text: string) {
  * (e.g. google-ai-studio/flex) without fallbacks. Benchmark-only; production routing is untouched.
  */
 const STT_ENDPOINT = process.env.MEETING_BENCHMARK_STT_ENDPOINT?.trim() || null
+/** MEETING_BENCHMARK_STT_REASONING=minimal|low|none caps thinking on models that reason by default. */
+const STT_REASONING = process.env.MEETING_BENCHMARK_STT_REASONING?.trim() || null
 
 function withSttRouting(init?: RequestInit): RequestInit | undefined {
-  if (!STT_ENDPOINT || typeof init?.body !== 'string') return init
+  if ((!STT_ENDPOINT && !STT_REASONING) || typeof init?.body !== 'string') return init
   if (new Headers(init.headers).get('X-Title') !== 'Hilm Meeting Transcription') return init
   const body = JSON.parse(init.body) as Record<string, unknown>
-  return { ...init, body: JSON.stringify({ ...body, provider: { only: [STT_ENDPOINT], allow_fallbacks: false } }) }
+  if (STT_ENDPOINT) body.provider = { only: [STT_ENDPOINT], allow_fallbacks: false }
+  if (STT_REASONING) body.reasoning = { effort: STT_REASONING }
+  return { ...init, body: JSON.stringify(body) }
 }
 
 function installFetchCapture() {
