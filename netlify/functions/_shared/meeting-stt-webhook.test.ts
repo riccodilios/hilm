@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import handler from '../meeting-stt-webhook'
 
-const rpc = vi.fn()
+const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn(() => ({ rpc })) }))
-
-const { default: handler } = await import('./meeting-stt-webhook')
 
 const MEETING = '11111111-1111-4111-8111-111111111111'
 const TOKEN = 'a'.repeat(64)
