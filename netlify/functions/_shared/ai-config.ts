@@ -10,6 +10,7 @@ export type AiFeature =
   | 'meeting_transcription'
   | 'meeting_analyze'
   | 'meeting_chunk_summary'
+  | 'meeting_translate'
 
 function envBool(name: string, fallback: boolean) {
   const raw = process.env[name]
@@ -33,6 +34,8 @@ function envModel(name: string, fallback: string) {
 }
 
 const DEFAULT_FLASH = 'google/gemini-2.5-flash'
+/** Text translation benchmarked equal to Flash at ~1/7 of the cost. */
+const DEFAULT_FLASH_LITE = 'google/gemini-2.5-flash-lite'
 
 /** Snapshot of knobs used by the AI gateway and feature handlers. */
 export function getAiRuntimeConfig() {
@@ -51,6 +54,7 @@ export function getAiRuntimeConfig() {
       meeting_analyze: envModel('AI_MODEL_MEETING_ANALYZE', defaultModel),
       /** Cheaper/same-class model for hierarchical chunk extraction. */
       meeting_chunk_summary: envModel('AI_MODEL_MEETING_CHUNK', defaultModel),
+      meeting_translate: envModel('AI_MODEL_MEETING_TRANSLATE', DEFAULT_FLASH_LITE),
     } satisfies Record<AiFeature, string>,
 
     maxTokens: {
@@ -92,6 +96,8 @@ export function featureDisabledMessage(feature: AiFeature): string {
     case 'meeting_analyze':
     case 'meeting_chunk_summary':
       return 'Meeting AI analysis is temporarily disabled. Your transcript is still saved.'
+    case 'meeting_translate':
+      return 'Meeting translation is temporarily disabled. Please try again later.'
     case 'daily_log':
       return 'Daily log generation is temporarily disabled. Please try again later.'
     case 'chat':

@@ -53,6 +53,8 @@ export type AiUsageSummary = {
     transcription_tokens_month: number
     analysis_tokens_day: number
     analysis_tokens_month: number
+    translation_tokens_day?: number
+    translation_tokens_month?: number
     cost_day: number
     cost_month: number
   }

@@ -16,10 +16,13 @@ const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
 export function MeetingActionItems({
   adapter,
   detail,
+  displayDetail,
   onJump,
 }: {
   adapter: MeetingsAdapter
   detail: MeetingDetail
+  /** Translated copy used only for display; edits and tasks always use `detail`. */
+  displayDetail?: MeetingDetail
   onJump: (segmentId: string) => void
 }) {
   const { t } = useTranslation()
@@ -31,6 +34,10 @@ export function MeetingActionItems({
 
   const speakers = useMemo(() => new Map(detail.speakers.map((speaker) => [speaker.id, speaker])), [detail.speakers])
   const open = detail.actionItems.filter((item) => !item.taskId)
+  const shownById = useMemo(
+    () => new Map((displayDetail ?? detail).actionItems.map((item) => [item.id, item])),
+    [detail, displayDetail],
+  )
 
   const report = (result: CreateTasksResult) => {
     if (result.created) toast.success(t('meetings.actions.createdToast', { count: result.created }))
@@ -129,11 +136,11 @@ export function MeetingActionItems({
                 )}
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <p className="text-sm font-medium leading-6" dir="auto">
-                    {item.title}
+                    {shownById.get(item.id)?.title ?? item.title}
                   </p>
                   {item.description ? (
                     <p className="text-xs leading-5 text-muted" dir="auto">
-                      {item.description}
+                      {shownById.get(item.id)?.description ?? item.description}
                     </p>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -157,7 +164,7 @@ export function MeetingActionItems({
                     {item.priority && item.priority !== 'none' ? (
                       <Badge className="bg-surface-3 text-muted">{t(`priority.${item.priority}`)}</Badge>
                     ) : null}
-                    <SourceLinks ids={item.sourceSegmentIds} detail={detail} onJump={onJump} />
+                    <SourceLinks ids={item.sourceSegmentIds} detail={displayDetail ?? detail} onJump={onJump} />
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">

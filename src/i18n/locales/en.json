@@ -1041,7 +1041,7 @@
     "aiMeetingUsage": "Meetings",
     "aiMeetingMinutes": "Meeting minutes this month",
     "aiMeetingTranscriptionTokens": "Transcription tokens this month",
-    "aiMeetingAnalysisTokens": "Meeting analysis tokens this month",
+    "aiMeetingAnalysisTokens": "Meeting analysis & translation tokens this month",
     "aiMeetingSpend": "Meeting spend this month",
     "aiMeetingHint": "Recordings use your monthly meeting minutes instead of the token quota. Transcription tokens are still recorded and count toward your spend limits; meeting analysis counts toward the token quota.",
     "aiUsageHint": "All AI calls go through Hilm’s backend. OpenRouter keys never reach the browser.",
@@ -1431,6 +1431,20 @@
     "generic": "Something went wrong"
   },
   "meetings": {
+    "translate": {
+      "label": "Meeting language",
+      "original": "Original",
+      "loading": "Loading translation…",
+      "running": "Translating… this is saved, so it only happens once",
+      "saved": "Translation up to date",
+      "translateRemaining_one": "Translate {{count}} remaining item",
+      "translateRemaining_other": "Translate {{count}} remaining items",
+      "viewerPending": "Some parts are not translated yet. An editor can translate them.",
+      "noPermission": "Only editors can translate this meeting.",
+      "limit": "AI usage limit reached. Try again later.",
+      "failed": "Translation failed.",
+      "retry": "Try again"
+    },
     "notFound": "Meeting not found or you no longer have access.",
     "backToList": "Back to meetings",
     "backTo": "Back to {{project}}",

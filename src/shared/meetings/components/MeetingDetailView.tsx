@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   FileText,
+  Languages,
   Link2,
   Loader2,
   Share2,
@@ -21,7 +22,8 @@ import { EmptyState, Skeleton } from '@/components/ui/page'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildMeetingMarkdown, buildMeetingSnapshot, downloadMarkdown, downloadMeetingPdf } from '../export'
 import { formatDurationShort } from '../format'
-import { useLinkedTasks, useMeetingDetail, useMeetingMutations } from '../hooks'
+import { useLinkedTasks, useMeetingDetail, useMeetingMutations, useMeetingTranslation } from '../hooks'
+import type { TranslationTarget } from '../translation'
 import { AiThinkingOrbs } from '@/features/ai/components/AiThinkingOrbs'
 import { useMeetingRecorder } from '../recorder/recorder-context'
 import type { MeetingsAdapter } from '../types'
@@ -53,6 +55,8 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [wrapUp, setWrapUp] = useState<{ open: boolean; durationMs: number }>({ open: false, durationMs: 0 })
+  const [viewLanguage, setViewLanguage] = useState<TranslationTarget | null>(null)
+  const translation = useMeetingTranslation(adapter, detail, viewLanguage)
   const location = useLocation()
   const autoRecord = Boolean((location.state as { autoRecord?: boolean } | null)?.autoRecord)
   const clearAutoRecord = () => navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
@@ -112,13 +116,14 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
     }
   }
 
-  const markdown = () => buildMeetingMarkdown(detail, { projectName: adapter.projectName, t, locale: i18n.language })
+  const shown = translation.detail ?? detail
+  const markdown = () => buildMeetingMarkdown(shown, { projectName: adapter.projectName, t, locale: i18n.language })
 
   const exportPdf = async () => {
     setExporting(true)
     try {
       await downloadMeetingPdf(
-        buildMeetingSnapshot(detail, {
+        buildMeetingSnapshot(shown, {
           projectName: adapter.projectName,
           t,
           locale: i18n.language.startsWith('ar') ? 'ar' : 'en',
@@ -145,7 +150,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
 
   const share = async () => {
     const url = window.location.href
-    const text = meeting.summary ?? meeting.title
+    const text = shown.meeting.summary ?? meeting.title
     if (navigator.share) {
       try {
         await navigator.share({ title: meeting.title, text, url })
@@ -291,6 +296,19 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
         <MeetingRecorderPanel adapter={adapter} detail={detail} compact />
       ) : null}
 
+      {meeting.status === 'ready' && !isActive && hasContent ? (
+        <MeetingLanguageToggle
+          value={viewLanguage}
+          onChange={setViewLanguage}
+          running={translation.running}
+          loading={translation.loading}
+          pending={translation.pending}
+          errorCode={translation.errorCode}
+          canTranslate={adapter.canEdit}
+          onTranslate={() => void translation.translate()}
+        />
+      ) : null}
+
       {hasContent || detail.actionItems.length ? (
         <Tabs value={activeTab} onValueChange={(value) => setTab(value as DetailTab)}>
           <TabsList>
@@ -303,7 +321,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
           </TabsList>
           <TabsContent value="summary">
             {meeting.status === 'ready' ? (
-              <MeetingSummarySection detail={detail} onJump={jump} />
+              <MeetingSummarySection detail={shown} onJump={jump} />
             ) : (
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
                 {meeting.status === 'processing' ? (
@@ -315,7 +333,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
           </TabsContent>
           <TabsContent value="actions">
             <div className="space-y-5">
-              <MeetingActionItems adapter={adapter} detail={detail} onJump={jump} />
+              <MeetingActionItems adapter={adapter} detail={detail} displayDetail={shown} onJump={jump} />
               {tasks.length ? (
                 <section>
                   <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-muted">
@@ -341,7 +359,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
             </div>
           </TabsContent>
           <TabsContent value="transcript">
-            <MeetingTranscript detail={detail} focusSegmentId={focusSegmentId} canPlay={detail.audio.length > 0} />
+            <MeetingTranscript detail={shown} focusSegmentId={focusSegmentId} canPlay={detail.audio.length > 0} />
           </TabsContent>
         </Tabs>
       ) : null}
@@ -366,6 +384,110 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
         pending={mutations.remove.isPending}
         onConfirm={() => void doDelete()}
       />
+    </div>
+  )
+}
+
+const LIMIT_CODES = new Set([
+  'rate_limited',
+  'daily_token_limit',
+  'monthly_token_limit',
+  'daily_cost_limit',
+  'monthly_cost_limit',
+  'concurrent_limit',
+  'global_cost_limit',
+  'tier_disabled',
+])
+
+function MeetingLanguageToggle({
+  value,
+  onChange,
+  running,
+  loading,
+  pending,
+  errorCode,
+  canTranslate,
+  onTranslate,
+}: {
+  value: TranslationTarget | null
+  onChange: (value: TranslationTarget | null) => void
+  running: boolean
+  loading: boolean
+  pending: number
+  errorCode: string | null
+  canTranslate: boolean
+  onTranslate: () => void
+}) {
+  const { t } = useTranslation()
+  const options: Array<{ value: TranslationTarget | null; label: string }> = [
+    { value: null, label: t('meetings.translate.original') },
+    { value: 'en', label: 'English' },
+    { value: 'ar', label: 'العربية' },
+  ]
+  const errorText = errorCode
+    ? errorCode === 'forbidden'
+      ? t('meetings.translate.noPermission')
+      : LIMIT_CODES.has(errorCode)
+        ? t('meetings.translate.limit')
+        : t('meetings.translate.failed')
+    : null
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div
+        role="radiogroup"
+        aria-label={t('meetings.translate.label')}
+        className="inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-surface/60 p-1"
+      >
+        <Languages className="mx-1.5 size-4 text-muted" aria-hidden />
+        {options.map((option) => {
+          const active = option.value === value
+          return (
+            <button
+              key={option.value ?? 'original'}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              disabled={running}
+              onClick={() => onChange(option.value)}
+              className={`rounded-lg px-3 py-1 text-sm transition-colors disabled:opacity-60 ${
+                active ? 'bg-surface-3 text-foreground' : 'text-muted hover:text-foreground'
+              }`}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+      {value ? (
+        <div className="flex items-center gap-2 text-xs text-muted" aria-live="polite">
+          {running || loading ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              {running ? t('meetings.translate.running') : t('meetings.translate.loading')}
+            </>
+          ) : errorText ? (
+            <>
+              <span className="text-danger">{errorText}</span>
+              {canTranslate && errorCode !== 'forbidden' ? (
+                <Button variant="ghost" size="sm" onClick={onTranslate}>
+                  {t('meetings.translate.retry')}
+                </Button>
+              ) : null}
+            </>
+          ) : pending > 0 ? (
+            canTranslate ? (
+              <Button variant="ghost" size="sm" onClick={onTranslate}>
+                {t('meetings.translate.translateRemaining', { count: pending })}
+              </Button>
+            ) : (
+              <span>{t('meetings.translate.viewerPending')}</span>
+            )
+          ) : (
+            <span>{t('meetings.translate.saved')}</span>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }

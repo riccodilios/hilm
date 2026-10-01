@@ -1,10 +1,13 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  callMeetingTranslate,
   createMeeting,
   deleteActionItem,
   deleteMeeting,
   getMeetingDetail,
   getMeetingQuota,
+  getMeetingTranslation,
   linkActionItemToTask,
   listMeetings,
   meetingKeys,
@@ -18,6 +21,7 @@ import {
 } from './api'
 import type { CreateMeetingInput, MeetingActionItem, MeetingDetail, MeetingsAdapter } from './types'
 import { speakerName } from './format'
+import { applyTranslation, countPendingTranslations, type TranslationTarget } from './translation'
 
 const ACTIVE_STATUSES = new Set(['recording', 'processing'])
 
@@ -114,6 +118,82 @@ export function useMeetingMutations(adapter: MeetingsAdapter, meetingId?: string
   })
 
   return { create, update, edit, move, remove, renameSpeaker, merge, editItem, removeItem, invalidate }
+}
+
+/** Calls per run; each call translates up to ~18k characters, so this covers multi-hour meetings. */
+const TRANSLATE_MAX_CALLS = 15
+
+/**
+ * Saved translation for the chosen language. Missing texts are translated once on first view
+ * (editors only) and stored; later toggles read the saved row without any AI call.
+ */
+export function useMeetingTranslation(
+  adapter: MeetingsAdapter,
+  detail: MeetingDetail | null | undefined,
+  target: TranslationTarget | null,
+) {
+  const queryClient = useQueryClient()
+  const os = adapter.scope.os
+  const meetingId = detail?.meeting.id ?? ''
+  const ready = detail?.meeting.status === 'ready'
+  const query = useQuery({
+    queryKey: meetingKeys.translation(os, meetingId, target ?? 'en'),
+    queryFn: () => getMeetingTranslation(os, meetingId, target!),
+    enabled: Boolean(meetingId && target && ready),
+    staleTime: 5 * 60_000,
+  })
+  const [running, setRunning] = useState(false)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
+  const attempted = useRef(new Set<string>())
+  const entries = query.data
+
+  const pending = detail && target && entries ? countPendingTranslations(detail, entries, target) : 0
+  const view = useMemo(
+    () => (detail && target && entries ? applyTranslation(detail, entries, target) : detail),
+    [detail, entries, target],
+  )
+
+  const translate = useCallback(async () => {
+    if (!meetingId || !target) return
+    const key = meetingKeys.translation(os, meetingId, target)
+    setRunning(true)
+    setErrorCode(null)
+    try {
+      for (let call = 0; call < TRANSLATE_MAX_CALLS; call += 1) {
+        const result = await callMeetingTranslate({ os, meetingId, target })
+        if (!result.ok) {
+          setErrorCode(result.code)
+          break
+        }
+        if (result.state === 'busy') {
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+          continue
+        }
+        await queryClient.invalidateQueries({ queryKey: key })
+        if (result.done) break
+      }
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: key })
+      setRunning(false)
+    }
+  }, [meetingId, os, queryClient, target])
+
+  useEffect(() => {
+    if (!target || !meetingId || !adapter.canEdit || running || !entries || pending === 0) return
+    const runKey = `${meetingId}:${target}`
+    if (attempted.current.has(runKey)) return
+    attempted.current.add(runKey)
+    void translate()
+  }, [adapter.canEdit, entries, meetingId, pending, running, target, translate])
+
+  return {
+    detail: view,
+    loading: Boolean(target) && query.isLoading,
+    running,
+    pending,
+    errorCode,
+    translate,
+  }
 }
 
 export type CreateTasksResult = { created: number; existing: number; failed: number }

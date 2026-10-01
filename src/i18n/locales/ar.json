@@ -1041,7 +1041,7 @@
     "aiMeetingUsage": "الاجتماعات",
     "aiMeetingMinutes": "دقائق الاجتماعات هذا الشهر",
     "aiMeetingTranscriptionTokens": "رموز التفريغ هذا الشهر",
-    "aiMeetingAnalysisTokens": "رموز تحليل الاجتماعات هذا الشهر",
+    "aiMeetingAnalysisTokens": "رموز تحليل وترجمة الاجتماعات هذا الشهر",
     "aiMeetingSpend": "إنفاق الاجتماعات هذا الشهر",
     "aiMeetingHint": "التسجيلات تُحتسب من دقائق الاجتماعات الشهرية بدل حصة الرموز. رموز التفريغ تبقى مسجلة وتُحتسب ضمن حد الإنفاق، وتحليل الاجتماعات يُحتسب ضمن حصة الرموز.",
     "aiUsageHint": "كل طلبات الذكاء تمر عبر خادم حلم. مفاتيح OpenRouter لا تصل إلى المتصفح.",
@@ -1429,6 +1429,24 @@
     "generic": "حدث خطأ ما"
   },
   "meetings": {
+    "translate": {
+      "label": "لغة الاجتماع",
+      "original": "الأصل",
+      "loading": "جارٍ تحميل الترجمة…",
+      "running": "جارٍ الترجمة… تُحفظ الترجمة فتتم مرة واحدة فقط",
+      "saved": "الترجمة محدّثة",
+      "translateRemaining_zero": "ترجمة {{count}} عنصر متبقٍ",
+      "translateRemaining_one": "ترجمة عنصر متبقٍ واحد",
+      "translateRemaining_two": "ترجمة عنصرين متبقيين",
+      "translateRemaining_few": "ترجمة {{count}} عناصر متبقية",
+      "translateRemaining_many": "ترجمة {{count}} عنصرًا متبقيًا",
+      "translateRemaining_other": "ترجمة {{count}} عنصر متبقٍ",
+      "viewerPending": "بعض الأجزاء لم تُترجم بعد. يمكن للمحرر ترجمتها.",
+      "noPermission": "يمكن للمحررين فقط ترجمة هذا الاجتماع.",
+      "limit": "تم بلوغ حد استخدام الذكاء الاصطناعي. حاول لاحقًا.",
+      "failed": "فشلت الترجمة.",
+      "retry": "إعادة المحاولة"
+    },
     "notFound": "الاجتماع غير موجود أو لم تعد لديك صلاحية الوصول إليه.",
     "backToList": "العودة إلى الاجتماعات",
     "backTo": "العودة إلى {{project}}",

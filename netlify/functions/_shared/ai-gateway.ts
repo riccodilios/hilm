@@ -197,7 +197,10 @@ function disabledFailure(
   if (feature === 'meeting_transcription' && !config.transcriptionEnabled) {
     return failure(featureDisabledMessage('meeting_transcription'))
   }
-  if ((feature === 'meeting_analyze' || feature === 'meeting_chunk_summary') && !config.analysisEnabled) {
+  if (
+    (feature === 'meeting_analyze' || feature === 'meeting_chunk_summary' || feature === 'meeting_translate') &&
+    !config.analysisEnabled
+  ) {
     return failure(featureDisabledMessage(feature))
   }
   return null

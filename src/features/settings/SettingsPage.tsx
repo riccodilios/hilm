@@ -37,7 +37,7 @@ import {
 } from '@/features/notifications/push'
 import { syncUnsentReminderChannels } from '@/features/notifications/api'
 
-const MEETING_REQUEST_KINDS = ['meeting_transcribe', 'meeting_analyze']
+const MEETING_REQUEST_KINDS = ['meeting_transcribe', 'meeting_analyze', 'meeting_translate']
 
 /** Request limits apply to chat/daily-log only; meeting calls are governed by minutes. */
 function chatRequests(summary: AiUsageSummary, period: 'requests_day' | 'requests_month') {
@@ -585,7 +585,10 @@ export function SettingsPage({
                       <div className="rounded-2xl border border-border-subtle bg-surface-2/40 p-3">
                         <p className="text-xs text-muted">{t('settings.aiMeetingAnalysisTokens')}</p>
                         <p className="mt-1 text-sm font-medium">
-                          {Number(aiUsage.data.meeting.analysis_tokens_month).toLocaleString()}
+                          {(
+                            Number(aiUsage.data.meeting.analysis_tokens_month) +
+                            Number(aiUsage.data.meeting.translation_tokens_month ?? 0)
+                          ).toLocaleString()}
                         </p>
                       </div>
                     </div>

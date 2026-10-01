@@ -9,6 +9,7 @@ import {
   type EngineContext,
   type StepResult,
 } from './_shared/meeting-engine'
+import { translateMeeting } from './_shared/meeting-translator'
 
 const osSchema = z.enum(['personal', 'workspace'])
 const localeFields = {
@@ -34,6 +35,13 @@ const bodySchema = z.discriminatedUnion('action', [
     action: z.literal('retry'),
     os: osSchema,
     meetingId: z.string().uuid(),
+    ...localeFields,
+  }),
+  z.object({
+    action: z.literal('translate'),
+    os: osSchema,
+    meetingId: z.string().uuid(),
+    target: z.enum(['en', 'ar']),
     ...localeFields,
   }),
 ])
@@ -105,6 +113,11 @@ export default async (request: Request) => {
 
     if (body.action === 'transcribe_segment') {
       return stepResponse(await transcribeSegment(ctx, meeting, body.idx), json)
+    }
+    if (body.action === 'translate') {
+      const result = await translateMeeting(ctx, meeting, body.target)
+      if (!result.ok) return json({ ok: false, code: result.code, error: result.message }, result.status)
+      return json(result)
     }
     if (body.action === 'retry') {
       const maxRetries = await meetingMaxRetries(userClient)

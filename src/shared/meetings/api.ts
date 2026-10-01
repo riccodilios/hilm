@@ -13,6 +13,7 @@ import type {
   MeetingSpeaker,
   MeetingTranscriptSegment,
 } from './types'
+import type { TranslationEntries, TranslationTarget } from './translation'
 
 export const MEETING_AUDIO_BUCKET = 'meeting-audio'
 
@@ -36,6 +37,8 @@ export const meetingKeys = {
   list: (scope: Pick<MeetingScope, 'os' | 'projectId'>) => ['meetings', scope.os, 'list', scope.projectId] as const,
   detail: (os: MeetingOs, meetingId: string) => ['meetings', os, 'detail', meetingId] as const,
   linkedTasks: (os: MeetingOs, meetingId: string) => ['meetings', os, 'tasks', meetingId] as const,
+  translation: (os: MeetingOs, meetingId: string, target: TranslationTarget) =>
+    ['meetings', os, 'translation', meetingId, target] as const,
   quota: () => ['meetings', 'quota'] as const,
 }
 
@@ -482,6 +485,59 @@ export async function callMeetingProcess(
     code: payload?.code ?? `http_${response.status}`,
     error: payload?.error ?? 'Processing failed',
   }
+}
+
+/** Saved translation for one target language (empty when none yet). */
+export async function getMeetingTranslation(
+  os: MeetingOs,
+  meetingId: string,
+  target: TranslationTarget,
+): Promise<TranslationEntries> {
+  const { data, error } = await db
+    .from(os === 'workspace' ? 'workspace_meeting_translations' : 'meeting_translations')
+    .select('entries')
+    .eq('meeting_id', meetingId)
+    .eq('target_language', target)
+    .maybeSingle()
+  if (error) throw error
+  const entries = (data as { entries?: unknown } | null)?.entries
+  return entries && typeof entries === 'object' && !Array.isArray(entries) ? (entries as TranslationEntries) : {}
+}
+
+export type TranslateResponse =
+  | { ok: true; state: 'translated' | 'busy'; done: boolean; remaining: number }
+  | { ok: false; code: string; error: string }
+
+export async function callMeetingTranslate(body: {
+  os: MeetingOs
+  meetingId: string
+  target: TranslationTarget
+}): Promise<TranslateResponse> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
+  let response: Response
+  try {
+    response = await fetch(meetingProcessUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'translate', ...body }),
+    })
+  } catch {
+    return { ok: false, code: 'network', error: 'Network error. Please try again.' }
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | { ok?: boolean; state?: string; done?: boolean; remaining?: number; code?: string; error?: string }
+    | null
+  if (response.ok && payload?.ok) {
+    return {
+      ok: true,
+      state: payload.state === 'busy' ? 'busy' : 'translated',
+      done: Boolean(payload.done),
+      remaining: Number(payload.remaining) || 0,
+    }
+  }
+  return { ok: false, code: payload?.code ?? `http_${response.status}`, error: payload?.error ?? 'Translation failed' }
 }
 
 export async function getMeetingAudioUrl(storagePath: string) {
