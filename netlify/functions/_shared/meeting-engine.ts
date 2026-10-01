@@ -14,6 +14,7 @@ import { resolveAllowedAiModel } from './ai-limits'
 import { hashAnalysisInput, runMeetingAnalysis } from './meeting-analysis'
 import {
   MEETING_AUDIO_PRICING_MODEL,
+  MEETING_BUCKET,
   MEETING_AUDIO_TOKENS_PER_SECOND,
   MEETING_AUTO_ATTEMPTS,
   MEETING_DEFAULT_VOCABULARY,
@@ -26,9 +27,20 @@ import {
   type MeetingOs,
   type RosterSpeaker,
 } from './meeting-core'
+import {
+  STT_COLUMNS,
+  markGeminiSttComplete,
+  markSttFailed,
+  meetingSttStep,
+  sttRetryPatch,
+  tagUsageEvent,
+  type MeetingSttFields,
+  type SttDeps,
+  type SttRoute,
+} from './meeting-stt'
 import { transcribeAudioChunk } from './meeting-transcriber'
 
-export const MEETING_BUCKET = 'meeting-audio'
+export { MEETING_BUCKET }
 
 type CompleteExtra = Omit<Parameters<typeof completeAiRequest>[1], 'eventId' | 'status' | 'model'>
 
@@ -51,6 +63,13 @@ export type EngineContext = {
   locale?: 'en' | 'ar'
   /** IANA timezone from the client for resolving relative Arabic/English dates. */
   timeZone?: string | null
+  /** Server-only Soniox key; null routes every meeting to the Gemini path. */
+  sonioxKey?: string | null
+  /** Site origin and the caller's JWT, used to hand the Soniox upload to the background function. */
+  origin?: string | null
+  authToken?: string | null
+  /** Set per request: which route the Gemini per-part path is running as (ledger tagging). */
+  sttRoute?: SttRoute
 }
 
 export type MeetingRow = {
@@ -70,7 +89,7 @@ export type MeetingRow = {
   processing_stage: string | null
   analysis_input_hash?: string | null
   updated_at: string
-}
+} & MeetingSttFields
 
 type AudioRow = {
   id: string
@@ -126,6 +145,14 @@ async function softUpdate(
 export async function loadMeeting(ctx: EngineContext, meetingId: string): Promise<MeetingRow | null> {
   const tables = meetingTables(ctx.os)
   const ownerCols = ctx.os === 'workspace' ? ', workspace_id, created_by' : ', user_id'
+  const withStt = await ctx.client
+    .from(tables.meetings)
+    .select(`${MEETING_COLUMNS}, ${STT_COLUMNS}${ownerCols}`)
+    .eq('id', meetingId)
+    .maybeSingle()
+  if (!withStt.error) return (withStt.data as unknown as MeetingRow | null) ?? null
+  if (!isMissingColumnError(withStt.error.message)) throw new Error(withStt.error.message)
+  // Migration 0034 not applied yet — the meeting runs on the Gemini path only.
   const primary = await ctx.client
     .from(tables.meetings)
     .select(MEETING_COLUMNS + ownerCols)
@@ -153,6 +180,9 @@ async function markMeetingFailed(ctx: EngineContext, meetingId: string, stage: s
     .from(tables.meetings)
     .update({ status: 'failed', processing_stage: stage, processing_error: message })
     .eq('id', meetingId)
+  if (stage === 'transcription_failed') {
+    await markSttFailed(ctx, meetingId).catch(() => undefined)
+  }
 }
 
 // ── Transcription ───────────────────────────────────────────────────────────
@@ -347,6 +377,8 @@ export async function transcribeSegment(
       }
     }
   }
+
+  await tagUsageEvent(ctx, eventId, 'openrouter', ctx.sttRoute ?? 'gemini_primary')
 
   // Clear cool-down copy once a paid attempt is actually running.
   await softUpdate(
@@ -862,8 +894,22 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
 
 // ── Orchestration ───────────────────────────────────────────────────────────
 
-/** Do the next unit of work for a meeting: one pending segment, else analysis when complete. */
-export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): Promise<StepResult> {
+export type AdvanceDeps = Partial<Omit<SttDeps, 'loadMeeting'>> & {
+  transcribe?: typeof transcribeSegment
+  analyze?: typeof analyzeMeeting
+}
+
+/**
+ * Do the next unit of work for a meeting: Soniox whole-meeting transcription when it owns the
+ * meeting, otherwise one pending Gemini segment; then analysis once the transcript is complete.
+ */
+export async function advanceMeeting(
+  ctx: EngineContext,
+  meeting: MeetingRow,
+  deps: AdvanceDeps = {},
+): Promise<StepResult> {
+  const transcribe = deps.transcribe ?? transcribeSegment
+  const analyze = deps.analyze ?? analyzeMeeting
   if (meeting.status !== 'recording' && meeting.status !== 'processing') {
     return { ok: true, state: 'idle', more: false }
   }
@@ -891,15 +937,18 @@ export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): P
     .order('idx', { ascending: true })
   if (error) throw new Error(error.message)
   const segments = (rows ?? []) as Array<Pick<AudioRow, 'idx' | 'status' | 'attempts' | 'updated_at'>>
-  const staleMs = Date.now() - STALE_CLAIM_MS
 
+  const stt = await meetingSttStep(ctx, meeting, segments, { ...deps, loadMeeting })
+  if (stt) return stt
+
+  const staleMs = Date.now() - STALE_CLAIM_MS
   const next = segments.find(
     (segment) =>
       segment.status === 'uploaded' ||
       (segment.status === 'failed' && segment.attempts < MEETING_AUTO_ATTEMPTS) ||
       (segment.status === 'transcribing' && new Date(segment.updated_at).getTime() < staleMs),
   )
-  if (next) return transcribeSegment(ctx, meeting, next.idx)
+  if (next) return transcribe(ctx, meeting, next.idx)
 
   if (segments.some((segment) => segment.status === 'transcribing')) {
     return { ok: true, state: 'busy', more: true }
@@ -917,7 +966,8 @@ export async function advanceMeeting(ctx: EngineContext, meeting: MeetingRow): P
   if (segments.length < meeting.expected_segments) {
     return { ok: true, state: 'waiting', more: false }
   }
-  return analyzeMeeting(ctx, meeting)
+  await markGeminiSttComplete(ctx, meeting)
+  return analyze(ctx, meeting)
 }
 
 /** Manual retry after failure: re-queues failed parts without re-uploading audio. */
@@ -950,6 +1000,7 @@ export async function retryMeeting(
       processing_stage: null,
       processing_error: null,
       processing_attempts: meeting.processing_attempts + 1,
+      ...(sttRetryPatch(ctx, meeting) ?? {}),
     })
     .eq('id', meeting.id)
   return { ok: true, state: 'waiting', more: true }

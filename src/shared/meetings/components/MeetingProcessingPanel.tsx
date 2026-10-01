@@ -122,9 +122,17 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
     const uploaded = audio.length
     const analyzing = meeting.processingStage === 'analyzing'
     const waitingQuota = meeting.processingStage === 'waiting_quota'
+    // Whole-meeting transcription reports no per-part progress until it finishes.
+    const wholeMeeting = meeting.processingStage === 'transcribing'
     const stage: Stage = analyzing ? 'analyze' : uploaded < expected ? 'upload' : 'transcribe'
     const orbKey = waitingQuota ? 'waiting' : stage
-    const stageProgress = analyzing ? 1 : expected ? (stage === 'upload' ? uploaded : transcribed) / expected : 0
+    const stageProgress = analyzing
+      ? 1
+      : stage === 'transcribe' && wholeMeeting
+        ? 0.5
+        : expected
+          ? (stage === 'upload' ? uploaded : transcribed) / expected
+          : 0
     const progress = Math.round(((STAGES.indexOf(stage) + stageProgress) / STAGES.length) * 100)
     const label = waitingQuota
       ? t('meetings.processing.waitingQuota')
@@ -132,7 +140,9 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
         ? t('meetings.processing.analyzing')
         : stage === 'upload'
           ? t('meetings.processing.uploading', { done: uploaded, total: expected })
-          : t('meetings.processing.transcribing', { done: transcribed, total: expected })
+          : wholeMeeting
+            ? t('meetings.processing.transcribingMeeting')
+            : t('meetings.processing.transcribing', { done: transcribed, total: expected })
     return (
       <div
         className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 p-4 sm:p-5"

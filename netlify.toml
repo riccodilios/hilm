@@ -82,6 +82,11 @@
   to = "/.netlify/functions/meeting-process"
   status = 200
 
+[[redirects]]
+  from = "/api/meeting-stt-webhook"
+  to = "/.netlify/functions/meeting-stt-webhook"
+  status = 200
+
 # Reminder job is intentionally not publicly aliased — invoke /.netlify/functions/send-task-reminders with CRON_SECRET
 [[redirects]]
   from = "/*"

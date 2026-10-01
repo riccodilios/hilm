@@ -15,6 +15,8 @@ export const MEETING_AUDIO_TOKENS_PER_SECOND = 25
 export const MEETING_SEGMENT_ORDINAL_STRIDE = 10_000
 export const MEETING_MAX_TRANSCRIPT_CHARS = 400_000
 /** Always-on STT hint terms (the project name is added per meeting). */
+export const MEETING_BUCKET = 'meeting-audio'
+
 export const MEETING_DEFAULT_VOCABULARY = [
   'Hilm',
   'Visma',

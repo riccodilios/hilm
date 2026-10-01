@@ -9,6 +9,7 @@ import {
   type EngineContext,
   type StepResult,
 } from './_shared/meeting-engine'
+import { geminiRouteFor, resolveSonioxKey, sonioxOwnsMeeting } from './_shared/meeting-stt'
 import { translateMeeting } from './_shared/meeting-translator'
 
 const osSchema = z.enum(['personal', 'workspace'])
@@ -107,11 +108,17 @@ export default async (request: Request) => {
       apiKey,
       locale: body.locale?.startsWith('ar') ? 'ar' : 'en',
       timeZone: body.timeZone?.trim() || null,
+      sonioxKey: resolveSonioxKey(),
+      origin: new URL(request.url).origin,
+      authToken: token,
     }
     const meeting = await loadMeeting(ctx, body.meetingId)
     if (!meeting) return json({ error: 'Meeting not found' }, 404)
 
     if (body.action === 'transcribe_segment') {
+      // Soniox transcribes the whole meeting; per-part Gemini calls only run on the Gemini route.
+      if (sonioxOwnsMeeting(ctx, meeting)) return stepResponse(await advanceMeeting(ctx, meeting), json)
+      ctx.sttRoute = geminiRouteFor(meeting)
       return stepResponse(await transcribeSegment(ctx, meeting, body.idx), json)
     }
     if (body.action === 'translate') {

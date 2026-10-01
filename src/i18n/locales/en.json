@@ -1593,6 +1593,7 @@
     "processing": {
       "uploading": "Uploading audio ({{done}}/{{total}})",
       "transcribing": "Transcribing ({{done}}/{{total}})",
+      "transcribingMeeting": "Transcribing the full meeting…",
       "analyzing": "Extracting summary, decisions, and action items…",
       "waitingQuota": "Waiting for AI capacity — processing will resume automatically.",
       "background": "You can leave this page; processing continues in the background.",
