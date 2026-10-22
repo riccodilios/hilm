@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PersonalMeetingsTab } from '@/features/projects/meetings/PersonalMeetingsTab'
-import { Check, FileText, Plus, Trash2 } from 'lucide-react'
+import { Check, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getProject, projectsKeys, updateProject } from '@/features/projects/api'
 import {
@@ -22,6 +22,9 @@ import { KanbanBoard } from '@/features/tasks/KanbanBoard'
 import type { TaskWithProject } from '@/features/tasks/reminders'
 import { activityKeys } from '@/features/activity/api'
 import { createNote, listNotes, notesKeys } from '@/features/notes/api'
+import { NoteActionsDialog } from '@/features/notes/NoteActionsDialog'
+import { NoteCard } from '@/features/notes/NoteCard'
+import type { Tables } from '@/types/database'
 import {
   completeRoadmapItem,
   createRoadmapItem,
@@ -72,6 +75,7 @@ export function ProjectDetailPage() {
       { replace: true },
     )
   const [menuTask, setMenuTask] = useState<TaskWithProject | null>(null)
+  const [menuNote, setMenuNote] = useState<Tables<'notes'> | null>(null)
   const [roadmapTitle, setRoadmapTitle] = useState('')
   const [roadmapHorizon, setRoadmapHorizon] = useState<RoadmapHorizon>('next')
   const [settings, setSettings] = useState<{
@@ -513,15 +517,13 @@ export function ProjectDetailPage() {
           {notes?.length ? (
             <div className="grid gap-3 sm:grid-cols-2">
               {notes.map((note) => (
-                <Link
+                <NoteCard
                   key={note.id}
-                  to={`/personal/notes/${note.id}`}
-                  className="rounded-xl border border-border-subtle bg-surface/70 p-4 hover:border-border"
-                >
-                  <FileText className="mb-3 size-4 text-accent" />
-                  <p className="font-medium">{note.title}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted">{note.body || 'Empty note'}</p>
-                </Link>
+                  note={note}
+                  onOpenMenu={setMenuNote}
+                  showUpdated={false}
+                  className="rounded-xl border border-border-subtle bg-surface/70 p-4 transition hover:border-border"
+                />
               ))}
             </div>
           ) : (
@@ -656,6 +658,7 @@ export function ProjectDetailPage() {
       </Tabs>
 
       <TaskActionsDialog task={menuTask} onClose={() => setMenuTask(null)} />
+      <NoteActionsDialog note={menuNote} onClose={() => setMenuNote(null)} />
     </div>
   )
 }

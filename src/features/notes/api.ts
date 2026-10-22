@@ -69,3 +69,18 @@ export async function updateNote(
   })
   return data
 }
+
+export async function deleteNote(id: string) {
+  const userId = await requireUserId()
+  const current = await getNote(id)
+  const { error } = await supabase.from('notes').delete().eq('id', id)
+  if (error) throw error
+  await recordActivity({
+    userId,
+    entityType: 'note',
+    entityId: id,
+    projectId: current.project_id,
+    action: 'deleted',
+    summary: `Deleted note ${current.title}`,
+  })
+}
