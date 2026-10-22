@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import { FileText, Plus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { createNote, listNotes, notesKeys } from '@/features/notes/api'
+import { NoteActionsDialog } from '@/features/notes/NoteActionsDialog'
+import { NoteCard } from '@/features/notes/NoteCard'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EmptyState, PageHeader, Skeleton } from '@/components/ui/page'
-import { formatRelative } from '@/lib/utils'
+import type { Tables } from '@/types/database'
 
 export function NotesPage() {
   const { t } = useTranslation()
@@ -18,6 +20,7 @@ export function NotesPage() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
+  const [menuNote, setMenuNote] = useState<Tables<'notes'> | null>(null)
   const { data: notes, isLoading } = useQuery({ queryKey: notesKeys.list(), queryFn: () => listNotes() })
   const create = useMutation({
     mutationFn: () => createNote({ title }),
@@ -59,20 +62,7 @@ export function NotesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {notes.map((note) => (
-            <Link
-              key={note.id}
-              to={`/personal/notes/${note.id}`}
-              className="min-w-0 rounded-2xl border border-border-subtle bg-surface/70 p-4 transition hover:border-border hover:bg-surface sm:p-5"
-            >
-              <FileText className="mb-4 size-5 text-accent sm:mb-5" />
-              <h2 className="break-words font-medium">{note.title}</h2>
-              <p className="mt-2 line-clamp-2 break-words text-sm text-muted">
-                {note.body || t('notes.empty')}
-              </p>
-              <p className="mt-4 text-xs text-muted">
-                {t('notes.updated', { time: formatRelative(note.updated_at) })}
-              </p>
-            </Link>
+            <NoteCard key={note.id} note={note} onOpenMenu={setMenuNote} />
           ))}
         </div>
       )}
@@ -105,6 +95,7 @@ export function NotesPage() {
           </form>
         </DialogContent>
       </Dialog>
+      <NoteActionsDialog note={menuNote} onClose={() => setMenuNote(null)} />
     </div>
   )
 }

@@ -796,7 +796,15 @@
     "preview": "معاينة",
     "edit": "تحرير",
     "convertTask": "تحويل لمهمة",
-    "save": "حفظ"
+    "save": "حفظ",
+    "delete": "حذف",
+    "deleted": "تم حذف الملاحظة",
+    "deleteConfirm": "حذف «{{title}}»؟ لا يمكن التراجع عن ذلك.",
+    "moveToProject": "نقل إلى مشروع",
+    "chooseProject": "اختر مشروعاً…",
+    "movedProject": "تم نقل الملاحظة إلى مشروع آخر",
+    "movedProjectNamed": "تم نقل الملاحظة إلى {{project}}",
+    "actionsHint": "اضغط مطوّلاً على ملاحظة أو انقر بزر الفأرة الأيمن للخيارات."
   },
   "dailyLog": {
     "title": "السجل اليومي",

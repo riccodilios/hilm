@@ -796,7 +796,15 @@
     "preview": "Preview",
     "edit": "Edit",
     "convertTask": "Convert to task",
-    "save": "Save"
+    "save": "Save",
+    "delete": "Delete",
+    "deleted": "Note deleted",
+    "deleteConfirm": "Delete “{{title}}”? This can’t be undone.",
+    "moveToProject": "Move to project",
+    "chooseProject": "Choose a project…",
+    "movedProject": "Note moved to another project",
+    "movedProjectNamed": "Note moved to {{project}}",
+    "actionsHint": "Hold a note or right-click for options."
   },
   "dailyLog": {
     "title": "Daily log",
