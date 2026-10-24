@@ -198,7 +198,13 @@ export function SharedMeetingPage() {
         )}
 
         {!user && state.kind !== 'loading' && state.kind !== 'opening' ? (
-          <aside className="relative mt-10 overflow-hidden rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-2 via-surface/80 to-background p-6 text-center">
+          <aside className="relative mt-10 overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 p-6 text-center">
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-foreground/[0.09] via-transparent to-info/[0.14]"
+              aria-hidden
+            />
+            <div className="pointer-events-none absolute -start-16 -top-20 size-56 rounded-full bg-foreground opacity-[0.07] blur-3xl" aria-hidden />
+            <div className="pointer-events-none absolute -bottom-24 -end-12 size-60 rounded-full bg-info opacity-[0.16] blur-3xl" aria-hidden />
             <AiAmbientBackground intensity={0.45} />
             <div className="relative">
               <p className="text-base font-medium">{t('sharedMeeting.joinTitle')}</p>
