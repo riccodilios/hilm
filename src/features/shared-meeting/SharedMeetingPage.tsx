@@ -25,12 +25,28 @@ type Tab = 'transcript' | 'summary' | 'actions'
 /** Private transcripts: keep the page out of search engines and the token out of Referer headers. */
 function usePrivatePageMeta(title: string | null) {
   useEffect(() => {
-    const tags = [
-      Object.assign(document.createElement('meta'), { name: 'robots', content: 'noindex, nofollow, noarchive' }),
-      Object.assign(document.createElement('meta'), { name: 'referrer', content: 'no-referrer' }),
-    ]
-    tags.forEach((tag) => document.head.appendChild(tag))
-    return () => tags.forEach((tag) => tag.remove())
+    // index.html ships "index, follow" for the landing page; override it rather than add a second tag.
+    const restore: Array<() => void> = []
+    for (const [name, content] of [
+      ['robots', 'noindex, nofollow, noarchive'],
+      ['referrer', 'no-referrer'],
+    ] as const) {
+      let tag = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)
+      if (tag) {
+        const previous = tag.content
+        tag.content = content
+        const existing = tag
+        restore.push(() => {
+          existing.content = previous
+        })
+      } else {
+        tag = Object.assign(document.createElement('meta'), { name, content })
+        document.head.appendChild(tag)
+        const added = tag
+        restore.push(() => added.remove())
+      }
+    }
+    return () => restore.forEach((undo) => undo())
   }, [])
   useEffect(() => {
     if (!title) return
