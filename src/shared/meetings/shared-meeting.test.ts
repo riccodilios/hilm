@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isSafeMeetingAppHref, mapSharedMeeting, SHARE_TOKEN_RE, sha256Hex, sharedMeetingUrl } from './shared-meeting'
+import {
+  isSafeMeetingAppHref,
+  mapSharedMeeting,
+  mapSharedTranslations,
+  SHARE_TOKEN_RE,
+  sha256Hex,
+  sharedMeetingUrl,
+} from './shared-meeting'
 
 const payload = {
   meeting: {
@@ -57,6 +64,19 @@ describe('mapSharedMeeting', () => {
     expect(detail.meeting.createdBy).toBeNull()
     expect(detail.actionItems[0]!.taskId).toBeNull()
     expect(detail.audio).toEqual([])
+  })
+
+  it('maps saved summary translations and drops malformed entries', () => {
+    const translations = mapSharedTranslations({
+      ...payload,
+      translations: {
+        ar: { summary: { t: 'اتفقنا على موعد الإطلاق.', h: 'abc' }, 'kp:0': { t: 1 } },
+        en: {},
+        fr: { summary: { t: 'x', h: 'y' } },
+      },
+    })
+    expect(translations).toEqual({ ar: { summary: { t: 'اتفقنا على موعد الإطلاق.', h: 'abc' } } })
+    expect(mapSharedTranslations(payload)).toEqual({})
   })
 
   it('rejects malformed payloads', () => {

@@ -1,3 +1,4 @@
+import type { TranslationEntries, TranslationTarget } from './translation'
 import type { MeetingDetail, MeetingStatus } from './types'
 
 /** Path of the public, sign-in-free meeting page. */
@@ -101,6 +102,27 @@ export function mapSharedMeeting(payload: unknown): MeetingDetail | null {
     })),
     audio: [],
   }
+}
+
+/**
+ * Saved English/Arabic translations shipped with a shared meeting (summary-side texts only).
+ * Malformed entries are dropped; a missing language is simply absent.
+ */
+export function mapSharedTranslations(payload: unknown): Partial<Record<TranslationTarget, TranslationEntries>> {
+  const raw = payload && typeof payload === 'object' ? (payload as Row).translations : null
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Partial<Record<TranslationTarget, TranslationEntries>> = {}
+  for (const target of ['en', 'ar'] as const) {
+    const entries = (raw as Row)[target]
+    if (!entries || typeof entries !== 'object') continue
+    const clean: TranslationEntries = {}
+    for (const [key, value] of Object.entries(entries as Row)) {
+      const entry = value as Row | null
+      if (entry && typeof entry.t === 'string' && typeof entry.h === 'string') clean[key] = { t: entry.t, h: entry.h }
+    }
+    if (Object.keys(clean).length) out[target] = clean
+  }
+  return out
 }
 
 /** Only same-origin in-app meeting paths are followed after resolving a share link. */

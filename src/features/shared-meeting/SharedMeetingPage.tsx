@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, CalendarDays, CheckCircle2, CircleHelp, Clock, Link2Off, Loader2, Users } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  CircleHelp,
+  Clock,
+  Languages,
+  Link2Off,
+  Loader2,
+  Users,
+} from 'lucide-react'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/page'
@@ -11,13 +21,23 @@ import { fetchSharedMeeting } from '@/shared/meetings/api'
 import { MeetingSummarySection } from '@/shared/meetings/components/MeetingSummarySection'
 import { MeetingTranscript } from '@/shared/meetings/components/MeetingTranscript'
 import { formatClock, formatDurationShort, speakerName } from '@/shared/meetings/format'
-import { isSafeMeetingAppHref, mapSharedMeeting, SHARE_TOKEN_RE } from '@/shared/meetings/shared-meeting'
+import {
+  isSafeMeetingAppHref,
+  mapSharedMeeting,
+  mapSharedTranslations,
+  SHARE_TOKEN_RE,
+} from '@/shared/meetings/shared-meeting'
+import { applyTranslation, type TranslationEntries, type TranslationTarget } from '@/shared/meetings/translation'
 import type { MeetingDetail } from '@/shared/meetings/types'
+import { AiAmbientBackground } from '@/features/ai/components/AiAmbientBackground'
+import { cn } from '@/lib/utils'
+
+type SharedTranslations = Partial<Record<TranslationTarget, TranslationEntries>>
 
 type PageState =
   | { kind: 'loading' }
   | { kind: 'opening' }
-  | { kind: 'ready'; detail: MeetingDetail }
+  | { kind: 'ready'; detail: MeetingDetail; translations: SharedTranslations }
   | { kind: 'not_found' | 'rate_limited' | 'error' }
 
 type Tab = 'transcript' | 'summary' | 'actions'
@@ -90,7 +110,7 @@ export function SharedMeetingPage() {
         return
       }
       const detail = mapSharedMeeting(result.payload)
-      setState(detail ? { kind: 'ready', detail } : { kind: 'error' })
+      setState(detail ? { kind: 'ready', detail, translations: mapSharedTranslations(result.payload) } : { kind: 'error' })
     })
     return () => {
       cancelled = true
@@ -145,6 +165,7 @@ export function SharedMeetingPage() {
         ) : state.kind === 'ready' ? (
           <SharedMeetingContent
             detail={state.detail}
+            translations={state.translations}
             tab={tab}
             onTabChange={setTab}
             onJump={jump}
@@ -177,12 +198,15 @@ export function SharedMeetingPage() {
         )}
 
         {!user && state.kind !== 'loading' && state.kind !== 'opening' ? (
-          <aside className="mt-10 rounded-2xl border border-border-subtle bg-surface/60 p-5 text-center">
-            <p className="font-medium">{t('sharedMeeting.joinTitle')}</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-muted">{t('sharedMeeting.joinBody')}</p>
-            <Button asChild className="mt-4" variant="secondary">
-              <Link to="/signup">{t('sharedMeeting.join')}</Link>
-            </Button>
+          <aside className="relative mt-10 overflow-hidden rounded-2xl border border-border-subtle bg-gradient-to-br from-surface-2 via-surface/80 to-background p-6 text-center">
+            <AiAmbientBackground intensity={0.45} />
+            <div className="relative">
+              <p className="text-base font-medium">{t('sharedMeeting.joinTitle')}</p>
+              <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">{t('sharedMeeting.joinBody')}</p>
+              <Button asChild className="mt-5 rounded-full px-5">
+                <Link to="/signup">{t('sharedMeeting.join')}</Link>
+              </Button>
+            </div>
           </aside>
         ) : null}
       </main>
@@ -190,8 +214,23 @@ export function SharedMeetingPage() {
   )
 }
 
+/** Summary-side content in a saved translation; the transcript always stays as spoken. */
+function translatedSummary(detail: MeetingDetail, entries: TranslationEntries, target: TranslationTarget): MeetingDetail {
+  return { ...applyTranslation(detail, entries, target), transcript: detail.transcript }
+}
+
+function summaryFingerprint(detail: MeetingDetail) {
+  return JSON.stringify([
+    detail.meeting.summary,
+    detail.meeting.keyPoints,
+    detail.decisions.map((decision) => decision.text),
+    detail.actionItems.map((item) => [item.title, item.description]),
+  ])
+}
+
 function SharedMeetingContent({
   detail,
+  translations,
   tab,
   onTabChange,
   onJump,
@@ -199,6 +238,7 @@ function SharedMeetingContent({
   dateLabel,
 }: {
   detail: MeetingDetail
+  translations: SharedTranslations
   tab: Tab
   onTabChange: (tab: Tab) => void
   onJump: (segmentId: string) => void
@@ -207,6 +247,53 @@ function SharedMeetingContent({
 }) {
   const { t } = useTranslation()
   const { meeting } = detail
+  const [language, setLanguage] = useState<TranslationTarget | null>(null)
+
+  // Offer a language only when the owner saved a translation that actually changes the summary.
+  const versions = useMemo(() => {
+    const original = summaryFingerprint(detail)
+    const out: Partial<Record<TranslationTarget, MeetingDetail>> = {}
+    for (const target of ['en', 'ar'] as const) {
+      const entries = translations[target]
+      if (!entries) continue
+      const translated = translatedSummary(detail, entries, target)
+      if (summaryFingerprint(translated) !== original) out[target] = translated
+    }
+    return out
+  }, [detail, translations])
+  const targets = (['en', 'ar'] as const).filter((target) => versions[target])
+  const shown = (language && versions[language]) || detail
+
+  const languageToggle =
+    targets.length > 0 ? (
+      <div
+        role="radiogroup"
+        aria-label={t('meetings.translate.label')}
+        className="mb-4 inline-flex items-center gap-1 rounded-xl border border-border-subtle bg-surface/60 p-1"
+      >
+        <Languages className="mx-1.5 size-4 text-muted" aria-hidden />
+        {[{ value: null, label: t('meetings.translate.original') }, ...targets.map((value) => ({ value, label: value === 'en' ? 'English' : 'العربية' }))].map(
+          (option) => {
+            const active = option.value === language
+            return (
+              <button
+                key={option.value ?? 'original'}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setLanguage(option.value)}
+                className={cn(
+                  'rounded-lg px-3 py-1 text-sm transition-colors',
+                  active ? 'bg-surface-3 text-foreground' : 'text-muted hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            )
+          },
+        )}
+      </div>
+    ) : null
   return (
     <article className="space-y-5">
       <div className="space-y-2">
@@ -254,10 +341,12 @@ function SharedMeetingContent({
           <MeetingTranscript detail={detail} focusSegmentId={focusSegmentId} canPlay={false} />
         </TabsContent>
         <TabsContent value="summary">
-          <MeetingSummarySection detail={detail} onJump={onJump} />
+          {languageToggle}
+          <MeetingSummarySection detail={shown} onJump={onJump} />
         </TabsContent>
         <TabsContent value="actions">
-          <SharedActionItems detail={detail} onJump={onJump} />
+          {languageToggle}
+          <SharedActionItems detail={shown} onJump={onJump} />
         </TabsContent>
       </Tabs>
     </article>
