@@ -3,8 +3,16 @@ import { MEETING_SEGMENT_ORDINAL_STRIDE, resolveSegmentLanguageMeta, normalizeLa
 import type { SonioxContext, SonioxToken, SonioxTranscript } from './soniox'
 
 export const SONIOX_PRICING_MODEL = 'soniox/stt-async-v5'
-/** Soniox async accepts files up to 300 minutes; longer meetings go straight to Gemini. */
+/** Soniox async accepts files up to 300 minutes (fixed limit, see Soniox "Limits & quotas"). */
 export const SONIOX_MAX_AUDIO_MS = 300 * 60_000
+/**
+ * Audio per Soniox job. Longer meetings are split into consecutive windows: each stays far below
+ * the 300-minute file limit and small enough (~230 MB of 16 kHz PCM) to join in the background
+ * function's memory.
+ */
+export const SONIOX_WINDOW_MAX_MS = 120 * 60_000
+/** Lines of a later window that start inside the shared overlap part get ordinals above this. */
+const OVERLAP_ORDINAL_BASE = 5_000
 export const SONIOX_LANGUAGE_HINTS = ['ar', 'en']
 export const SONIOX_WEBHOOK_HEADER = 'X-Hilm-Webhook-Token'
 
@@ -15,8 +23,166 @@ const TEXT_USD_PER_TOKEN = 3.5 / 1_000_000
 const TEXT_TOKENS_PER_CHAR = 0.3
 const MAX_CONTEXT_CHARS = 9_000
 
-export function sonioxReference(os: string, meetingId: string) {
-  return `hilm:${os}:${meetingId}`
+export function sonioxReference(os: string, meetingId: string, window = 0) {
+  return window > 0 ? `hilm:${os}:${meetingId}:w${window}` : `hilm:${os}:${meetingId}`
+}
+
+export type SonioxWindow<T extends SonioxAudioPart = SonioxAudioPart> = {
+  index: number
+  /** Contiguous parts; every window after the first starts with the previous window's last part. */
+  parts: T[]
+  audioMs: number
+  /** Meeting-time range whose words this window owns: [keepFromMs, keepToMs). */
+  keepFromMs: number
+  keepToMs: number | null
+  /** Start of the audio shared with the previous window (null for the first window). */
+  overlapFromMs: number | null
+}
+
+/**
+ * Split a meeting's parts into Soniox windows of at most `maxMs`. Consecutive windows share one
+ * recorded part so no word is cut at the boundary; the boundary itself sits in the middle of that
+ * shared part, and each window keeps only the words that start on its side of it.
+ */
+export function planSonioxWindows<T extends SonioxAudioPart>(parts: T[], maxMs = SONIOX_WINDOW_MAX_MS): SonioxWindow<T>[] {
+  const ordered = [...parts].sort((a, b) => a.idx - b.idx)
+  if (!ordered.length) return []
+  const dur = (part: T) => Math.max(0, part.duration_ms)
+  const ranges: Array<[number, number]> = []
+  let start = 0
+  for (;;) {
+    let end = start
+    let total = dur(ordered[start]!)
+    while (end + 1 < ordered.length && total + dur(ordered[end + 1]!) <= maxMs) {
+      end += 1
+      total += dur(ordered[end]!)
+    }
+    // A window must reach past the shared part, even if one part alone exceeds the budget.
+    if (end === start && end + 1 < ordered.length) end += 1
+    ranges.push([start, end])
+    if (end >= ordered.length - 1) break
+    start = end
+  }
+  const boundaries = ranges.map(([from], i) => {
+    if (i === 0) return 0
+    const shared = ordered[from]!
+    return shared.offset_ms + Math.round(dur(shared) / 2)
+  })
+  return ranges.map(([from, to], i) => {
+    const windowParts = ordered.slice(from, to + 1)
+    return {
+      index: i,
+      parts: windowParts,
+      audioMs: windowParts.reduce((sum, part) => sum + dur(part), 0),
+      keepFromMs: boundaries[i]!,
+      keepToMs: i + 1 < ranges.length ? boundaries[i + 1]! : null,
+      overlapFromMs: i === 0 ? null : ordered[from]!.offset_ms,
+    }
+  })
+}
+
+/** Maps a time on a window's joined-audio timeline onto the meeting timeline. */
+export function windowTimeMapper(parts: SonioxAudioPart[]) {
+  const ordered = [...parts].sort((a, b) => a.idx - b.idx)
+  const starts: number[] = []
+  let cursor = 0
+  for (const part of ordered) {
+    starts.push(cursor)
+    cursor += Math.max(0, part.duration_ms)
+  }
+  const partAt = (t: number) => {
+    let i = 0
+    while (i + 1 < ordered.length && t >= starts[i + 1]!) i += 1
+    return i
+  }
+  const toMeetingMs = (t: number, i = partAt(t)) => {
+    const part = ordered[i]!
+    const local = Math.min(Math.max(0, t - starts[i]!), Math.max(0, part.duration_ms))
+    return part.offset_ms + local
+  }
+  return { ordered, partAt, toMeetingMs }
+}
+
+export type SpeakerLabeler = (raw: SonioxToken['speaker']) => string
+
+/** Speaker numbers already used by labels like "Speaker 3". */
+function usedSpeakerNumbers(labels: Iterable<string>) {
+  const used = new Set<number>()
+  for (const label of labels) {
+    const match = /^Speaker (\d{1,3})$/.exec(label)
+    if (match) used.add(Number(match[1]))
+  }
+  return used
+}
+
+const RECONCILE_MIN_TOKENS = 8
+const RECONCILE_MIN_SHARE = 0.8
+
+/**
+ * Soniox speaker ids are scoped to one job. For a later window, a Soniox speaker keeps the label
+ * of the previous window's speaker only when the shared overlap audio shows the same voice: at
+ * least RECONCILE_MIN_TOKENS of its overlap words fall inside that speaker's lines and they make
+ * up RECONCILE_MIN_SHARE of its overlap words. Anyone else gets a new "Speaker N" — an uncertain
+ * match is never presented as the same person.
+ */
+export function reconcileWindowSpeakers(input: {
+  tokens: SonioxToken[]
+  parts: SonioxAudioPart[]
+  overlapFromMs: number
+  keepFromMs: number
+  previousLines: Array<{ start_ms: number; end_ms: number; speakerLabel: string }>
+  existingLabels: string[]
+}): { label: SpeakerLabeler; matches: Map<string, string> } {
+  const { toMeetingMs } = windowTimeMapper(input.parts)
+  const votes = new Map<string, Map<string, number>>()
+  const totals = new Map<string, number>()
+  for (const token of input.tokens) {
+    if (token.translation_status === 'translation' || !token.text.trim()) continue
+    const t = toMeetingMs(token.start_ms)
+    if (t < input.overlapFromMs || t >= input.keepFromMs) continue
+    const speaker = speakerKey(token.speaker)
+    totals.set(speaker, (totals.get(speaker) ?? 0) + 1)
+    const line = input.previousLines.find((row) => t >= row.start_ms && t < Math.max(row.end_ms, row.start_ms + 1))
+    if (!line) continue
+    const forSpeaker = votes.get(speaker) ?? new Map<string, number>()
+    forSpeaker.set(line.speakerLabel, (forSpeaker.get(line.speakerLabel) ?? 0) + 1)
+    votes.set(speaker, forSpeaker)
+  }
+  const candidates: Array<{ speaker: string; label: string; count: number }> = []
+  for (const [speaker, byLabel] of votes) {
+    for (const [label, count] of byLabel) {
+      if (count >= RECONCILE_MIN_TOKENS && count / (totals.get(speaker) ?? count) >= RECONCILE_MIN_SHARE) {
+        candidates.push({ speaker, label, count })
+      }
+    }
+  }
+  candidates.sort((a, b) => b.count - a.count)
+  const matches = new Map<string, string>()
+  const claimed = new Set<string>()
+  for (const candidate of candidates) {
+    if (matches.has(candidate.speaker) || claimed.has(candidate.label)) continue
+    matches.set(candidate.speaker, candidate.label)
+    claimed.add(candidate.label)
+  }
+
+  const used = usedSpeakerNumbers(input.existingLabels)
+  const assigned = new Map(matches)
+  const label: SpeakerLabeler = (raw) => {
+    const key = speakerKey(raw)
+    const known = assigned.get(key)
+    if (known) return known
+    let n = 1
+    while (used.has(n)) n += 1
+    used.add(n)
+    const fresh = `Speaker ${n}`
+    assigned.set(key, fresh)
+    return fresh
+  }
+  return { label, matches }
+}
+
+function speakerKey(raw: SonioxToken['speaker']) {
+  return raw === null || raw === undefined || String(raw).trim() === '' ? '1' : String(raw).trim()
 }
 
 export function buildSonioxContext(input: {
@@ -103,11 +269,11 @@ const PAUSE_BREAK_MS = 3_000
  * Soniox speaker ids map to "Speaker <id>" unchanged. Non-numeric ids (not expected from the
  * API) get the next free number in first-appearance order so identities stay distinct.
  */
-function speakerLabeler() {
+function speakerLabeler(): SpeakerLabeler {
   const assigned = new Map<string, string>()
   const used = new Set<number>()
   return (raw: SonioxToken['speaker']) => {
-    const key = raw === null || raw === undefined || String(raw).trim() === '' ? '1' : String(raw).trim()
+    const key = speakerKey(raw)
     const known = assigned.get(key)
     if (known) return known
     let n = /^\d{1,3}$/.test(key) ? Number(key) : 0
@@ -126,28 +292,25 @@ function speakerLabeler() {
  * Turn Soniox tokens (full-meeting timeline) into Hilm transcript lines. Lines break on speaker
  * changes, long pauses and long monologues; text is concatenated exactly as Soniox returned it.
  * Times are mapped from the joined-audio timeline back onto each recorded part's offset.
+ * For a window of a long meeting, only words starting in [keepFromMs, keepToMs) are kept.
  */
-export function sonioxTokensToLines(tokens: SonioxToken[], parts: SonioxAudioPart[]): SonioxLine[] {
-  const ordered = [...parts].sort((a, b) => a.idx - b.idx)
+export function sonioxTokensToLines(
+  tokens: SonioxToken[],
+  parts: SonioxAudioPart[],
+  options: {
+    keepFromMs?: number
+    keepToMs?: number | null
+    label?: SpeakerLabeler
+    /** Later windows: lines starting in the shared first part are numbered after the earlier window's. */
+    sharedFirstPart?: boolean
+  } = {},
+): SonioxLine[] {
+  const { ordered, partAt, toMeetingMs } = windowTimeMapper(parts)
   if (!ordered.length) return []
-  const starts: number[] = []
-  let cursor = 0
-  for (const part of ordered) {
-    starts.push(cursor)
-    cursor += Math.max(0, part.duration_ms)
-  }
-  const partAt = (t: number) => {
-    let i = 0
-    while (i + 1 < ordered.length && t >= starts[i + 1]!) i += 1
-    return i
-  }
-  const toMeetingMs = (t: number, i: number) => {
-    const part = ordered[i]!
-    const local = Math.min(Math.max(0, t - starts[i]!), Math.max(0, part.duration_ms))
-    return part.offset_ms + local
-  }
 
-  const label = speakerLabeler()
+  const label = options.label ?? speakerLabeler()
+  const keepFrom = options.keepFromMs ?? Number.NEGATIVE_INFINITY
+  const keepTo = options.keepToMs ?? Number.POSITIVE_INFINITY
   type Draft = { speaker: string; start: number; end: number; text: string; langChars: Map<string, number> }
   const drafts: Draft[] = []
   let current: Draft | null = null
@@ -155,6 +318,8 @@ export function sonioxTokensToLines(tokens: SonioxToken[], parts: SonioxAudioPar
   for (const token of tokens) {
     if (token.translation_status === 'translation') continue
     if (!token.text) continue
+    const meetingStart = toMeetingMs(token.start_ms)
+    if (meetingStart < keepFrom || meetingStart >= keepTo) continue
     const speaker = label(token.speaker)
     const start = Math.max(0, Math.round(token.start_ms))
     const end = Math.max(start, Math.round(token.end_ms))
@@ -198,6 +363,7 @@ export function sonioxTokensToLines(tokens: SonioxToken[], parts: SonioxAudioPar
     })
     const n = perPart.get(part.idx) ?? 0
     perPart.set(part.idx, n + 1)
+    const base = options.sharedFirstPart && i === 0 ? OVERLAP_ORDINAL_BASE : 0
     lines.push({
       audioSegmentId: part.id,
       speakerLabel: draft.speaker,
@@ -206,7 +372,7 @@ export function sonioxTokensToLines(tokens: SonioxToken[], parts: SonioxAudioPar
       text,
       language: meta.language,
       languages: meta.languages,
-      ordinal: part.idx * MEETING_SEGMENT_ORDINAL_STRIDE + Math.min(n, MEETING_SEGMENT_ORDINAL_STRIDE - 1),
+      ordinal: part.idx * MEETING_SEGMENT_ORDINAL_STRIDE + Math.min(base + n, MEETING_SEGMENT_ORDINAL_STRIDE - 1),
     })
   }
   return lines

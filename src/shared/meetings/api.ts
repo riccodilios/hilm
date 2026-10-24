@@ -78,6 +78,10 @@ export function mapMeeting(row: Row, os: MeetingOs): Meeting {
     updatedAt: String(row.updated_at ?? ''),
     createdBy: str(os === 'workspace' ? row.created_by : row.user_id),
     actionItemCount: countFrom(row[tables.actions]),
+    sttWindow: typeof row.stt_window === 'number' ? row.stt_window : null,
+    sttWindowCount: typeof row.stt_window_count === 'number' ? row.stt_window_count : null,
+    shareEnabledAt: str(row.share_enabled_at),
+    shareTokenHash: str(row.share_token_hash),
   }
 }
 
@@ -447,6 +451,52 @@ function meetingProcessUrl() {
   const app = getAppUrl()
   if (app && !/localhost|127\.0\.0\.1/i.test(app)) return `${app.replace(/\/$/, '')}/api/meeting-process`
   return '/.netlify/functions/meeting-process'
+}
+
+// ── Public share links ──────────────────────────────────────────────────────
+
+export type ShareState = { enabled: boolean; token: string | null; enabledAt: string | null }
+
+/**
+ * Enable (keeps an existing link), rotate (new link; the old one stops working) or disable the
+ * meeting's public link. The plaintext token is returned only when a new link is created.
+ */
+export async function setMeetingShare(
+  os: MeetingOs,
+  meetingId: string,
+  action: 'enable' | 'rotate' | 'disable',
+): Promise<ShareState> {
+  const { data, error } = await db.rpc('meeting_share_set', { p_os: os, p_meeting_id: meetingId, p_action: action })
+  if (error) throw error
+  const result = (data ?? {}) as { ok?: boolean; code?: string; enabled?: boolean; token?: string | null; enabled_at?: string | null }
+  if (!result.ok) throw new Error(result.code ?? 'share_failed')
+  return { enabled: Boolean(result.enabled), token: result.token ?? null, enabledAt: result.enabled_at ?? null }
+}
+
+export type SharedMeetingResponse =
+  | { status: 'ok'; payload: unknown; appHref: string | null }
+  | { status: 'not_found' | 'rate_limited' | 'error' }
+
+/** Resolves a public link. Sends the session (if any) so members can be taken into the app. */
+export async function fetchSharedMeeting(token: string): Promise<SharedMeetingResponse> {
+  const { data } = await supabase.auth.getSession()
+  const jwt = data.session?.access_token
+  let response: Response
+  try {
+    response = await fetch('/api/meeting-share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+      body: JSON.stringify({ token }),
+      cache: 'no-store',
+    })
+  } catch {
+    return { status: 'error' }
+  }
+  if (response.status === 404) return { status: 'not_found' }
+  if (response.status === 429) return { status: 'rate_limited' }
+  const payload = (await response.json().catch(() => null)) as { ok?: boolean; meeting?: unknown; appHref?: unknown } | null
+  if (!response.ok || !payload?.ok) return { status: 'error' }
+  return { status: 'ok', payload: payload.meeting, appHref: typeof payload.appHref === 'string' ? payload.appHref : null }
 }
 
 export type ProcessResponse =

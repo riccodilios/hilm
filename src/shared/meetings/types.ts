@@ -34,6 +34,13 @@ export type Meeting = {
   updatedAt: string
   createdBy: string | null
   actionItemCount: number
+  /** Long meetings are transcribed in windows: the window in flight and the total. */
+  sttWindow: number | null
+  sttWindowCount: number | null
+  /** When a public share link is active (null = not shared). */
+  shareEnabledAt: string | null
+  /** SHA-256 of the active share token; lets the owner's device verify a cached link. */
+  shareTokenHash: string | null
 }
 
 export type MeetingSpeaker = {
@@ -138,6 +145,8 @@ export type MeetingsAdapter = {
   projectName: string
   canEdit: boolean
   canDelete: (meeting: Meeting) => boolean
+  /** May enable, rotate or disable the meeting's public link (server re-checks). */
+  canShare: (meeting: Meeting) => boolean
   meetingHref: (meetingId: string) => string
   listHref: string
   tasks: MeetingTaskBridge

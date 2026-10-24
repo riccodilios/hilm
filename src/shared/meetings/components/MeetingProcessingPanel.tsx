@@ -120,16 +120,19 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
     const expected = Math.max(meeting.expectedSegments ?? audio.length, audio.length)
     const transcribed = audio.filter((part) => part.status === 'transcribed').length
     const uploaded = audio.length
-    const analyzing = meeting.processingStage === 'analyzing'
+    // Long transcripts are analysed in several steps; between steps the stage is analysis_pending.
+    const analyzing = meeting.processingStage === 'analyzing' || meeting.processingStage === 'analysis_pending'
     const waitingQuota = meeting.processingStage === 'waiting_quota'
     // Whole-meeting transcription reports no per-part progress until it finishes.
     const wholeMeeting = meeting.processingStage === 'transcribing'
+    const windowCount = meeting.sttWindowCount ?? 1
+    const windowPart = Math.min(windowCount, (meeting.sttWindow ?? 0) + 1)
     const stage: Stage = analyzing ? 'analyze' : uploaded < expected ? 'upload' : 'transcribe'
     const orbKey = waitingQuota ? 'waiting' : stage
     const stageProgress = analyzing
       ? 1
       : stage === 'transcribe' && wholeMeeting
-        ? 0.5
+        ? (windowPart - 0.5) / windowCount
         : expected
           ? (stage === 'upload' ? uploaded : transcribed) / expected
           : 0
@@ -141,7 +144,9 @@ export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsA
         : stage === 'upload'
           ? t('meetings.processing.uploading', { done: uploaded, total: expected })
           : wholeMeeting
-            ? t('meetings.processing.transcribingMeeting')
+            ? windowCount > 1
+              ? t('meetings.processing.transcribingMeetingPart', { part: windowPart, total: windowCount })
+              : t('meetings.processing.transcribingMeeting')
             : t('meetings.processing.transcribing', { done: transcribed, total: expected })
     return (
       <div

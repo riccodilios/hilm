@@ -11,7 +11,14 @@ import {
 } from './ai-guard'
 import { hashBytes } from './ai-gateway'
 import { resolveAllowedAiModel } from './ai-limits'
-import { hashAnalysisInput, runMeetingAnalysis } from './meeting-analysis'
+import {
+  analysisStepCallsModel,
+  analysisStepModel,
+  executeAnalysisStep,
+  hashAnalysisInput,
+  planAnalysis,
+  type AnalysisProgress,
+} from './meeting-analysis'
 import {
   MEETING_AUDIO_PRICING_MODEL,
   MEETING_BUCKET,
@@ -88,6 +95,8 @@ export type MeetingRow = {
   processing_attempts: number
   processing_stage: string | null
   analysis_input_hash?: string | null
+  /** Finished steps of a long (hierarchical) analysis. */
+  analysis_progress?: AnalysisProgress | null
   updated_at: string
 } & MeetingSttFields
 
@@ -118,6 +127,7 @@ function isMissingColumnError(message: string | undefined) {
     text.includes('does not exist') ||
     text.includes('could not find') ||
     text.includes('analysis_input_hash') ||
+    text.includes('analysis_progress') ||
     text.includes('content_hash') ||
     text.includes('languages')
   )
@@ -135,6 +145,7 @@ async function softUpdate(
   if (!isMissingColumnError(error.message)) throw new Error(error.message)
   const fallback = { ...patch }
   delete fallback.analysis_input_hash
+  delete fallback.analysis_progress
   delete fallback.content_hash
   if (Object.keys(fallback).length === Object.keys(patch).length) throw new Error(error.message)
   if (!Object.keys(fallback).length) return
@@ -147,7 +158,7 @@ export async function loadMeeting(ctx: EngineContext, meetingId: string): Promis
   const ownerCols = ctx.os === 'workspace' ? ', workspace_id, created_by' : ', user_id'
   const withStt = await ctx.client
     .from(tables.meetings)
-    .select(`${MEETING_COLUMNS}, ${STT_COLUMNS}${ownerCols}`)
+    .select(`${MEETING_COLUMNS}, ${STT_COLUMNS}, analysis_progress${ownerCols}`)
     .eq('id', meetingId)
     .maybeSingle()
   if (!withStt.error) return (withStt.data as unknown as MeetingRow | null) ?? null
@@ -626,7 +637,11 @@ export async function transcribeSegment(
 
 // ── Analysis ────────────────────────────────────────────────────────────────
 
-export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): Promise<StepResult> {
+export async function analyzeMeeting(
+  ctx: EngineContext,
+  meeting: MeetingRow,
+  deps: { executeStep?: typeof executeAnalysisStep } = {},
+): Promise<StepResult> {
   const runtime = await loadEffectiveAiConfig(ctx.client)
   if (!runtime.aiEnabled || !runtime.analysisEnabled) {
     // Transcript is already stored — surface a clear limit state instead of failing hard forever.
@@ -734,28 +749,36 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
 
   // Cache hit: identical transcript already analyzed — do not re-bill.
   if (meeting.analysis_input_hash === analysisInputHash && meeting.summary) {
-    await finishReady({ analysis_input_hash: analysisInputHash })
+    await finishReady({ analysis_input_hash: analysisInputHash, analysis_progress: null })
     return { ok: true, state: 'analyzed', more: false }
   }
 
-  const analysisKey = `meeting:${meeting.id}:analyze:${analysisInputHash.slice(0, 24)}`
+  // Long transcripts run one analysis step per request; finished steps live in analysis_progress.
+  const planned = planAnalysis(lines, meeting.analysis_progress ?? null)
+  const { step } = planned
+  const stepModel = analysisStepModel(step, { model })
+  const finalStep = step.kind === 'direct' || step.kind === 'final'
+  const analysisKey =
+    step.kind === 'direct'
+      ? `meeting:${meeting.id}:analyze:${analysisInputHash.slice(0, 24)}`
+      : `meeting:${meeting.id}:analyze:${analysisInputHash.slice(0, 24)}:${step.key}`
   const analysisFingerprint = `meeting:${meeting.id}:analyze`
   const startAnalysisGuard = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_analyze',
-      model,
+      model: stepModel,
       workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
       idempotencyKey: key,
       fingerprint: analysisFingerprint,
     })
 
   let eventId: string | null = null
-  {
+  if (analysisStepCallsModel(step, planned.progress)) {
     const guard = await startAnalysisGuard(analysisKey)
     if (guard.ok) {
       eventId = guard.event_id ?? null
-    } else if (guard.code === 'duplicate' && guard.status === 'completed' && meeting.summary) {
-      await finishReady({ analysis_input_hash: analysisInputHash })
+    } else if (guard.code === 'duplicate' && guard.status === 'completed' && finalStep && meeting.summary) {
+      await finishReady({ analysis_input_hash: analysisInputHash, analysis_progress: null })
       return { ok: true, state: 'analyzed', more: false }
     } else if (
       guard.code === 'in_flight' ||
@@ -770,8 +793,8 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
         { column: 'id', value: meeting.id },
       )
       return { ok: true, state: 'busy', more: false }
-    } else if (guard.code === 'duplicate' && guard.status === 'completed' && !meeting.summary) {
-      // Billed but summary missing (killed mid-save): one orphan recovery key only.
+    } else if (guard.code === 'duplicate' && guard.status === 'completed') {
+      // Billed but the result was never saved (killed mid-save): one orphan recovery key only.
       const recover = await startAnalysisGuard(`${analysisKey}:orphan`)
       if (!recover.ok) {
         await ctx.client
@@ -801,20 +824,23 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
   }
   const complete = async (status: 'completed' | 'failed', extra: CompleteExtra = {}) => {
     if (!eventId) return
-    await completeAiRequest(ctx.client, { eventId, status, model, ...extra })
+    await completeAiRequest(ctx.client, { eventId, status, model: stepModel, ...extra })
   }
 
-  const result = await runMeetingAnalysis({
-    apiKey: ctx.apiKey,
-    title: meeting.title,
-    meetingDate: (meeting.held_at ?? meeting.started_at ?? '').slice(0, 10) || null,
-    projectName: (projectResult.data as { name?: string } | null)?.name ?? null,
-    roster: speakers.map((speaker) => ({ label: speaker.label, display_name: speaker.display_name })),
-    locale: ctx.locale ?? 'en',
-    timeZone: ctx.timeZone ?? null,
-    lines,
-    model,
-  })
+  const result = await (deps.executeStep ?? executeAnalysisStep)(
+    {
+      apiKey: ctx.apiKey,
+      title: meeting.title,
+      meetingDate: (meeting.held_at ?? meeting.started_at ?? '').slice(0, 10) || null,
+      projectName: (projectResult.data as { name?: string } | null)?.name ?? null,
+      roster: speakers.map((speaker) => ({ label: speaker.label, display_name: speaker.display_name })),
+      locale: ctx.locale ?? 'en',
+      timeZone: ctx.timeZone ?? null,
+      lines,
+      model,
+    },
+    planned,
+  )
 
   if (!result.ok) {
     await complete('failed', {
@@ -822,6 +848,7 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
       errorMessage: result.detail.slice(0, 500),
       ...analysisUsageFields(result.usage),
     })
+    // Finished steps stay in analysis_progress, so Retry resumes from the failed step.
     await markMeetingFailed(ctx, meeting.id, 'analysis_failed', friendlyMeetingError(result.code))
     return {
       ok: false,
@@ -829,6 +856,19 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
       message: result.code === 'disabled' ? result.detail : friendlyMeetingError(result.code),
       status: result.code === 'disabled' ? 403 : 502,
     }
+  }
+
+  if (!result.done) {
+    // Save the step before closing its ledger event: a crash in between re-runs the step under
+    // the orphan key at most once, never silently skips it.
+    await softUpdate(
+      ctx,
+      tables.meetings,
+      { analysis_progress: result.progress, processing_stage: 'analysis_pending', processing_error: null },
+      { column: 'id', value: meeting.id },
+    )
+    await complete('completed', analysisUsageFields(result.usage))
+    return { ok: true, state: 'busy', more: true }
   }
 
   const clean = result.analysis
@@ -887,6 +927,7 @@ export async function analyzeMeeting(ctx: EngineContext, meeting: MeetingRow): P
     language: clean.language ?? meeting.language,
     analysis_model: result.model,
     analysis_input_hash: result.analysisInputHash,
+    analysis_progress: null,
   })
   await complete('completed', analysisUsageFields(result.usage))
   return { ok: true, state: 'analyzed', more: false }

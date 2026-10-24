@@ -25,6 +25,8 @@ import {
   estimateSonioxUsage,
   parseWavPcm,
   pcmDurationMs,
+  planSonioxWindows,
+  reconcileWindowSpeakers,
   sameFormat,
   sonioxContextChars,
   sonioxReference,
@@ -32,6 +34,7 @@ import {
   sonioxTranscriptProblem,
   type PcmFormat,
   type SonioxUsage,
+  type SonioxWindow,
 } from './meeting-soniox'
 import { SONIOX_ASYNC_MODEL, createSonioxClient, sonioxApiKey, withSonioxRetry, type SonioxClient } from './soniox'
 import type { EngineContext, MeetingRow, StepResult } from './meeting-engine'
@@ -62,10 +65,13 @@ export type MeetingSttFields = {
   stt_submitted_at?: string | null
   stt_checked_at?: string | null
   stt_webhook_status?: 'completed' | 'error' | null
+  /** Long meetings: the Soniox window in flight and how many windows the meeting needs. */
+  stt_window?: number | null
+  stt_window_count?: number | null
 }
 
 export const STT_COLUMNS =
-  'stt_provider, stt_state, stt_model, stt_job_id, stt_file_id, stt_audio_ms, stt_usage_event_id, stt_fallback, stt_error, stt_started_at, stt_upload_claimed_at, stt_submitted_at, stt_checked_at, stt_webhook_status'
+  'stt_provider, stt_state, stt_model, stt_job_id, stt_file_id, stt_audio_ms, stt_usage_event_id, stt_fallback, stt_error, stt_started_at, stt_upload_claimed_at, stt_submitted_at, stt_checked_at, stt_webhook_status, stt_window, stt_window_count'
 
 const SONIOX_STATES = new Set<SttState>(['pending', 'soniox_processing', 'soniox_completed', 'soniox_failed'])
 
@@ -331,14 +337,20 @@ async function submitSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttDe
   if (!canSubmit(ctx)) return failAndFallback(ctx, meeting, from, 'not_configured', deps)
 
   const parts = await loadParts(ctx, meeting.id)
-  const totalMs = parts.reduce((sum, part) => sum + Math.max(0, part.duration_ms), 0)
-  if (totalMs > SONIOX_MAX_AUDIO_MS) return failAndFallback(ctx, meeting, from, 'audio_too_long', deps)
+  const windows = planSonioxWindows(parts)
+  const windowIndex = from === 'pending' ? Math.max(0, meeting.stt_window ?? 0) : 0
+  const window = windows[windowIndex]
+  if (!window) return failAndFallback(ctx, meeting, from, 'window_plan', deps)
+  if (window.audioMs > SONIOX_MAX_AUDIO_MS) return failAndFallback(ctx, meeting, from, 'audio_too_long', deps)
 
-  // One logical Soniox operation per meeting audio set: the key never changes for the same parts.
+  // One logical Soniox operation per window of audio: the key never changes for the same parts.
   const manifest = sha256Hex(
-    parts.map((part) => `${part.idx}:${part.storage_path}:${part.byte_size ?? ''}:${part.duration_ms}`).join('|'),
+    window.parts.map((part) => `${part.idx}:${part.storage_path}:${part.byte_size ?? ''}:${part.duration_ms}`).join('|'),
   )
-  const idempotencyKey = `meeting:${meeting.id}:soniox:h:${manifest.slice(0, 16)}`
+  const idempotencyKey =
+    windowIndex === 0
+      ? `meeting:${meeting.id}:soniox:h:${manifest.slice(0, 16)}`
+      : `meeting:${meeting.id}:soniox:w${windowIndex}:h:${manifest.slice(0, 16)}`
   const begin = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_transcribe',
@@ -379,10 +391,12 @@ async function submitSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttDe
     stt_model: SONIOX_ASYNC_MODEL,
     stt_fallback: false,
     stt_error: null,
+    stt_window: windowIndex,
+    stt_window_count: windows.length,
     stt_job_id: null,
     stt_file_id: null,
     stt_audio_hash: null,
-    stt_audio_ms: totalMs,
+    stt_audio_ms: window.audioMs,
     stt_usage_event_id: eventId,
     stt_started_at: new Date().toISOString(),
     stt_upload_claimed_at: null,
@@ -412,6 +426,8 @@ async function submitSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttDe
     ...meeting,
     stt_state: 'soniox_processing',
     stt_usage_event_id: eventId,
+    stt_window: windowIndex,
+    stt_window_count: windows.length,
     stt_job_id: null,
     stt_file_id: null,
   }
@@ -462,7 +478,7 @@ async function pollSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttDeps
     return stillRunning()
   }
   // Job ids live on a user-writable row: only accept the job Hilm created for this meeting.
-  if (info.data.client_reference_id !== sonioxReference(ctx.os, meeting.id)) {
+  if (info.data.client_reference_id !== sonioxReference(ctx.os, meeting.id, meeting.stt_window ?? 0)) {
     return failAndFallback(ctx, meeting, 'soniox_processing', 'reference_mismatch', deps)
   }
   if (info.data.status === 'error') {
@@ -509,7 +525,10 @@ async function persistSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttD
     return failAndFallback(ctx, meeting, 'soniox_completed', `transcript_${transcript.code}`, deps)
   }
   const parts = await loadParts(ctx, meeting.id)
-  const audioMs = meeting.stt_audio_ms || parts.reduce((sum, part) => sum + Math.max(0, part.duration_ms), 0)
+  const windows = planSonioxWindows(parts)
+  const window = windows[Math.max(0, meeting.stt_window ?? 0)]
+  if (!window) return failAndFallback(ctx, meeting, 'soniox_completed', 'window_plan', deps)
+  const audioMs = meeting.stt_audio_ms || window.audioMs
   const problem = sonioxTranscriptProblem(transcript.data, audioMs)
   if (problem) {
     const context = await sonioxContextFor(ctx, meeting)
@@ -519,15 +538,22 @@ async function persistSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttD
 
   const tables = meetingTables(ctx.os)
   const scope = ctx.os === 'workspace' ? { workspace_id: meeting.workspace_id } : { user_id: meeting.user_id }
-  const lines = sonioxTokensToLines(transcript.data.tokens, parts)
-
-  const labels = [...new Set(lines.map((line) => line.speakerLabel))]
   const { data: existing, error: speakerError } = await ctx.client
     .from(tables.speakers)
     .select('id, label')
     .eq('meeting_id', meeting.id)
   if (speakerError) throw new Error(speakerError.message)
-  const known = new Set(((existing ?? []) as Array<{ label: string }>).map((row) => row.label))
+  const existingSpeakers = (existing ?? []) as Array<{ id: string; label: string }>
+  const known = new Set(existingSpeakers.map((row) => row.label))
+
+  const lines = sonioxTokensToLines(transcript.data.tokens, window.parts, {
+    keepFromMs: window.index > 0 ? window.keepFromMs : undefined,
+    keepToMs: window.keepToMs,
+    sharedFirstPart: window.index > 0,
+    label: window.index > 0 ? await laterWindowLabeler(ctx, meeting, window, transcript.data.tokens, existingSpeakers) : undefined,
+  })
+
+  const labels = [...new Set(lines.map((line) => line.speakerLabel))]
   const fresh = labels.filter((label) => !known.has(label))
   if (fresh.length) {
     const base = known.size
@@ -544,7 +570,12 @@ async function persistSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttD
   if (reloadError) throw new Error(reloadError.message)
   const idByLabel = new Map(((speakers ?? []) as Array<{ id: string; label: string }>).map((s) => [s.label, s.id]))
 
-  const removed = await ctx.client.from(tables.transcript).delete().eq('meeting_id', meeting.id)
+  // Replace only this window's time range, so a re-save (or a duplicate completion) never
+  // duplicates lines and never touches the words an earlier window owns.
+  let removal = ctx.client.from(tables.transcript).delete().eq('meeting_id', meeting.id)
+  if (window.index > 0) removal = removal.gte('start_ms', window.keepFromMs)
+  if (window.keepToMs !== null) removal = removal.lt('start_ms', window.keepToMs)
+  const removed = await removal
   if (removed.error) throw new Error(removed.error.message)
   if (lines.length) {
     const rows = lines.map((line) => ({
@@ -566,6 +597,44 @@ async function persistSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttD
     }
   }
 
+  const completeWindowUsage = async () => {
+    if (!meeting.stt_usage_event_id) return
+    const context = await sonioxContextFor(ctx, meeting)
+    const usage = estimateSonioxUsage({ audioMs, outputText: transcript.data.text, contextChars: sonioxContextChars(context) })
+    await completeAiRequest(ctx.client, {
+      eventId: meeting.stt_usage_event_id,
+      status: 'completed',
+      model: SONIOX_PRICING_MODEL,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      audioTokens: usage.audioTokens,
+      audioMs,
+      costUsd: usage.costUsd,
+    })
+  }
+
+  if (window.index + 1 < windows.length) {
+    // More audio remains: queue the next window; the meeting is not transcribed yet.
+    const advanced = await transition(ctx, meeting.id, 'soniox_completed', {
+      stt_state: 'pending',
+      stt_window: window.index + 1,
+      stt_job_id: null,
+      stt_file_id: null,
+      stt_audio_hash: null,
+      stt_usage_event_id: null,
+      stt_upload_claimed_at: null,
+      stt_submitted_at: null,
+      stt_checked_at: null,
+      stt_webhook_token_hash: null,
+      stt_webhook_status: null,
+      stt_webhook_at: null,
+    })
+    if (!advanced) return BUSY
+    await completeWindowUsage()
+    await cleanupSoniox(ctx, deps, jobId, meeting.stt_file_id)
+    return BUSY
+  }
+
   const doneAt = new Date().toISOString()
   const marked = await ctx.client
     .from(tables.audio)
@@ -582,27 +651,61 @@ async function persistSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttD
   })
   if (!completed) return BUSY
 
-  if (meeting.stt_usage_event_id) {
-    const context = await sonioxContextFor(ctx, meeting)
-    const usage = estimateSonioxUsage({
-      audioMs,
-      outputText: transcript.data.text,
-      contextChars: sonioxContextChars(context),
-    })
-    await completeAiRequest(ctx.client, {
-      eventId: meeting.stt_usage_event_id,
-      status: 'completed',
-      model: SONIOX_PRICING_MODEL,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      audioTokens: usage.audioTokens,
-      audioMs,
-      costUsd: usage.costUsd,
-    })
-  }
+  await completeWindowUsage()
   // Results are stored in Hilm; the Soniox copy is deleted (privacy and the account job cap).
   await cleanupSoniox(ctx, deps, jobId, meeting.stt_file_id)
   return { ok: true, state: 'transcribed', more: true }
+}
+
+/** Speaker labels for a later window, reconciled with the previous window through the overlap. */
+async function laterWindowLabeler(
+  ctx: EngineContext,
+  meeting: MeetingRow,
+  window: SonioxWindow<AudioPart>,
+  tokens: Parameters<typeof reconcileWindowSpeakers>[0]['tokens'],
+  speakers: Array<{ id: string; label: string }>,
+) {
+  const overlapFromMs = window.overlapFromMs ?? window.keepFromMs
+  const transcript = meetingTables(ctx.os).transcript
+  const { data, error } = await ctx.client
+    .from(transcript)
+    .select('start_ms, end_ms, speaker_id')
+    .eq('meeting_id', meeting.id)
+    .lt('start_ms', window.keepFromMs)
+    .gt('end_ms', overlapFromMs)
+  if (error) throw new Error(error.message)
+  const labelById = new Map(speakers.map((speaker) => [speaker.id, speaker.label]))
+  const previousLines = ((data ?? []) as Array<{ start_ms: number; end_ms: number; speaker_id: string | null }>)
+    .filter((row) => row.speaker_id && labelById.has(row.speaker_id))
+    .map((row) => ({ start_ms: row.start_ms, end_ms: row.end_ms, speakerLabel: labelById.get(row.speaker_id!)! }))
+
+  // Labels taken by earlier windows. Labels only this window used before (a re-save) are free
+  // again, so saving the same window twice yields the same labels.
+  const taken = new Set<string>()
+  for (let from = 0; from < 50_000; from += 1000) {
+    const page = await ctx.client
+      .from(transcript)
+      .select('speaker_id')
+      .eq('meeting_id', meeting.id)
+      .lt('start_ms', window.keepFromMs)
+      .order('ordinal', { ascending: true })
+      .range(from, from + 999)
+    if (page.error) throw new Error(page.error.message)
+    const rows = (page.data ?? []) as Array<{ speaker_id: string | null }>
+    for (const row of rows) {
+      const label = row.speaker_id ? labelById.get(row.speaker_id) : undefined
+      if (label) taken.add(label)
+    }
+    if (rows.length < 1000) break
+  }
+  return reconcileWindowSpeakers({
+    tokens,
+    parts: window.parts,
+    overlapFromMs,
+    keepFromMs: window.keepFromMs,
+    previousLines,
+    existingLabels: [...taken],
+  }).label
 }
 
 /**
@@ -686,6 +789,8 @@ export function sttRetryPatch(ctx: EngineContext, meeting: MeetingRow): Record<s
     stt_state: ctx.sonioxKey ? 'pending' : null,
     stt_provider: null,
     stt_fallback: false,
+    stt_window: 0,
+    stt_window_count: null,
     stt_job_id: null,
     stt_file_id: null,
     stt_usage_event_id: null,
@@ -762,10 +867,14 @@ export async function submitSonioxJob(
     if (!parts.length || !contiguous || (meeting.expected_segments ?? parts.length) > parts.length) {
       return fail('audio_incomplete')
     }
-    const audio = await joinMeetingAudio(ctx, parts)
+    const windowIndex = Math.max(0, meeting.stt_window ?? 0)
+    const window = planSonioxWindows(parts)[windowIndex]
+    if (!window) return fail('window_plan')
+    // Only this window's parts are held in memory, never the whole meeting.
+    const audio = await joinMeetingAudio(ctx, window.parts)
     if ('error' in audio) return fail(audio.error)
 
-    const reference = sonioxReference(ctx.os, meeting.id)
+    const reference = sonioxReference(ctx.os, meeting.id, windowIndex)
     const upload = await withSonioxRetry(() => soniox.uploadFile(audio.file, `hilm-meeting-${meeting.id}.wav`, reference), {
       sleep: deps.sleep,
     })

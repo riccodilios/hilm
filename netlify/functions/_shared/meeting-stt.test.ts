@@ -1,9 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { advanceMeeting, loadMeeting, retryMeeting, type EngineContext, type StepResult } from './meeting-engine'
-import { buildWavHeader, sonioxReference } from './meeting-soniox'
+import { hashAnalysisInput, type AnalysisStepResult, type executeAnalysisStep } from './meeting-analysis'
+import {
+  advanceMeeting,
+  analyzeMeeting,
+  loadMeeting,
+  retryMeeting,
+  type EngineContext,
+  type StepResult,
+} from './meeting-engine'
+import { buildWavHeader, planSonioxWindows, sonioxReference, type SonioxAudioPart } from './meeting-soniox'
 import { resolveSonioxKey, submitSonioxJob } from './meeting-stt'
-import type { SonioxClient, SonioxFailure } from './soniox'
+import type { SonioxClient, SonioxFailure, SonioxToken } from './soniox'
 
 // ── In-memory Supabase fake (no network) ────────────────────────────────────
 
@@ -64,6 +72,7 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
   private returning = false
   private single = false
   private orderKey: string | null = null
+  private rangeWindow: [number, number] | null = null
   private upsertOptions: { onConflict?: string; ignoreDuplicates?: boolean } = {}
 
   constructor(
@@ -108,8 +117,32 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
     this.filters.push((row) => values.includes(row[column]))
     return this
   }
+  gt(column: string, value: number) {
+    this.filters.push((row) => Number(row[column]) > value)
+    return this
+  }
+  gte(column: string, value: number) {
+    this.filters.push((row) => Number(row[column]) >= value)
+    return this
+  }
+  lt(column: string, value: number) {
+    this.filters.push((row) => Number(row[column]) < value)
+    return this
+  }
+  not(column: string, operator: string, value: unknown) {
+    if (operator === 'is' && value === null) this.filters.push((row) => (row[column] ?? null) !== null)
+    return this
+  }
+  /** PostgREST `or` claim filters are not modelled; the other CAS filters still apply. */
+  or() {
+    return this
+  }
   order(column: string) {
     this.orderKey = column
+    return this
+  }
+  range(from: number, to: number) {
+    this.rangeWindow = [from, to]
     return this
   }
   limit() {
@@ -131,11 +164,12 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: { message: string
     if (this.op === 'select' && this.db.legacyTables.has(this.table) && this.columns.includes('stt_')) {
       return { data: null, error: { message: `column ${this.table}.stt_provider does not exist` } }
     }
-    const match = rows.filter((row) => this.filters.every((filter) => filter(row)))
+    let match = rows.filter((row) => this.filters.every((filter) => filter(row)))
     if (this.orderKey) {
       const key = this.orderKey
       match.sort((a, b) => Number(a[key] ?? 0) - Number(b[key] ?? 0))
     }
+    if (this.rangeWindow && this.op === 'select') match = match.slice(this.rangeWindow[0], this.rangeWindow[1] + 1)
     switch (this.op) {
       case 'select': {
         const data = this.single ? (match[0] ? { ...match[0] } : null) : match.map((row) => ({ ...row }))
@@ -204,12 +238,21 @@ function sttColumns(overrides: Row = {}): Row {
     stt_webhook_token_hash: null,
     stt_webhook_status: null,
     stt_webhook_at: null,
+    stt_window: 0,
+    stt_window_count: null,
+    analysis_progress: null,
     ...overrides,
   }
 }
 
-function seed(db: FakeDb, options: { meeting?: Row; legacy?: boolean; segmentStatus?: string[] } = {}) {
-  const statuses = options.segmentStatus ?? ['uploaded', 'uploaded']
+const PART_BYTES = 16_000
+
+function seed(
+  db: FakeDb,
+  options: { meeting?: Row; legacy?: boolean; segmentStatus?: string[]; durations?: number[] } = {},
+) {
+  const durations = options.durations ?? (options.segmentStatus ?? ['uploaded', 'uploaded']).map(() => 90_000)
+  const statuses = options.segmentStatus ?? durations.map(() => 'uploaded')
   db.rows('meetings').push({
     id: MEETING_ID,
     user_id: 'user-1',
@@ -220,7 +263,7 @@ function seed(db: FakeDb, options: { meeting?: Row; legacy?: boolean; segmentSta
     started_at: null,
     language: null,
     summary: null,
-    expected_segments: statuses.length,
+    expected_segments: durations.length,
     processing_attempts: 0,
     processing_stage: null,
     processing_error: null,
@@ -230,22 +273,24 @@ function seed(db: FakeDb, options: { meeting?: Row; legacy?: boolean; segmentSta
     ...options.meeting,
   })
   if (options.legacy) db.legacyTables.add('meetings')
-  statuses.forEach((status, idx) => {
+  let offset = 0
+  durations.forEach((duration, idx) => {
     const path = `user-1/${MEETING_ID}/${idx}.wav`
-    db.storage.set(path, wav(16_000))
+    db.storage.set(path, wav(PART_BYTES))
     db.rows('meeting_audio_segments').push({
       id: `seg-${idx}`,
       meeting_id: MEETING_ID,
       user_id: 'user-1',
       idx,
       storage_path: path,
-      duration_ms: 90_000,
-      offset_ms: idx * 90_000,
-      byte_size: 16_044,
-      status,
+      duration_ms: duration,
+      offset_ms: offset,
+      byte_size: PART_BYTES + 44,
+      status: statuses[idx] ?? 'uploaded',
       attempts: 0,
       updated_at: new Date(Date.now() - 600_000).toISOString(),
     })
+    offset += duration
   })
 }
 
@@ -738,5 +783,318 @@ describe('security', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer user-jwt')
     expect(JSON.parse(String(init.body))).toEqual({ os: 'personal', meetingId: MEETING_ID })
     expect(JSON.stringify(init)).not.toContain(SONIOX_KEY)
+  })
+})
+
+// ── Long meetings (the reported one-hour cutoff) ────────────────────────────
+
+const MIN = 60_000
+const tokenAt = (text: string, start: number, speaker: string, language = 'en'): SonioxToken => ({
+  text,
+  start_ms: start,
+  end_ms: start + 300,
+  speaker,
+  language,
+})
+
+/** Recorder-style parts (~90 s) covering `totalMs`. */
+function durationsFor(totalMs: number, partMs = 90_000) {
+  const out: number[] = []
+  for (let offset = 0; offset < totalMs; offset += partMs) out.push(Math.min(partMs, totalMs - offset))
+  return out
+}
+
+/** Soniox mock that tells jobs apart by the client reference Hilm sent (one job per window). */
+function windowedSoniox(t: ReturnType<typeof setup>, tokensFor: (window: number) => SonioxToken[]) {
+  const refs = new Map<string, string>()
+  let jobs = 0
+  t.soniox.createTranscription.mockImplementation(async (input) => {
+    jobs += 1
+    const id = `job-${jobs}`
+    refs.set(id, input.clientReferenceId)
+    return { ok: true, data: { id, status: 'queued' as const } }
+  })
+  const windowOf = (id: string) => Number(/:w(\d+)$/.exec(refs.get(id) ?? '')?.[1] ?? 0)
+  // Soniox reports the real audio length (the fake WAV files hold only a little PCM each).
+  const windows = planSonioxWindows(t.db.rows('meeting_audio_segments') as unknown as SonioxAudioPart[])
+  t.soniox.getTranscription.mockImplementation(async (id) => ({
+    ok: true,
+    data: {
+      id,
+      status: 'completed' as const,
+      client_reference_id: refs.get(id) ?? null,
+      audio_duration_ms: windows[windowOf(id)]?.audioMs ?? null,
+    },
+  }))
+  t.soniox.getTranscript.mockImplementation(async (id) => {
+    const window = windowOf(id)
+    const tokens = tokensFor(window)
+    return { ok: true, data: { text: tokens.map((token) => token.text).join(''), tokens } }
+  })
+  return refs
+}
+
+/** Drives the client loop + background worker until analysis (or an error). */
+async function runToAnalysis(t: ReturnType<typeof setup>, max = 60) {
+  for (let i = 0; i < max; i += 1) {
+    const row = meetingRow(t.db)
+    if (row.stt_state === 'soniox_processing' && !row.stt_job_id) await t.background()
+    const result = await t.advance()
+    if (!result.ok || result.state === 'analyzed') return result
+  }
+  throw new Error('meeting did not finish')
+}
+
+function savedLines(t: ReturnType<typeof setup>) {
+  const labels = new Map(t.db.rows('meeting_speakers').map((row) => [row.id, row.label]))
+  return [...t.db.rows('meeting_transcript_segments')]
+    .sort((a, b) => Number(a.ordinal) - Number(b.ordinal))
+    .map((row) => ({
+      text: String(row.text),
+      start: Number(row.start_ms),
+      part: String(row.audio_segment_id),
+      speaker: labels.get(row.speaker_id),
+    }))
+}
+
+describe('long meetings', () => {
+  it.each([
+    ['59 minutes', 59 * MIN],
+    ['75 minutes', 75 * MIN],
+    ['the reported 1:15:57 meeting', 75 * MIN + 57_000],
+  ])('transcribes all of %s in one job and analyses it once', async (_label, totalMs) => {
+    const durations = durationsFor(totalMs)
+    const t = setup({ durations })
+    windowedSoniox(t, () => [
+      tokenAt('Opening remarks', 2_000, '1'),
+      tokenAt('منتصف الاجتماع', Math.round(totalMs / 2), '2', 'ar'),
+      tokenAt('Final words before we close', totalMs - 3_000, '1'),
+    ])
+    expect(await runToAnalysis(t)).toEqual({ ok: true, state: 'analyzed', more: false })
+    const lines = savedLines(t)
+    expect(lines.map((line) => line.text)).toEqual(['Opening remarks', 'منتصف الاجتماع', 'Final words before we close'])
+    // The last minute of the recording is stored against the last recorded part.
+    expect(lines.at(-1)).toMatchObject({ start: totalMs - 3_000, part: `seg-${durations.length - 1}` })
+    expect(t.soniox.uploadFile).toHaveBeenCalledTimes(1)
+    expect(t.db.rows('meeting_audio_segments').every((part) => part.status === 'transcribed')).toBe(true)
+    expect(t.analyze).toHaveBeenCalledTimes(1)
+    expect(t.transcribe).not.toHaveBeenCalled()
+  })
+
+  describe('200-minute meeting (two Soniox windows)', () => {
+    const totalMs = 200 * MIN
+    const sharedStart = 79 * 90_000
+    const boundary = sharedStart + 45_000
+    const overlap = (speaker: string, base: number) =>
+      Array.from({ length: 10 }, (_, i) => tokenAt(` w${i}`, boundary - 40_000 + i * 3_000 - base, speaker))
+    const tokensFor = (window: number) =>
+      window === 0
+        ? [
+            tokenAt('Opening', 1_000, '1'),
+            tokenAt('Middle مرحبا', 100 * MIN, '2', 'ar'),
+            ...overlap('1', 0),
+            tokenAt(' bridge', boundary + 1_000, '1'),
+          ]
+        : [...overlap('2', sharedStart), tokenAt(' bridge', boundary + 1_000 - sharedStart, '2'), tokenAt('Closing', totalMs - 5_000 - sharedStart, '1')]
+
+    it('runs the windows in order, keeps every word once and analyses only after the last window', async () => {
+      const t = setup({ durations: durationsFor(totalMs) })
+      windowedSoniox(t, tokensFor)
+
+      await t.advance()
+      await t.background()
+      expect(await t.advance()).toEqual({ ok: true, state: 'busy', more: true })
+      // First window saved; the meeting is not done and analysis has not started.
+      expect(meetingRow(t.db)).toMatchObject({ stt_state: 'pending', stt_window: 1, stt_window_count: 2 })
+      expect(t.analyze).not.toHaveBeenCalled()
+
+      expect(await runToAnalysis(t)).toEqual({ ok: true, state: 'analyzed', more: false })
+      const lines = savedLines(t)
+      expect(lines.map((line) => [line.text, line.speaker])).toEqual([
+        ['Opening', 'Speaker 1'],
+        ['Middle مرحبا', 'Speaker 2'],
+        ['w0 w1 w2 w3 w4 w5 w6 w7 w8 w9', 'Speaker 1'],
+        // Same voice across the boundary (overlap evidence) keeps its label…
+        ['bridge', 'Speaker 1'],
+        // …while the second job's "1" is a new person, not the first job's Speaker 1.
+        ['Closing', 'Speaker 3'],
+      ])
+      expect(lines.map((line) => line.start)).toEqual([...lines.map((line) => line.start)].sort((a, b) => a - b))
+      expect(lines.at(-1)!.start).toBe(totalMs - 5_000)
+
+      // Two Soniox jobs, each uploading only its own parts; two bills, both completed.
+      const sizes = t.soniox.uploadFile.mock.calls.map(([file]) => (file as Blob).size)
+      expect(sizes).toEqual([44 + 80 * PART_BYTES, 44 + 55 * PART_BYTES])
+      const begins = t.db.calls('begin_ai_request').filter((call) => call.p_model === 'soniox/stt-async-v5')
+      expect(begins).toHaveLength(2)
+      expect(String(begins[1]!.p_idempotency_key)).toContain(':soniox:w1:')
+      expect(t.db.calls('complete_ai_request').filter((call) => call.p_status === 'completed')).toHaveLength(2)
+      expect(meetingRow(t.db)).toMatchObject({ stt_state: 'completed', stt_provider: 'soniox', stt_fallback: false })
+      expect(t.analyze).toHaveBeenCalledTimes(1)
+    })
+
+    it('re-saving a window (killed worker, duplicate completion) never duplicates lines', async () => {
+      const t = setup({ durations: durationsFor(totalMs) })
+      windowedSoniox(t, tokensFor)
+      await runToAnalysis(t)
+      const before = savedLines(t)
+      Object.assign(meetingRow(t.db), {
+        status: 'processing',
+        stt_state: 'soniox_completed',
+        stt_checked_at: new Date(Date.now() - 10 * MIN).toISOString(),
+      })
+      await t.advance()
+      expect(savedLines(t)).toEqual(before)
+    })
+
+    it('falls back to Gemini for the whole meeting if a later window fails, without mixing providers', async () => {
+      const t = setup({ durations: durationsFor(totalMs) })
+      windowedSoniox(t, tokensFor)
+      const create = t.soniox.createTranscription.getMockImplementation()!
+      t.soniox.createTranscription.mockImplementation(async (input) =>
+        input.clientReferenceId.endsWith(':w1') ? fail('balance_exhausted', false, 402) : create(input),
+      )
+      expect(await runToAnalysis(t, 400)).toEqual({ ok: true, state: 'analyzed', more: false })
+      expect(meetingRow(t.db)).toMatchObject({ stt_fallback: true, stt_error: 'create_balance_exhausted', stt_provider: 'gemini' })
+      // Window 1 of Soniox was discarded; every part went through the Gemini path.
+      expect(t.db.rows('meeting_transcript_segments')).toHaveLength(0)
+      expect(t.transcribe).toHaveBeenCalledTimes(134)
+      expect(t.routes.every((route) => route === 'gemini_fallback')).toBe(true)
+      expect(t.analyze).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('a dropped connection to Soniox is retried later instead of failing the meeting', async () => {
+    const t = setup({ durations: durationsFor(75 * MIN) })
+    windowedSoniox(t, () => [tokenAt('Hello', 1_000, '1')])
+    const completed = t.soniox.getTranscription.getMockImplementation()!
+    t.soniox.getTranscription.mockImplementationOnce(() => fail('network', true, null))
+    await t.advance()
+    await t.background()
+    expect(await t.advance()).toEqual({ ok: true, state: 'busy', more: true })
+    expect(meetingRow(t.db).stt_state).toBe('soniox_processing')
+    t.soniox.getTranscription.mockImplementation(completed)
+    meetingRow(t.db).stt_checked_at = new Date(Date.now() - MIN).toISOString()
+    expect(await runToAnalysis(t)).toEqual({ ok: true, state: 'analyzed', more: false })
+    expect(meetingRow(t.db).stt_fallback).toBe(false)
+  })
+
+  it('never starts transcription or analysis while recorded parts are still uploading', async () => {
+    const durations = durationsFor(75 * MIN + 57_000)
+    const t = setup({ durations, meeting: { expected_segments: durations.length + 1 } })
+    for (let i = 0; i < 3; i += 1) expect(await t.advance()).toEqual({ ok: true, state: 'waiting', more: false })
+    expect(t.db.calls('begin_ai_request')).toHaveLength(0)
+    expect(t.analyze).not.toHaveBeenCalled()
+  })
+})
+
+// ── Resumable analysis of long transcripts ──────────────────────────────────
+
+describe('resumable analysis', () => {
+  function analysisSetup() {
+    const t = setup({
+      segmentStatus: ['transcribed', 'transcribed'],
+      meeting: sttColumns({ stt_state: 'completed', stt_provider: 'soniox' }),
+    })
+    t.db.rows('meeting_speakers').push({ id: 'spk-1', meeting_id: MEETING_ID, label: 'Speaker 1', display_name: null, ordinal: 0 })
+    // ~70k characters: beyond one direct call, so the analysis runs in steps.
+    for (let i = 0; i < 70; i += 1) {
+      t.db.rows('meeting_transcript_segments').push({
+        id: `line-${i}`,
+        meeting_id: MEETING_ID,
+        speaker_id: 'spk-1',
+        ordinal: i,
+        start_ms: i * MIN,
+        text: `${i % 2 ? 'نناقش الخطة' : 'We discuss the plan'} ${i} ${'x'.repeat(980)}`,
+      })
+    }
+    const steps: string[] = []
+    const executeStep: typeof executeAnalysisStep = async (input, planned) => {
+      steps.push(planned.step.key)
+      const usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15, costUsd: 0.00001 }
+      const partial = { summary: planned.step.key, key_points: [], decisions: [], action_items: [] }
+      const progress = planned.progress!
+      if (planned.step.kind === 'chunk') {
+        progress.levels[0]![planned.step.index] = partial
+        return { ok: true, done: false, progress, model: 'test', usage }
+      }
+      if (planned.step.kind === 'merge') {
+        progress.levels[planned.step.level + 1]![planned.step.group] = partial
+        return { ok: true, done: false, progress, model: 'test', usage }
+      }
+      return {
+        ok: true,
+        done: true,
+        model: 'test',
+        usage,
+        strategy: 'hierarchical',
+        analysisInputHash: hashAnalysisInput(input.lines),
+        analysis: {
+          language: 'en',
+          summary: 'Whole meeting',
+          key_points: ['start', 'end'],
+          decisions: [{ text: 'Ship it', certainty: 'confirmed', source_segment_ids: ['line-0', 'line-69'] }],
+          action_items: [
+            {
+              title: 'Follow up',
+              description: null,
+              ownerLabel: 'Speaker 1',
+              owner_certainty: 'confirmed',
+              due_text: null,
+              due_date: null,
+              priority: 'medium',
+              certainty: 'confirmed',
+              source_segment_ids: ['line-69'],
+            },
+          ],
+        },
+      } as AnalysisStepResult
+    }
+    const advance = async () =>
+      advanceMeeting(t.ctx, (await loadMeeting(t.ctx, MEETING_ID))!, {
+        soniox: t.soniox,
+        transcribe: t.transcribe,
+        analyze: (c, m) => analyzeMeeting(c, m, { executeStep }),
+      })
+    return { t, steps, advance }
+  }
+
+  it('runs one step per request, persists progress, and writes the final analysis exactly once', async () => {
+    const { t, steps, advance } = analysisSetup()
+    expect(await advance()).toEqual({ ok: true, state: 'busy', more: true })
+    expect(meetingRow(t.db)).toMatchObject({ processing_stage: 'analysis_pending', status: 'processing' })
+    expect((meetingRow(t.db).analysis_progress as { levels: unknown[][] }).levels[0]![0]).toBeTruthy()
+
+    let result = await advance()
+    for (let i = 0; i < 10 && result.ok && result.state !== 'analyzed'; i += 1) result = await advance()
+    expect(result).toEqual({ ok: true, state: 'analyzed', more: false })
+    expect(steps).toEqual(['c0', 'c1', 'f0'])
+    // Each step is billed under its own idempotency key.
+    const keys = t.db.calls('begin_ai_request').map((call) => String(call.p_idempotency_key))
+    expect(keys.map((key) => key.split(':').at(-1))).toEqual(['c0', 'c1', 'f0'])
+    expect(meetingRow(t.db)).toMatchObject({ status: 'ready', summary: 'Whole meeting', analysis_progress: null })
+    expect(t.db.rows('meeting_decisions')).toHaveLength(1)
+    expect(t.db.rows('meeting_action_items')).toHaveLength(1)
+
+    // Reloads and repeated finalization calls do not duplicate anything.
+    for (let i = 0; i < 3; i += 1) expect(await advance()).toEqual({ ok: true, state: 'idle', more: false })
+    expect(steps).toEqual(['c0', 'c1', 'f0'])
+    expect(t.db.rows('meeting_decisions')).toHaveLength(1)
+    expect(t.db.rows('meeting_action_items')).toHaveLength(1)
+  })
+
+  it('resumes after a failed step instead of starting over', async () => {
+    const { t, steps, advance } = analysisSetup()
+    await advance()
+    // The second step's ledger entry was billed but its result never saved (worker killed).
+    t.db.rpcHandlers.begin_ai_request = (args) =>
+      String(args.p_idempotency_key).endsWith(':c1')
+        ? { ok: false, code: 'duplicate', status: 'completed' }
+        : { ok: true, event_id: `evt-${String(args.p_idempotency_key).slice(-4)}` }
+    let result = await advance()
+    for (let i = 0; i < 10 && result.ok && result.state !== 'analyzed'; i += 1) result = await advance()
+    expect(result).toEqual({ ok: true, state: 'analyzed', more: false })
+    expect(steps).toEqual(['c0', 'c1', 'f0'])
+    expect(t.db.calls('begin_ai_request').map((call) => String(call.p_idempotency_key).split(':').slice(-2).join(':'))).toContain('c1:orphan')
   })
 })

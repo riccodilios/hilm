@@ -13,6 +13,7 @@ import {
   updateQueuedSegment,
   type QueuedSegment,
 } from './segment-queue'
+import { RECORDING_LIMIT_WARNING_MS } from './limits'
 import { encodeWav } from './wav-encoder'
 import { MeetingRecorderDock } from './MeetingRecorderDock'
 import {
@@ -74,6 +75,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
   const drivingRef = useRef(new Set<string>())
   const rerunRef = useRef(new Set<string>())
   const levelRef = useRef(0)
+  const limitWarnedRef = useRef(false)
   const stopRef = useRef<() => Promise<void>>(async () => undefined)
 
   const setStatus = useCallback((status: RecorderStatus) => {
@@ -313,6 +315,9 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
         if (max && segmenter.totalMs >= max && statusRef.current === 'recording') {
           setState((prev) => ({ ...prev, notice: 'limit_reached' }))
           void stopRef.current()
+        } else if (max && !limitWarnedRef.current && segmenter.totalMs >= max - RECORDING_LIMIT_WARNING_MS) {
+          limitWarnedRef.current = true
+          setState((prev) => (prev.notice ? prev : { ...prev, notice: 'limit_soon' }))
         }
       },
       onLevel: (level) => {
@@ -326,6 +331,7 @@ export function MeetingRecorderProvider({ children }: { children: ReactNode }) {
     async (session: RecorderSession) => {
       if (statusRef.current !== 'idle') return false
       sessionRef.current = session
+      limitWarnedRef.current = false
       segmenterRef.current = new PcmSegmenter({ startIdx: session.startIdx, startOffsetMs: session.startOffsetMs })
       setState((prev) => ({
         ...prev,

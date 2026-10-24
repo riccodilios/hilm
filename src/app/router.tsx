@@ -172,6 +172,9 @@ const ScaffoldPage = lazy(() =>
   import('@/features/scaffold/ScaffoldPage').then((m) => ({ default: m.ScaffoldPage })),
 )
 
+const SharedMeetingPage = lazy(() =>
+  import('@/features/shared-meeting/SharedMeetingPage').then((m) => ({ default: m.SharedMeetingPage })),
+)
 const PersonalMeetingPage = lazy(() =>
   import('@/features/projects/meetings/PersonalMeetingPage').then((m) => ({ default: m.PersonalMeetingPage })),
 )
@@ -239,6 +242,15 @@ export function AppRouter() {
         <Route path="/auth/confirm" element={<AuthCallbackPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+        {/* Public meeting links: no sign-in, no app shell. */}
+        <Route
+          path="/shared/meeting/:token"
+          element={
+            <Suspense fallback={<AppFallback />}>
+              <SharedMeetingPage />
+            </Suspense>
+          }
+        />
 
         <Route element={<RequireAuth />}>
           <Route

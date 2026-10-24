@@ -70,6 +70,7 @@ export function usePersonalMeetingsAdapter(project: { id: string; name: string }
       projectName: project.name,
       canEdit: true,
       canDelete: () => true,
+      canShare: () => true,
       meetingHref: (meetingId) => `/personal/projects/${project.id}/meetings/${meetingId}`,
       listHref: `/personal/projects/${project.id}?tab=meetings`,
       tasks,

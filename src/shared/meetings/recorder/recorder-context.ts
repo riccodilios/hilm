@@ -12,7 +12,7 @@ export type RecorderSession = {
   storagePathFor: (idx: number) => string
   startIdx: number
   startOffsetMs: number
-  /** Plan limit for a single meeting; recording stops automatically at this length. */
+  /** Plan per-meeting maximum or remaining monthly minutes; recording stops automatically here. */
   maxMs: number | null
   /** How audio is captured for this session. Defaults to mic-only when omitted. */
   captureMode: CaptureMode
@@ -26,7 +26,7 @@ export type RecorderErrorCode =
   | 'tier_disabled'
   | 'upload_failed'
 
-export type RecorderNotice = 'interrupted' | 'device_lost' | 'display_ended' | 'limit_reached' | null
+export type RecorderNotice = 'interrupted' | 'device_lost' | 'display_ended' | 'limit_soon' | 'limit_reached' | null
 
 export type PersistedSession = { os: MeetingOs; meetingId: string; title: string; href: string; startedAt: number }
 

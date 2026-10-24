@@ -1438,6 +1438,25 @@
   "errors": {
     "generic": "Something went wrong"
   },
+  "sharedMeeting": {
+    "loading": "Loading meeting…",
+    "opening": "Opening in Hilm…",
+    "notFoundTitle": "This link isn't available",
+    "notFoundBody": "The link may be incomplete, or the owner stopped sharing this meeting.",
+    "rateLimited": "Too many requests. Wait a moment and try again.",
+    "errorTitle": "Couldn't load the meeting",
+    "retry": "Try again",
+    "sharedVia": "Shared with Hilm",
+    "readOnly": "Read-only view",
+    "processing": "This meeting is still being processed. The transcript may be incomplete.",
+    "join": "Join Hilm",
+    "openHilm": "Open Hilm",
+    "joinTitle": "Run your meetings with Hilm",
+    "joinBody": "Record, transcribe and turn meetings into tasks — in Arabic and English.",
+    "noActions": "No action items.",
+    "owner": "Owner",
+    "due": "Due"
+  },
   "meetings": {
     "translate": {
       "label": "Meeting language",
@@ -1572,6 +1591,7 @@
         "interrupted": "Recording paused because the app went to the background or the microphone was taken by another app.",
         "device_lost": "The microphone was disconnected. Recording is paused and your audio is saved.",
         "display_ended": "Tab sharing stopped. Recording is paused — resume to share the meeting tab again, or end the meeting.",
+        "limit_soon": "About 5 minutes of recording left on your plan. Recording will stop and be processed automatically at the limit.",
         "limit_reached": "Maximum meeting length reached. Recording stopped and is being processed."
       },
       "errors": {
@@ -1602,6 +1622,7 @@
       "uploading": "Uploading audio ({{done}}/{{total}})",
       "transcribing": "Transcribing ({{done}}/{{total}})",
       "transcribingMeeting": "Transcribing the full meeting…",
+      "transcribingMeetingPart": "Transcribing the full meeting (part {{part}} of {{total}})…",
       "analyzing": "Extracting summary, decisions, and action items…",
       "waitingQuota": "Waiting for AI capacity — processing will resume automatically.",
       "background": "You can leave this page; processing continues in the background.",
@@ -1692,6 +1713,25 @@
       "copied": "Summary copied",
       "share": "Share",
       "linkCopied": "Link copied",
+      "shareDialog": {
+        "title": "Share meeting",
+        "description": "Anyone with the link can read this meeting's summary, decisions, action items and transcript without signing in. Audio, notes and linked tasks are never shared.",
+        "off": "Sharing is off. Only people with access in Hilm can open this meeting.",
+        "enable": "Create share link",
+        "activeSince": "Link active since {{date}}",
+        "copy": "Copy link",
+        "copied": "Share link copied",
+        "nativeShare": "Share…",
+        "disable": "Stop sharing",
+        "disabled": "Sharing turned off. The link no longer works.",
+        "rotate": "Create new link",
+        "rotateHint": "The current link will stop working.",
+        "rotated": "New link created. The previous link no longer works.",
+        "hiddenLink": "For security, the link is only shown on the device that created it. Create a new link to copy it here; the current link will stop working.",
+        "noPermission": "Only the meeting's creator or a workspace admin can share it outside Hilm.",
+        "copyInApp": "Copy link for Hilm members",
+        "error": "Could not update sharing. Try again."
+      },
       "project": "Project",
       "date": "Date",
       "duration": "Duration",

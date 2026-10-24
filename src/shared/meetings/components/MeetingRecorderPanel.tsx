@@ -21,6 +21,7 @@ import { finalizeRecording, meetingStoragePath } from '../api'
 import { formatClock } from '../format'
 import { useMeetingMutations, useMeetingQuota } from '../hooks'
 import { isDisplayAudioCaptureSupported, isRecordingSupported } from '../recorder/capture'
+import { recordingLimitMs } from '../recorder/limits'
 import { useMeetingRecorder } from '../recorder/recorder-context'
 import { useVoiceActivity } from '../recorder/useVoiceActivity'
 import type { MeetingDetail, MeetingsAdapter } from '../types'
@@ -102,9 +103,7 @@ export function MeetingRecorderPanel({
 
   const startRecording = async () => {
     const { startIdx, startOffsetMs } = nextPart(detail)
-    const maxMs = quotaData
-      ? Math.min(quotaData.maxMinutes * 60_000, startOffsetMs + (monthlyLeftMs ?? Number.POSITIVE_INFINITY))
-      : null
+    const maxMs = recordingLimitMs(quotaData, startOffsetMs)
     if (maxMs !== null && startOffsetMs >= maxMs - 5_000) {
       toast.error(t('meetings.recorder.errors.meeting_too_long'))
       return

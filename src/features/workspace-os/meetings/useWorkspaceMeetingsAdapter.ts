@@ -96,6 +96,7 @@ export function useWorkspaceMeetingsAdapter(
       projectName: project.name,
       canEdit: canWriteProjects,
       canDelete: (meeting) => meeting.createdBy === user.id || canManage,
+      canShare: (meeting) => (meeting.createdBy === user.id && canEdit) || canManage,
       meetingHref: (meetingId) => `/workspace/${workspaceId}/projects/${project.id}/meetings/${meetingId}`,
       listHref: `/workspace/${workspaceId}/projects/${project.id}?tab=meetings`,
       tasks,
@@ -110,5 +111,5 @@ export function useWorkspaceMeetingsAdapter(
       userDisplayName: self?.name ?? user.email ?? 'Hilm',
       workspaceName: workspace?.name ?? null,
     }
-  }, [project, user, workspaceId, workspace?.name, membersQuery.data, canWriteProjects, canWriteTasks, canManage, t])
+  }, [project, user, workspaceId, workspace?.name, membersQuery.data, canWriteProjects, canWriteTasks, canEdit, canManage, t])
 }

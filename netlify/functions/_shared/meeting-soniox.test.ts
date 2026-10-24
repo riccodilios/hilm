@@ -5,10 +5,15 @@ import {
   estimateSonioxUsage,
   parseWavPcm,
   pcmDurationMs,
+  planSonioxWindows,
+  reconcileWindowSpeakers,
   sameFormat,
+  SONIOX_MAX_AUDIO_MS,
+  SONIOX_WINDOW_MAX_MS,
   sonioxReference,
   sonioxTokensToLines,
   sonioxTranscriptProblem,
+  type SonioxAudioPart,
 } from './meeting-soniox'
 import type { SonioxToken } from './soniox'
 
@@ -131,5 +136,116 @@ describe('WAV joining helpers', () => {
 
   it('builds a stable per-meeting reference', () => {
     expect(sonioxReference('workspace', 'abc')).toBe('hilm:workspace:abc')
+  })
+})
+
+/** Parts of a recording laid end to end (the recorder cuts ~90 s parts). */
+function recording(totalMs: number, partMs = 90_000): SonioxAudioPart[] {
+  const out: SonioxAudioPart[] = []
+  for (let offset = 0, idx = 0; offset < totalMs; offset += partMs, idx += 1) {
+    out.push({ id: `seg-${idx}`, idx, offset_ms: offset, duration_ms: Math.min(partMs, totalMs - offset) })
+  }
+  return out
+}
+
+const MIN = 60_000
+
+describe('planSonioxWindows (long meetings)', () => {
+  it.each([
+    ['59 minutes', 59 * MIN, 1],
+    ['the 1-hour boundary', 61 * MIN, 1],
+    ['75 minutes', 75 * MIN, 1],
+    ['the reported 1:15:57 meeting', 75 * MIN + 57_000, 1],
+    ['200 minutes', 200 * MIN, 2],
+    ['8 hours', 480 * MIN, 5],
+  ])('covers %s with the expected number of Soniox jobs', (_label, totalMs, expected) => {
+    const parts = recording(totalMs)
+    const windows = planSonioxWindows(parts)
+    expect(windows).toHaveLength(expected)
+    // Every part is sent, the last part included, and no job exceeds Soniox's file limit.
+    expect(new Set(windows.flatMap((window) => window.parts.map((part) => part.idx))).size).toBe(parts.length)
+    expect(windows.at(-1)!.parts.at(-1)!.idx).toBe(parts.at(-1)!.idx)
+    for (const window of windows) expect(window.audioMs).toBeLessThanOrEqual(Math.min(SONIOX_MAX_AUDIO_MS, SONIOX_WINDOW_MAX_MS + 90_000))
+  })
+
+  it('shares one part between consecutive windows and splits ownership in its middle', () => {
+    const windows = planSonioxWindows(recording(200 * MIN))
+    const [first, second] = windows
+    expect(second!.parts[0]!.idx).toBe(first!.parts.at(-1)!.idx)
+    const shared = second!.parts[0]!
+    expect(first!.keepToMs).toBe(shared.offset_ms + shared.duration_ms / 2)
+    expect(second!.keepFromMs).toBe(first!.keepToMs)
+    expect(second!.overlapFromMs).toBe(shared.offset_ms)
+    expect(first!.keepFromMs).toBe(0)
+    expect(second!.keepToMs).toBeNull()
+  })
+})
+
+describe('window boundaries', () => {
+  const windows = planSonioxWindows(recording(200 * MIN))
+  const [first, second] = windows
+  const boundary = second!.keepFromMs
+  const secondStart = second!.parts[0]!.offset_ms
+  // Same overlap speech heard by both jobs, plus one word right after the boundary.
+  const firstTokens = [
+    tok('Opening', 1_000, '1'),
+    tok(' overlap words', boundary - 20_000, '1'),
+    tok(' bridge', boundary + 1_000, '1'),
+  ]
+  const secondTokens = [
+    tok('overlap words', boundary - 20_000 - secondStart, '2'),
+    tok(' bridge', boundary + 1_000 - secondStart, '2'),
+    tok('Closing', 200 * MIN - 5_000 - secondStart, '1'),
+  ]
+
+  it('keeps each word exactly once across the boundary, in order', () => {
+    const a = sonioxTokensToLines(firstTokens, first!.parts, { keepToMs: first!.keepToMs })
+    const b = sonioxTokensToLines(secondTokens, second!.parts, {
+      keepFromMs: second!.keepFromMs,
+      keepToMs: second!.keepToMs,
+      sharedFirstPart: true,
+    })
+    const all = [...a, ...b].sort((x, y) => x.ordinal - y.ordinal)
+    const text = all.map((line) => line.text).join(' ')
+    expect(text.match(/overlap words/g)).toHaveLength(1)
+    expect(text.match(/bridge/g)).toHaveLength(1)
+    expect(all.map((line) => line.start_ms)).toEqual([...all.map((line) => line.start_ms)].sort((x, y) => x - y))
+    expect(all.at(-1)!.text).toBe('Closing')
+    expect(all.at(-1)!.start_ms).toBe(200 * MIN - 5_000)
+    // Later-window lines inside the shared part sort after the earlier window's lines there.
+    const shared = second!.parts[0]!
+    const inShared = all.filter((line) => line.audioSegmentId === shared.id)
+    expect(inShared.map((line) => line.ordinal)).toEqual([...inShared.map((line) => line.ordinal)].sort((x, y) => x - y))
+  })
+
+  it('links a later-window speaker to the earlier label only on clear overlap evidence', () => {
+    const overlapTokens = Array.from({ length: 10 }, (_, i) => tok(` w${i}`, boundary - 40_000 + i * 3_000 - secondStart, '2'))
+    const previousLines = [{ start_ms: boundary - 45_000, end_ms: boundary - 5_000, speakerLabel: 'Speaker 1' }]
+    const { label, matches } = reconcileWindowSpeakers({
+      tokens: [...overlapTokens, tok('new voice', 9_000_000 - secondStart, '1')],
+      parts: second!.parts,
+      overlapFromMs: second!.overlapFromMs!,
+      keepFromMs: second!.keepFromMs,
+      previousLines,
+      existingLabels: ['Speaker 1', 'Speaker 2'],
+    })
+    expect(matches.get('2')).toBe('Speaker 1')
+    expect(label('2')).toBe('Speaker 1')
+    // Soniox's "1" in this job is not assumed to be the earlier "Speaker 1".
+    expect(label('1')).toBe('Speaker 3')
+  })
+
+  it('does not link speakers when the overlap evidence is thin or mixed', () => {
+    const sparse = [tok(' a', boundary - 30_000 - secondStart, '2'), tok(' b', boundary - 27_000 - secondStart, '2')]
+    const { matches, label } = reconcileWindowSpeakers({
+      tokens: sparse,
+      parts: second!.parts,
+      overlapFromMs: second!.overlapFromMs!,
+      keepFromMs: second!.keepFromMs,
+      previousLines: [{ start_ms: boundary - 45_000, end_ms: boundary, speakerLabel: 'Speaker 1' }],
+      existingLabels: ['Speaker 1'],
+    })
+    expect(matches.size).toBe(0)
+    expect(label('2')).toBe('Speaker 2')
   })
 })

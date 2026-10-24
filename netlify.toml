@@ -57,6 +57,14 @@
     X-Content-Type-Options = "nosniff"
     Cache-Control = "no-store"
 
+# Public meeting links: never indexed, cached by shared caches, or leaked via Referer.
+[[headers]]
+  for = "/shared/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+    Referrer-Policy = "no-referrer"
+    Cache-Control = "private, no-store"
+
 [[redirects]]
   from = "/api/notify-test"
   to = "/.netlify/functions/notify-test"

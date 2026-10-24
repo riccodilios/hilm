@@ -31,6 +31,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { MeetingActionItems } from './MeetingActionItems'
 import { MeetingProcessingPanel } from './MeetingProcessingPanel'
 import { MeetingRecorderPanel } from './MeetingRecorderPanel'
+import { MeetingShareDialog } from './MeetingShareDialog'
 import { MeetingSpeakersDialog } from './MeetingSpeakersDialog'
 import { MeetingStatusBadge } from './MeetingStatusBadge'
 import { MeetingSummarySection } from './MeetingSummarySection'
@@ -50,6 +51,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
   const [tab, setTab] = useState<DetailTab | null>(null)
   const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null)
   const [speakersOpen, setSpeakersOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -143,25 +145,6 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
     try {
       await navigator.clipboard.writeText(markdown())
       toast.success(t('meetings.export.copied'))
-    } catch {
-      toast.error(t('meetings.errors.copyFailed'))
-    }
-  }
-
-  const share = async () => {
-    const url = window.location.href
-    const text = shown.meeting.summary ?? meeting.title
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: meeting.title, text, url })
-        return
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url)
-      toast.success(t('meetings.export.linkCopied'))
     } catch {
       toast.error(t('meetings.errors.copyFailed'))
     }
@@ -268,7 +251,7 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
                 </Button>
               </>
             ) : null}
-            <Button variant="ghost" size="sm" onClick={() => void share()} aria-label={t('meetings.export.share')}>
+            <Button variant="ghost" size="sm" onClick={() => setShareOpen(true)} aria-label={t('meetings.export.share')}>
               <Share2 />
             </Button>
             {adapter.canDelete(meeting) ? (
@@ -374,6 +357,14 @@ export function MeetingDetailView({ adapter, meetingId }: { adapter: MeetingsAda
         }}
       />
       <MeetingSpeakersDialog open={speakersOpen} onOpenChange={setSpeakersOpen} adapter={adapter} detail={detail} />
+      <MeetingShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        os={adapter.scope.os}
+        meeting={meeting}
+        canShare={adapter.canShare(meeting)}
+        onChanged={() => mutations.invalidate()}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
