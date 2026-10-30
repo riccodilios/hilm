@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:architecture && tsc -b && vite build",
+    "build": "npm run check:architecture && tsc -b && vite build && npm run seo:prerender && npm run seo:check",
+    "seo:prerender": "node --experimental-strip-types scripts/prerender-public.mjs",
+    "seo:check": "node --experimental-strip-types scripts/seo-check.mjs",
+    "seo:check:live": "node --experimental-strip-types scripts/seo-check.mjs --live",
+    "seo:indexnow": "node scripts/indexnow-submit.mjs",
+    "seo:images": "node scripts/generate-social-images.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "configure-auth": "node scripts/configure-auth-urls.mjs",

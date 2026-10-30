@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 import { Download, ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { HeroBackdrop } from '@/features/landing/HeroBackdrop'
+import { PublicHeader } from '@/features/landing/public/PublicChrome'
+import { usePublicPage } from '@/features/landing/public/PublicPage'
+import { HOME_CONTENT } from '@/content/site.ts'
 import { ensureLandingGsap, gsap, useGSAP } from '@/features/landing/gsap-setup'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { rtlMirrorClass } from '@/lib/rtl'
@@ -16,6 +18,7 @@ export function LandingHero() {
   const rootRef = useRef<HTMLElement>(null)
   const { canInstall, install } = usePwaInstall()
   const { t, i18n } = useTranslation()
+  const { locale } = usePublicPage()
 
   useGSAP(
     () => {
@@ -39,22 +42,12 @@ export function LandingHero() {
     <section ref={rootRef} className="relative isolate min-h-dvh overflow-hidden">
       <HeroBackdrop />
 
-      <header className="hero-nav hero-anim relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-5 opacity-0">
-        <span className="text-sm font-medium tracking-tight text-foreground">{t('brand.name')}</span>
-        <div className="flex items-center gap-2">
-          <LanguageSwitcher compact />
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link to="/login">{t('common.signIn')}</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link to="/signup">{t('common.getStarted')}</Link>
-          </Button>
-        </div>
-      </header>
+      <PublicHeader className="hero-nav hero-anim opacity-0" />
 
       <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-4.5rem)] max-w-4xl flex-col items-center justify-center px-5 pb-20 pt-8 text-center">
         <h1 className="hero-brand hero-anim text-[clamp(4rem,18vw,9rem)] font-medium leading-[0.9] tracking-[-0.06em] text-foreground opacity-0">
           {t('brand.name')}
+          <span className="sr-only"> — {HOME_CONTENT[locale].h1Suffix}</span>
         </h1>
 
         <p className="hero-sub hero-anim mt-6 text-xl tracking-tight text-foreground/90 opacity-0 sm:text-2xl">

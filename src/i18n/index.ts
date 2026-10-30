@@ -35,9 +35,11 @@ export function applyDocumentLanguage(lng: string) {
   return { language, dir }
 }
 
-applyDocumentLanguage(i18n.resolvedLanguage ?? i18n.language)
+if (!document.documentElement.dataset.publicLocale) applyDocumentLanguage(i18n.resolvedLanguage ?? i18n.language)
 
 i18n.on('languageChanged', (lng) => {
+  // Public marketing pages take their language from the URL (see PublicPage).
+  if (document.documentElement.dataset.publicLocale) return
   applyDocumentLanguage(lng)
 })
 

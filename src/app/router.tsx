@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
-import { domainRedirect } from '@/lib/domains'
+import { domainRedirect, isPublicSitePath } from '@/lib/domains'
+import { PUBLIC_LOCALES, PUBLIC_PAGE_IDS, publicPath } from '@/content/site.ts'
+import { PublicPage } from '@/features/landing/public/PublicPage'
+import { useNoIndex } from '@/hooks/useDocumentSeo'
 import { MeetingRecorderProvider } from '@/shared/meetings/recorder/MeetingRecorderProvider'
 import { useTranslation } from 'react-i18next'
 import { PersonalShell } from '@/components/layout/PersonalShell'
@@ -20,6 +23,9 @@ const LandingPage = lazy(() =>
 )
 const PrivacyPage = lazy(() =>
   import('@/features/landing/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+)
+const ProductPage = lazy(() =>
+  import('@/features/landing/public/ProductPage').then((m) => ({ default: m.ProductPage })),
 )
 const HomePage = lazy(() =>
   import('@/features/home/HomePage').then((m) => ({ default: m.HomePage })),
@@ -227,6 +233,8 @@ function DomainGate({ children }: { children: ReactNode }) {
     hash: location.hash,
   })
   const externalUrl = redirect?.kind === 'external' ? redirect.url : null
+  // Everything outside the public marketing pages is private app surface.
+  useNoIndex(!isPublicSitePath(location.pathname))
   useEffect(() => {
     if (externalUrl) window.location.replace(externalUrl)
   }, [externalUrl])
@@ -240,22 +248,21 @@ export function AppRouter() {
     <BrowserRouter>
       <DomainGate>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <Suspense fallback={<LandingSkeleton />}>
-              <LandingPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/privacy"
-          element={
-            <Suspense fallback={<LandingSkeleton />}>
-              <PrivacyPage />
-            </Suspense>
-          }
-        />
+        {PUBLIC_LOCALES.flatMap((locale) =>
+          PUBLIC_PAGE_IDS.map((id) => (
+            <Route
+              key={`${locale}:${id}`}
+              path={publicPath(id, locale)}
+              element={
+                <Suspense fallback={<LandingSkeleton />}>
+                  <PublicPage id={id} locale={locale}>
+                    {id === 'home' ? <LandingPage /> : id === 'privacy' ? <PrivacyPage /> : <ProductPage id={id} />}
+                  </PublicPage>
+                </Suspense>
+              }
+            />
+          )),
+        )}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />

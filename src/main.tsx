@@ -43,6 +43,8 @@ function App() {
   const isRtl = i18n.language.startsWith('ar')
 
   useEffect(() => {
+    // Public marketing pages take their language from the URL (see PublicPage).
+    if (document.documentElement.dataset.publicLocale) return
     document.documentElement.lang = isRtl ? 'ar' : 'en'
     document.documentElement.dir = isRtl ? 'rtl' : 'ltr'
   }, [isRtl])

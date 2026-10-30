@@ -65,6 +65,89 @@
     Referrer-Policy = "no-referrer"
     Cache-Control = "private, no-store"
 
+# Private app surfaces: never indexed (sign-in and database permissions remain the access control).
+[[headers]]
+  for = "/personal/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/personal"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/workspace/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/workspace"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/auth/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/app/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/onboarding"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/login"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/signup"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# Prerendered files are served at their public URLs; the raw paths must not be indexed.
+[[headers]]
+  for = "/_public/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
+# SEO / AI discovery files
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/llms-full.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/robots-app.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
 [[redirects]]
   from = "/api/notify-test"
   to = "/.netlify/functions/notify-test"
@@ -96,16 +179,18 @@
   status = 200
 
 # Domain split (mirrors src/lib/domains.ts): hilm.tech = public site, app.hilm.tech = the product.
-# Query strings (e.g. auth codes) are forwarded. Other hosts keep serving everything.
+# Query strings (e.g. auth codes) are forwarded. Public-page rules for every host are generated
+# into dist/_redirects by scripts/prerender-public.mjs (applied before these rules).
 [[redirects]]
   from = "https://app.hilm.tech/"
   to = "https://app.hilm.tech/login"
   status = 302
   force = true
 
+# Retired Netlify subdomain: /api keeps working (rules above); everything else moves to the app.
 [[redirects]]
-  from = "https://app.hilm.tech/privacy"
-  to = "https://hilm.tech/privacy"
+  from = "https://hillm.netlify.app/*"
+  to = "https://app.hilm.tech/:splat"
   status = 301
   force = true
 

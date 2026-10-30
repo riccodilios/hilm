@@ -1,18 +1,71 @@
 # https://hilm.tech/robots.txt
+#
+# hilm.tech is Hilm's public website. The product runs on app.hilm.tech (its own robots.txt
+# disallows crawling) and private data is protected by sign-in and database permissions, not by
+# this file. Each group repeats the private paths because a crawler follows only its own group.
+
+# Everyone else
 User-agent: *
 Allow: /
-Allow: /privacy
-Allow: /login
-Allow: /signup
-Allow: /llms.txt
-Allow: /sitemap.xml
-Allow: /og-image.png
-
-# Authenticated product surfaces — no value for search indexes
 Disallow: /personal/
 Disallow: /workspace/
 Disallow: /app/
 Disallow: /auth/
+Disallow: /onboarding
+Disallow: /login
+Disallow: /signup
+Disallow: /shared/
 Disallow: /api/
+Disallow: /_public/
+
+# Web search
+User-agent: Googlebot
+User-agent: Bingbot
+Allow: /
+Disallow: /personal/
+Disallow: /workspace/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /login
+Disallow: /signup
+Disallow: /shared/
+Disallow: /api/
+Disallow: /_public/
+
+# AI search and user-requested fetches (answers that cite and link to hilm.tech)
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+Allow: /
+Disallow: /personal/
+Disallow: /workspace/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /login
+Disallow: /signup
+Disallow: /shared/
+Disallow: /api/
+Disallow: /_public/
+
+# AI model training (a separate policy from search; public pages only)
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+Allow: /
+Disallow: /personal/
+Disallow: /workspace/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /login
+Disallow: /signup
+Disallow: /shared/
+Disallow: /api/
+Disallow: /_public/
 
 Sitemap: https://hilm.tech/sitemap.xml

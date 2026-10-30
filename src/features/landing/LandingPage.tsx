@@ -1,53 +1,39 @@
-import { useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LandingHero } from '@/features/landing/sections/Hero'
 import { DemoSection } from '@/features/landing/sections/Demo'
 import { SystemsSection } from '@/features/landing/sections/Systems'
 import { ProblemSection } from '@/features/landing/sections/Problem'
 import { FeaturesSection } from '@/features/landing/sections/Features'
 import { WorkspaceSection } from '@/features/landing/sections/Workspace'
+import { MeetingsSection } from '@/features/landing/sections/Meetings'
 import { AutomationSection } from '@/features/landing/sections/Automation'
 import { VoiceSection } from '@/features/landing/sections/Voice'
 import { SecuritySection } from '@/features/landing/sections/Security'
 import { LandingFaqSection } from '@/features/landing/sections/Faq'
 import { CtaSection } from '@/features/landing/sections/Cta'
-import { LandingFooter } from '@/features/landing/sections/Footer'
+import { PublicFooter } from '@/features/landing/public/PublicChrome'
+import { usePublicPage } from '@/features/landing/public/PublicPage'
 import { ensureLandingGsap, refreshLandingScrollTriggers } from '@/features/landing/gsap-setup'
-import { useDocumentSeo } from '@/hooks/useDocumentSeo'
-import {
-  buildFaqJsonLd,
-  buildOrganizationJsonLd,
-  buildSoftwareApplicationJsonLd,
-  buildWebSiteJsonLd,
-  SEO,
-} from '@/lib/seo'
+import { usePublicPageSeo } from '@/hooks/useDocumentSeo'
+import { publicPath } from '@/content/site.ts'
 
 ensureLandingGsap()
 
 export function LandingPage() {
-  const { t } = useTranslation()
-  const faqItems = t('landing.faqItems', { returnObjects: true }) as Array<{ q: string; a: string }>
-  const jsonLd = useMemo(
-    () => [
-      buildOrganizationJsonLd(),
-      buildWebSiteJsonLd(),
-      buildSoftwareApplicationJsonLd(),
-      buildFaqJsonLd(
-        (Array.isArray(faqItems) ? faqItems : []).map((item) => ({
-          question: item.q,
-          answer: item.a,
-        })),
-      ),
-    ],
-    [faqItems],
-  )
+  const { locale } = usePublicPage()
+  const navigate = useNavigate()
+  usePublicPageSeo('home', locale)
 
-  useDocumentSeo({
-    title: SEO.title,
-    description: SEO.description,
-    path: '/',
-    jsonLd,
-  })
+  // Visitors who chose Arabic in Hilm land on the Arabic homepage (crawlers have no saved choice).
+  useEffect(() => {
+    if (locale !== 'en') return
+    try {
+      if ((localStorage.getItem('hilm-lang') ?? '').startsWith('ar')) navigate(publicPath('home', 'ar'), { replace: true })
+    } catch {
+      // Storage unavailable: stay on the English page.
+    }
+  }, [locale, navigate])
 
   useEffect(() => {
     refreshLandingScrollTriggers()
@@ -65,17 +51,20 @@ export function LandingPage() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <LandingHero />
-      <DemoSection />
-      <SystemsSection />
-      <ProblemSection />
-      <FeaturesSection />
-      <WorkspaceSection />
-      <AutomationSection />
-      <VoiceSection />
-      <SecuritySection />
-      <LandingFaqSection />
-      <CtaSection />
-      <LandingFooter />
+      <main>
+        <DemoSection />
+        <SystemsSection />
+        <ProblemSection />
+        <FeaturesSection />
+        <WorkspaceSection />
+        <MeetingsSection />
+        <AutomationSection />
+        <VoiceSection />
+        <SecuritySection />
+        <LandingFaqSection />
+        <CtaSection />
+      </main>
+      <PublicFooter />
     </div>
   )
 }

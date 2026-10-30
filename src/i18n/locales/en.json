@@ -379,7 +379,7 @@
         "Workspaces with departments, teams, and member roles",
         "Shared projects, tasks, and Mission Control for the group",
         "Activity feeds, reports, and team-lead views",
-        "Workspace AI plus CRM hooks when your pipeline needs them"
+        "A workspace AI assistant scoped to shared projects and tasks"
       ]
     },
     "problemEyebrow": "The problem",
@@ -482,7 +482,7 @@
       },
       "ai": {
         "title": "Workspace AI",
-        "body": "Assistants scoped to workspace data, plus CRM hooks when you need pipeline context."
+        "body": "An assistant scoped to workspace projects and tasks, separate from everyone’s personal data."
       }
     },
     "automationEyebrow": "Automation",
@@ -494,7 +494,7 @@
       "Update project status",
       "Draft documentation",
       "Summarize meetings",
-      "Generate release notes",
+      "Write daily logs",
       "Track progress",
       "Surface blockers",
       "Suggest priorities",
@@ -532,7 +532,7 @@
       },
       "owned": {
         "title": "Your data stays yours",
-        "body": "Projects, notes, and history remain under your control and exportable."
+        "body": "Projects, notes, and history stay with your account, and you can delete your account and its data from Settings."
       }
     },
     "ctaTitle": "Start with Personal OS. Grow into Workspace OS.",
@@ -565,7 +565,7 @@
   "privacy": {
     "title": "Privacy",
     "description": "Hilm is designed so your operating system stays yours.",
-    "p1": "Account data, projects, and AI conversation history are stored in your Supabase project under row-level security. AI requests use Hilm’s OpenRouter key on the server — never shipped in the client bundle.",
+    "p1": "Account data, projects, meetings and AI conversation history are stored in Hilm’s database with row-level security, so each account and workspace can read only its own records. Meeting audio is kept in private storage. AI and transcription requests use Hilm’s server-side keys, which are never sent to your browser.",
     "p2": "Offline caches live on your device via IndexedDB and the service worker. You can request export of your data from Settings as that surface ships.",
     "p3": "Contact {{email}} for privacy questions."
   },

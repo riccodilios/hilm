@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ensureLandingGsap,
@@ -30,9 +30,28 @@ export function DemoSection() {
     { scope: sectionRef },
   )
 
+  // The 9 MB demo loads only when its section approaches the viewport, not with the page.
+  const [nearViewport, setNearViewport] = useState(false)
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section || nearViewport) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setNearViewport(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setNearViewport(true)
+      },
+      { rootMargin: '300px 0px' },
+    )
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [nearViewport])
+
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !nearViewport) return
 
     video.muted = true
     video.defaultMuted = true
@@ -58,7 +77,7 @@ export function DemoSection() {
       video.removeEventListener('canplay', tryPlay)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [])
+  }, [nearViewport])
 
   return (
     <section id="demo" ref={sectionRef} className="relative scroll-mt-8 px-5 py-16 sm:py-24">
@@ -79,18 +98,16 @@ export function DemoSection() {
           <video
             ref={videoRef}
             className="aspect-video w-full bg-surface-2 object-contain"
-            src="/hilm-demo.mp4"
-            autoPlay
+            src={nearViewport ? '/hilm-demo.mp4' : undefined}
+            autoPlay={nearViewport}
             muted
             loop
             playsInline
             controls
-            preload="auto"
+            preload={nearViewport ? 'auto' : 'none'}
             controlsList="nodownload"
             aria-label={t('landing.demoVideoLabel')}
-          >
-            <source src="/hilm-demo.mp4" type="video/mp4" />
-          </video>
+          />
         </div>
       </div>
     </section>

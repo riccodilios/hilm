@@ -1,14 +1,8 @@
 import { useEffect } from 'react'
-import { absoluteUrl, SEO } from '@/lib/seo'
+import { PAGE_META, SITE, publicUrl, type PublicLocale, type PublicPageId } from '@/content/site.ts'
+import { pageJsonLd } from '@/content/structured-data.ts'
 
-type DocumentSeoInput = {
-  title?: string
-  description?: string
-  path?: string
-  noIndex?: boolean
-  imagePath?: string
-  jsonLd?: unknown | unknown[]
-}
+const OG_LOCALE: Record<PublicLocale, string> = { en: 'en_US', ar: 'ar_SA' }
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
   let el = document.head.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null
@@ -20,73 +14,75 @@ function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
   el.content = content
 }
 
-function upsertLink(rel: string, href: string) {
-  let el = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null
+function upsertLink(selector: string, attrs: Record<string, string>) {
+  let el = document.head.querySelector(selector) as HTMLLinkElement | null
   if (!el) {
     el = document.createElement('link')
-    el.rel = rel
     document.head.appendChild(el)
   }
-  el.href = href
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value)
 }
 
-function upsertJsonLd(id: string, data: unknown) {
-  let el = document.getElementById(id) as HTMLScriptElement | null
-  if (!el) {
-    el = document.createElement('script')
-    el.type = 'application/ld+json'
-    el.id = id
-    document.head.appendChild(el)
-  }
-  el.textContent = JSON.stringify(data)
-}
-
-/** Keep document title + social meta in sync for public marketing pages. */
-export function useDocumentSeo(input: DocumentSeoInput) {
+/**
+ * Head tags for a public marketing page: the same values the build-time prerender writes into
+ * the page's HTML (title, description, robots, canonical, hreflang, Open Graph, X card, JSON-LD).
+ */
+export function usePublicPageSeo(id: PublicPageId, locale: PublicLocale) {
   useEffect(() => {
-    const title = input.title
-      ? input.title.includes('Hilm')
-        ? input.title
-        : SEO.titleTemplate.replace('%s', input.title)
-      : SEO.title
-    const description = input.description || SEO.description
-    const url = absoluteUrl(input.path || '/')
-    const image = absoluteUrl(input.imagePath || SEO.ogImagePath)
+    const meta = PAGE_META[id][locale]
+    const url = publicUrl(id, locale)
+    const image = `${SITE.origin}${SITE.ogImage[locale]}`
 
-    document.title = title
-    upsertMeta('name', 'description', description)
-    upsertMeta('name', 'robots', input.noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large')
-    upsertLink('canonical', url)
+    document.title = meta.title
+    upsertMeta('name', 'description', meta.description)
+    upsertMeta('name', 'robots', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
+    upsertLink('link[rel="canonical"]', { rel: 'canonical', href: url })
+    for (const lang of ['en', 'ar', 'x-default'] as const) {
+      upsertLink(`link[rel="alternate"][hreflang="${lang}"]`, {
+        rel: 'alternate',
+        hreflang: lang,
+        href: publicUrl(id, lang === 'x-default' ? 'en' : lang),
+      })
+    }
 
     upsertMeta('property', 'og:type', 'website')
-    upsertMeta('property', 'og:site_name', SEO.siteName)
-    upsertMeta('property', 'og:title', title)
-    upsertMeta('property', 'og:description', description)
+    upsertMeta('property', 'og:site_name', SITE.name)
+    upsertMeta('property', 'og:title', meta.title)
+    upsertMeta('property', 'og:description', meta.description)
     upsertMeta('property', 'og:url', url)
     upsertMeta('property', 'og:image', image)
-    upsertMeta('property', 'og:image:alt', SEO.ogImageAlt)
-    upsertMeta('property', 'og:locale', SEO.locale)
-
+    upsertMeta('property', 'og:image:width', String(SITE.ogImage.width))
+    upsertMeta('property', 'og:image:height', String(SITE.ogImage.height))
+    upsertMeta('property', 'og:image:alt', meta.title)
+    upsertMeta('property', 'og:locale', OG_LOCALE[locale])
+    upsertMeta('property', 'og:locale:alternate', OG_LOCALE[locale === 'en' ? 'ar' : 'en'])
     upsertMeta('name', 'twitter:card', 'summary_large_image')
-    upsertMeta('name', 'twitter:title', title)
-    upsertMeta('name', 'twitter:description', description)
+    upsertMeta('name', 'twitter:title', meta.title)
+    upsertMeta('name', 'twitter:description', meta.description)
     upsertMeta('name', 'twitter:image', image)
 
-    if (input.jsonLd) {
-      const payload = Array.isArray(input.jsonLd) ? input.jsonLd : [input.jsonLd]
-      upsertJsonLd('hilm-jsonld-page', payload.length === 1 ? payload[0] : payload)
+    let script = document.getElementById('hilm-jsonld') as HTMLScriptElement | null
+    if (!script) {
+      script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.id = 'hilm-jsonld'
+      document.head.appendChild(script)
     }
+    script.textContent = JSON.stringify(pageJsonLd(id, locale))
 
     return () => {
-      // Leave canonical/meta for next page to overwrite; remove page-specific JSON-LD.
-      document.getElementById('hilm-jsonld-page')?.remove()
+      // The next page overwrites the shared tags; page-only tags are removed.
+      document.getElementById('hilm-jsonld')?.remove()
+      document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove())
     }
-  }, [
-    input.title,
-    input.description,
-    input.path,
-    input.noIndex,
-    input.imagePath,
-    input.jsonLd,
-  ])
+  }, [id, locale])
+}
+
+/** Private app routes: keep them out of search indexes (robots.txt is not access control). */
+export function useNoIndex(active: boolean) {
+  useEffect(() => {
+    if (!active) return
+    upsertMeta('name', 'robots', 'noindex, nofollow')
+    document.head.querySelector('link[rel="canonical"]')?.remove()
+  }, [active])
 }

@@ -1,0 +1,9 @@
+# https://app.hilm.tech/robots.txt
+#
+# The Hilm app is private and requires sign-in; nothing here is meant for search indexes.
+# Shared meeting links stay fetchable only so crawlers can read their noindex header.
+# The public website is https://hilm.tech/ (see https://hilm.tech/robots.txt).
+
+User-agent: *
+Allow: /shared/
+Disallow: /
