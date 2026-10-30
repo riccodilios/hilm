@@ -169,7 +169,7 @@ export default async (request: Request) => {
 
       if (pushAllowed) {
         const payload = JSON.stringify({
-          title: `Reminder — ${row.task_title}`,
+          title: `Reminder | ${row.task_title}`,
           body: `${row.project_name} · Due ${dueLabel}`,
           href: taskHref,
           tag: `task-${row.task_id}`,
@@ -217,7 +217,7 @@ export default async (request: Request) => {
           [
             row.user_id,
             pushAllowed ? 'push' : 'in_app',
-            `Reminder — ${row.task_title}`,
+            `Reminder | ${row.task_title}`,
             `${row.project_name} · Due ${dueLabel}`,
             row.task_id,
             row.project_id,

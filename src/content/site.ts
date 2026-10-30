@@ -11,7 +11,8 @@ export const PUBLIC_LOCALES: readonly PublicLocale[] = ['en', 'ar']
 
 export const SITE = {
   name: 'Hilm',
-  alternateNames: ['HILM', 'حلم', 'Hilm AI', 'Hilm Personal OS', 'Hilm Workspace OS'],
+  // Never "Hilm AI": that reads as hilm.ai, an unrelated product (see DISAMBIGUATION).
+  alternateNames: ['HILM', 'حلم', 'Hilm OS', 'hilm.tech', 'Hilm Personal OS', 'Hilm Workspace OS'],
   origin: 'https://hilm.tech',
   appOrigin: 'https://app.hilm.tech',
   logoPath: '/pwa-512.png',
@@ -76,36 +77,36 @@ export type PageMeta = { title: string; description: string }
 export const PAGE_META: Record<PublicPageId, Record<PublicLocale, PageMeta>> = {
   home: {
     en: {
-      title: 'Hilm — Your Personal & Workspace OS',
+      title: 'Hilm | Your Personal & Workspace OS',
       description:
         'One platform for managing your life and work. Hilm brings personal projects, tasks, meetings and team collaboration together, with AI that works on your real data.',
     },
     ar: {
-      title: 'حلم — نظام تشغيل لحياتك الشخصية ولعمل فريقك',
+      title: 'حلم | نظام تشغيل لحياتك الشخصية ولعمل فريقك',
       description:
         'منصة واحدة لإدارة حياتك وعملك. يجمع حلم مشاريعك الشخصية ومهامك واجتماعاتك وتعاون فريقك في مكان واحد، مع ذكاء اصطناعي يعمل على بياناتك الفعلية.',
     },
   },
   'personal-os': {
     en: {
-      title: 'Personal OS — Run Your Projects, Tasks and Meetings | Hilm',
+      title: 'Personal OS | Run Your Projects, Tasks and Meetings | Hilm',
       description:
         'Hilm Personal OS is a private system for one person: projects, tasks, schedule, notes, daily logs and meeting notes in one place, with an AI assistant that acts after you confirm.',
     },
     ar: {
-      title: 'Personal OS — أدِر مشاريعك ومهامك واجتماعاتك | حلم',
+      title: 'Personal OS | أدِر مشاريعك ومهامك واجتماعاتك | حلم',
       description:
         'Personal OS في حلم نظام خاص بك وحدك: المشاريع والمهام والجدول والملاحظات والسجلات اليومية ومحاضر الاجتماعات في مكان واحد، مع مساعد ذكي ينفّذ بعد تأكيدك.',
     },
   },
   'workspace-os': {
     en: {
-      title: 'Workspace OS — Team Projects, Roles and Meetings | Hilm',
+      title: 'Workspace OS | Team Projects, Roles and Meetings | Hilm',
       description:
         'Hilm Workspace OS gives teams shared projects and tasks, departments and roles, team-lead visibility, activity, reports and meeting notes, with an AI assistant scoped to the workspace.',
     },
     ar: {
-      title: 'Workspace OS — مشاريع الفريق والأدوار والاجتماعات | حلم',
+      title: 'Workspace OS | مشاريع الفريق والأدوار والاجتماعات | حلم',
       description:
         'Workspace OS في حلم يمنح الفرق مشاريع ومهام مشتركة، وأقساماً وأدواراً، ورؤية لقادة الفرق، وسجل نشاط وتقارير ومحاضر اجتماعات، مع مساعد ذكي يعمل داخل مساحة العمل.',
     },
@@ -124,24 +125,24 @@ export const PAGE_META: Record<PublicPageId, Record<PublicLocale, PageMeta>> = {
   },
   features: {
     en: {
-      title: 'Features — Projects, Tasks, Meetings and AI | Hilm',
+      title: 'Features | Projects, Tasks, Meetings and AI | Hilm',
       description:
         'Every Hilm feature in one place: projects and roadmaps, tasks and reminders, Mission Control, meeting transcription, an AI assistant that takes action, and shared workspaces for teams.',
     },
     ar: {
-      title: 'المزايا — المشاريع والمهام والاجتماعات والذكاء الاصطناعي | حلم',
+      title: 'المزايا | المشاريع والمهام والاجتماعات والذكاء الاصطناعي | حلم',
       description:
         'كل مزايا حلم في مكان واحد: المشاريع وخرائط الطريق، والمهام والتذكيرات، وMission Control، وتفريغ الاجتماعات، ومساعد ذكي ينفّذ، ومساحات عمل مشتركة للفرق.',
     },
   },
   privacy: {
     en: {
-      title: 'Privacy at Hilm — How Your Data Is Stored',
+      title: 'Privacy at Hilm | How Your Data Is Stored',
       description:
         'How Hilm stores your projects, meetings and AI conversations: row-level security, server-held AI keys, private audio storage and on-device offline caches.',
     },
     ar: {
-      title: 'الخصوصية في حلم — كيف نحفظ بياناتك',
+      title: 'الخصوصية في حلم | كيف نحفظ بياناتك',
       description:
         'كيف يحفظ حلم مشاريعك واجتماعاتك ومحادثات الذكاء الاصطناعي: أمان على مستوى الصفوف، ومفاتيح ذكاء اصطناعي على الخادم، وتخزين صوت خاص، وذاكرة مؤقتة على جهازك.',
     },
@@ -272,6 +273,10 @@ export const HOME_CONTENT: Record<
         a: 'It reads your Hilm projects and tasks, proposes concrete changes such as creating or updating tasks, adding roadmap items or writing a daily log, and applies them inside Hilm after you confirm.',
       },
       {
+        q: 'How easy is it to switch to Hilm from another tool?',
+        a: 'Easy, and you do not re-type anything. Copy your project list, task list, plan or notes from the tool you use today (Notion, Trello, Asana, ClickUp, a spreadsheet or a document), paste it into the AI chat in Hilm and ask it to set everything up. The assistant prepares the projects, tasks, priorities, due dates and roadmap items and creates them in one go after you confirm. Teams can do the same inside a workspace, and recorded meetings turn their action items into tasks.',
+      },
+      {
         q: 'Does Hilm support Arabic?',
         a: 'Yes. The interface is available in Arabic and English with a right-to-left layout for Arabic, and meeting transcription handles Arabic, English and mixed speech.',
       },
@@ -282,6 +287,10 @@ export const HOME_CONTENT: Record<
       {
         q: 'How do I get started?',
         a: 'Create an account at app.hilm.tech, set up your first project, then add tasks or record a meeting. You can create or join a workspace whenever you need one.',
+      },
+      {
+        q: 'Is Hilm related to hilm.ai or HUMAIN OS?',
+        a: 'No. Hilm (hilm.tech) is an independent Personal and Workspace Operating System for projects, tasks and meetings. It is not affiliated with hilm.ai, which is an AI website builder, or with HUMAIN OS. The official Hilm website is hilm.tech and the app runs at app.hilm.tech.',
       },
     ],
   },
@@ -329,6 +338,10 @@ export const HOME_CONTENT: Record<
         a: 'يقرأ مشاريعك ومهامك في حلم، ويقترح تغييرات محددة مثل إنشاء المهام أو تحديثها أو إضافة عناصر إلى خريطة الطريق أو كتابة السجل اليومي، ثم ينفّذها داخل حلم بعد تأكيدك.',
       },
       {
+        q: 'ما مدى سهولة الانتقال إلى حلم من أداة أخرى؟',
+        a: 'سهل جداً ولن تعيد كتابة شيء. انسخ قائمة مشاريعك أو مهامك أو خطتك أو ملاحظاتك من الأداة التي تستخدمها اليوم (Notion أو Trello أو Asana أو ClickUp أو جدول بيانات أو مستند)، والصقها في محادثة الذكاء الاصطناعي في حلم واطلب منه إعدادها. يجهّز المساعد المشاريع والمهام والأولويات ومواعيد الاستحقاق وعناصر خريطة الطريق، وينشئها دفعة واحدة بعد تأكيدك. ويمكن للفرق فعل الشيء نفسه داخل مساحة العمل، كما تتحول بنود العمل من الاجتماعات المسجلة إلى مهام.',
+      },
+      {
         q: 'هل يدعم حلم اللغة العربية؟',
         a: 'نعم. الواجهة متاحة بالعربية والإنجليزية مع تخطيط من اليمين إلى اليسار للعربية، ويتعامل تفريغ الاجتماعات مع العربية والإنجليزية والحديث الذي يمزج بينهما.',
       },
@@ -339,6 +352,10 @@ export const HOME_CONTENT: Record<
       {
         q: 'كيف أبدأ؟',
         a: 'أنشئ حساباً على app.hilm.tech، وأعدّ مشروعك الأول، ثم أضف المهام أو سجّل اجتماعاً. ويمكنك إنشاء مساحة عمل أو الانضمام إلى واحدة متى احتجت.',
+      },
+      {
+        q: 'هل حلم مرتبط بموقع hilm.ai أو HUMAIN OS؟',
+        a: 'لا. حلم (hilm.tech) نظام تشغيل شخصي ونظام تشغيل لمساحات العمل مستقل لإدارة المشاريع والمهام والاجتماعات، ولا يرتبط بموقع hilm.ai المتخصص في بناء المواقع بالذكاء الاصطناعي، ولا بنظام HUMAIN OS. الموقع الرسمي لحلم هو hilm.tech والتطبيق على app.hilm.tech.',
       },
     ],
   },
@@ -842,6 +859,20 @@ export const PRODUCT_PAGES: Record<ProductPageId, Record<PublicLocale, ProductPa
           ],
         },
       ],
+      faq: [
+        {
+          q: 'Can I bring my existing projects and tasks into Hilm?',
+          a: 'Yes, through the AI chat. Paste a list, plan or notes copied from your current tool, spreadsheet or document and ask Hilm to set it up. It prepares the projects, tasks, priorities, due dates and roadmap items, and creates them together after you confirm.',
+        },
+        {
+          q: 'Can the AI create many tasks at once?',
+          a: 'Yes. Describe the work or paste a list, and the assistant prepares every task with the titles, priorities and due dates you gave it, then creates them in one step once you approve. It works in Personal OS and inside a workspace.',
+        },
+        {
+          q: 'Is Hilm the same as hilm.ai?',
+          a: 'No. Hilm at hilm.tech is a Personal and Workspace Operating System for projects, tasks and meetings. hilm.ai is an unrelated AI website builder, and Hilm is also not related to HUMAIN OS.',
+        },
+      ],
       related: ['personal-os', 'workspace-os', 'meetings'],
       cta: { title: 'See it in your own work', body: 'Create an account and bring in your first project.' },
     },
@@ -919,6 +950,20 @@ export const PRODUCT_PAGES: Record<ProductPageId, Record<PublicLocale, ProductPa
             { title: 'العربية والإنجليزية', body: 'تخطيط كامل من اليمين إلى اليسار للعربية.' },
             { title: 'المظهر الفاتح والداكن', body: 'بدّل بين مظهر فاتح ومظهر داكن.' },
           ],
+        },
+      ],
+      faq: [
+        {
+          q: 'هل يمكنني نقل مشاريعي ومهامي الحالية إلى حلم؟',
+          a: 'نعم، عبر محادثة الذكاء الاصطناعي. الصق قائمة أو خطة أو ملاحظات منسوخة من أداتك الحالية أو من جدول بيانات أو مستند، واطلب من حلم إعدادها. يجهّز المشاريع والمهام والأولويات ومواعيد الاستحقاق وعناصر خريطة الطريق، وينشئها معاً بعد تأكيدك.',
+        },
+        {
+          q: 'هل يستطيع الذكاء الاصطناعي إنشاء مهام كثيرة دفعة واحدة؟',
+          a: 'نعم. صف العمل أو الصق قائمة، فيجهّز المساعد كل المهام بالعناوين والأولويات ومواعيد الاستحقاق التي ذكرتها، ثم ينشئها في خطوة واحدة بعد موافقتك. ويعمل ذلك في النظام الشخصي وداخل مساحة العمل.',
+        },
+        {
+          q: 'هل حلم هو نفسه hilm.ai؟',
+          a: 'لا. حلم على hilm.tech نظام تشغيل شخصي ونظام تشغيل لمساحات العمل لإدارة المشاريع والمهام والاجتماعات، أما hilm.ai فهو منصة مستقلة لبناء المواقع بالذكاء الاصطناعي لا علاقة لنا بها، وحلم لا يرتبط كذلك بنظام HUMAIN OS.',
         },
       ],
       related: ['personal-os', 'workspace-os', 'meetings'],

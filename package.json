@@ -11,6 +11,7 @@
     "seo:check:live": "node --experimental-strip-types scripts/seo-check.mjs --live",
     "seo:indexnow": "node scripts/indexnow-submit.mjs",
     "seo:images": "node scripts/generate-social-images.mjs",
+    "seo:favicons": "node scripts/generate-favicons.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "email:preview": "node --experimental-strip-types scripts/email-preview.mjs",

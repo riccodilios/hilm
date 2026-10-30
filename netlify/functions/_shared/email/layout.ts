@@ -214,7 +214,7 @@ export function renderEmailText(content: EmailContent) {
   }
   if (content.action) lines.push(`${content.action.label}: ${content.action.url}`, '')
   if (content.note) lines.push(content.note, '')
-  lines.push('—', content.footer.reason)
+  lines.push('---', content.footer.reason)
   if (content.footer.manage) lines.push(`${content.footer.manage.label}: ${content.footer.manage.url}`)
   if (content.footer.unsubscribe) lines.push(`${content.footer.unsubscribe.label}: ${content.footer.unsubscribe.url}`)
   lines.push(`${BRAND[content.locale]} · ${TAGLINE[content.locale]}`)

@@ -255,7 +255,7 @@ export async function processWorkspaceTaskReminders(db: Queryable, windowEnd: st
        values ($1, 'in_app', 'workspace.task.reminder', $2, $3, 'workspace_task', $4, $5, $6::jsonb)`,
       [
         row.recipient,
-        `Reminder — ${row.task_ref ?? row.title}`,
+        `Reminder | ${row.task_ref ?? row.title}`,
         row.task_ref ? `${row.task_ref} · ${row.title}` : row.title,
         row.id,
         `/workspace/${row.workspace_id}/tasks/${row.id}`,

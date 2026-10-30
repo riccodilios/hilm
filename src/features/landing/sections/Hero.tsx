@@ -54,7 +54,7 @@ export function LandingHero() {
           )}
         >
           {t('brand.name')}
-          <span className="sr-only"> — {HOME_CONTENT[locale].h1Suffix}</span>
+          <span className="sr-only"> | {HOME_CONTENT[locale].h1Suffix}</span>
         </h1>
 
         <p className="hero-sub hero-anim mt-6 text-xl tracking-tight text-foreground/90 opacity-0 sm:text-2xl">

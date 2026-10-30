@@ -49,6 +49,12 @@ const SOFTWARE_TEXT: Record<PublicLocale, { description: string; features: strin
 
 type JsonLd = Record<string, unknown>
 
+/** Keeps search engines and AI answers from merging Hilm with similarly named products. */
+export const DISAMBIGUATION: Record<PublicLocale, string> = {
+  en: 'Hilm (hilm.tech) is an independent Personal and Workspace Operating System for projects, tasks and meetings. It is not affiliated with hilm.ai, an AI website builder, or with HUMAIN OS.',
+  ar: 'حلم (hilm.tech) نظام تشغيل شخصي ونظام تشغيل لمساحات العمل مستقل لإدارة المشاريع والمهام والاجتماعات، ولا يرتبط بموقع hilm.ai لبناء المواقع بالذكاء الاصطناعي ولا بنظام HUMAIN OS.',
+}
+
 function organization(): JsonLd {
   return {
     '@type': 'Organization',
@@ -57,6 +63,7 @@ function organization(): JsonLd {
     alternateName: [...SITE.alternateNames],
     url: `${SITE.origin}/`,
     logo: { '@type': 'ImageObject', url: `${SITE.origin}${SITE.logoPath}`, width: 512, height: 512 },
+    disambiguatingDescription: DISAMBIGUATION.en,
   }
 }
 
@@ -86,6 +93,7 @@ function software(locale: PublicLocale): JsonLd {
     installUrl: `${SITE.appOrigin}/`,
     image: `${SITE.origin}${SITE.ogImage[locale]}`,
     description: text.description,
+    disambiguatingDescription: DISAMBIGUATION[locale],
     featureList: text.features,
     inLanguage: ['en', 'ar'],
     publisher: { '@id': ORG_ID },
