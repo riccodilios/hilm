@@ -49,16 +49,20 @@ export function PublicHeader({ className }: { className?: string }) {
   return (
     <header
       className={cn(
-        'relative z-10 mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-5',
+        // Equal outer columns keep the page links centred on the page, not between brand and actions.
+        'relative z-10 mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-6 gap-y-3 px-5 py-5 lg:grid-cols-[1fr_auto_1fr]',
         className,
       )}
     >
-      <Link to={publicPath('home', locale)} className="text-sm font-medium tracking-tight text-foreground">
+      <Link
+        to={publicPath('home', locale)}
+        className="col-start-1 row-start-1 justify-self-start text-sm font-medium tracking-tight text-foreground"
+      >
         {BRAND[locale]}
       </Link>
       <nav
         aria-label={ui.primaryNav}
-        className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto text-sm [scrollbar-width:none] sm:order-none sm:mx-0 sm:w-auto [&::-webkit-scrollbar]:hidden"
+        className="col-span-2 row-start-2 flex max-w-full gap-1 justify-self-center overflow-x-auto text-sm [scrollbar-width:none] lg:col-span-1 lg:col-start-2 lg:row-start-1 [&::-webkit-scrollbar]:hidden"
       >
         {PRODUCT_PAGE_IDS.map((page) => (
           <Link
@@ -74,7 +78,7 @@ export function PublicHeader({ className }: { className?: string }) {
           </Link>
         ))}
       </nav>
-      <div className="flex items-center gap-2">
+      <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end lg:col-start-3">
         <PublicLanguageSwitch />
         <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
           <Link to="/login">{ui.signIn}</Link>

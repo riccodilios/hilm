@@ -45,7 +45,14 @@ export function LandingHero() {
       <PublicHeader className="hero-nav hero-anim opacity-0" />
 
       <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-4.5rem)] max-w-4xl flex-col items-center justify-center px-5 pb-20 pt-8 text-center">
-        <h1 className="hero-brand hero-anim text-[clamp(4rem,18vw,9rem)] font-medium leading-[0.9] tracking-[-0.06em] text-foreground opacity-0">
+        <h1
+          className={cn(
+            'hero-brand hero-anim text-[clamp(4rem,18vw,9rem)] font-medium leading-[0.9] tracking-[-0.06em] text-foreground opacity-0',
+            // The Arabic wordmark's descender sits low; lift it off the subtitle (offset, not a
+            // transform, so the GSAP entrance does not compound it).
+            locale === 'ar' && 'relative bottom-1.5',
+          )}
+        >
           {t('brand.name')}
           <span className="sr-only"> — {HOME_CONTENT[locale].h1Suffix}</span>
         </h1>
