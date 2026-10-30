@@ -31,7 +31,7 @@ APP_URL=https://app.hilm.tech
    - Netlify scheduled function `send-task-reminders`
    - Supabase `pg_cron` → HTTP POST to that function (backup)
 
-Email (Resend) is optional: push and in-app reminders work without it. With `RESEND_API_KEY` set, reminder, workspace assignment/mention and account-deleted emails are sent from `send.hilm.tech` — see [docs/email.md](docs/email.md).
+Email (Resend) is optional: push and in-app reminders work without it. With `RESEND_API_KEY` set, reminder, workspace assignment/mention and account-deleted emails are sent from `@hilm.tech` via Resend — see [docs/email.md](docs/email.md).
 
 ### Auth redirects
 
@@ -54,7 +54,7 @@ Signup / resend / magic-link / password-reset all call `getAuthCallbackUrl()` wh
 
 If new users never receive verification email:
 
-1. **Supabase → Authentication → SMTP Settings** — configure custom SMTP with Resend (`smtp.resend.com`, sender `security@send.hilm.tech`; exact settings in [docs/email.md](docs/email.md)). The default Supabase mailer is rate-limited and often blocked.
+1. **Supabase → Authentication → SMTP Settings** — configure custom SMTP with Resend (`smtp.resend.com`, sender `security@hilm.tech`; exact settings in [docs/email.md](docs/email.md)). The default Supabase mailer is rate-limited and often blocked.
 2. **Supabase → Authentication → URL Configuration** — Site URL must be `https://app.hilm.tech` (not `localhost:3000`).
 3. **Email templates** — use `{{ .ConfirmationURL }}`; see [docs/auth-email-templates.md](docs/auth-email-templates.md).
 

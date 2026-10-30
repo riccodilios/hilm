@@ -89,6 +89,25 @@ export function authEmail(d: {
   })
 }
 
+// ── Admin portal: approve a new network ─────────────────────────────────────
+
+export function adminNetworkApprovalEmail(d: { approveUrl: string; network: string; minutes: number }): RenderedEmail {
+  return build('admin-network-approval', 'security', 'Approve a new network for the Hilm admin portal', {
+    locale: 'en',
+    preheader: 'Someone with your password and authenticator code asked to sign in from a new network.',
+    eyebrow: 'Admin portal',
+    heading: 'Approve this network?',
+    paragraphs: [
+      'A sign-in with your password and authenticator code came from a network the admin portal has not seen before.',
+      `Open the button from that same device within ${d.minutes} minutes to allow it. The link works once.`,
+    ],
+    details: [{ label: 'Network', value: singleLine(d.network, 64) }],
+    action: { label: 'Approve network', url: d.approveUrl },
+    note: "If this wasn't you, do not open the link. Change your Hilm password and reset your authenticator.",
+    footer: { reason: 'Security notice for the Hilm admin account.' },
+  })
+}
+
 // ── Workspace invitation ────────────────────────────────────────────────────
 
 export function workspaceInviteEmail(d: {

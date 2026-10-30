@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { BroadcastError, broadcastRequestSchema, handleBroadcast, isBroadcastAdmin } from './broadcasts.ts'
+import { BroadcastError, broadcastRequestSchema, handleBroadcast } from './broadcasts.ts'
 import { loadEmailConfig } from './config.ts'
 import { fakeDb } from './fake-db.test-helper.ts'
 import type { EmailService, SendInput } from './service.ts'
@@ -9,7 +9,6 @@ const ADMIN = { id: '11111111-1111-4111-8111-111111111111', email: 'admin@hilm.t
 const config = loadEmailConfig({
   RESEND_API_KEY: 're_test',
   EMAIL_UNSUBSCRIBE_SECRET: 's'.repeat(40),
-  HILM_ADMIN_EMAILS: 'Admin@hilm.tech, other@hilm.tech',
 })
 const content = { en: { subject: 'New in Hilm', heading: 'Meetings got better', body: 'Line one.\n\nLine two.', ctaLabel: 'See it', ctaUrl: 'https://hilm.tech/meetings' } }
 
@@ -24,15 +23,6 @@ function service() {
   }
   return { s, sends }
 }
-
-describe('isBroadcastAdmin', () => {
-  it('requires a confirmed address on the admin list', () => {
-    expect(isBroadcastAdmin(config, { email: 'admin@hilm.tech', emailConfirmed: true })).toBe(true)
-    expect(isBroadcastAdmin(config, { email: 'admin@hilm.tech', emailConfirmed: false })).toBe(false)
-    expect(isBroadcastAdmin(config, { email: 'someone@example.com', emailConfirmed: true })).toBe(false)
-    expect(isBroadcastAdmin(loadEmailConfig({}), { email: 'admin@hilm.tech', emailConfirmed: true })).toBe(false)
-  })
-})
 
 describe('allowedCtaUrl', () => {
   it('allows only https Hilm sites', () => {

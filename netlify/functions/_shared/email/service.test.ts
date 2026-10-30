@@ -47,14 +47,14 @@ describe('createEmailService', () => {
     expect(await service.send(input)).toEqual({ ok: true, id: 'msg_1' })
     expect(send).toHaveBeenCalledTimes(1)
     const [payload, options] = send.mock.calls[0]!
-    expect(payload.from).toBe('Hilm Notifications <notifications@send.hilm.tech>')
+    expect(payload.from).toBe('Hilm Notifications <notifications@hilm.tech>')
     expect(payload.to).toEqual(['person@example.com'])
     expect(payload.replyTo).toBe('info@hilm.tech')
     expect(payload.text).toBe('hi')
     expect(options).toEqual({ idempotencyKey: 'hilm/task_reminder/abc' })
 
     await service.send({ ...input, category: 'security' })
-    expect(send.mock.calls[1]![0].from).toBe('Hilm Security <security@send.hilm.tech>')
+    expect(send.mock.calls[1]![0].from).toBe('Hilm Security <security@hilm.tech>')
   })
 
   it('rejects invalid recipients before calling the provider', async () => {

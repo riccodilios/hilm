@@ -29,6 +29,8 @@ export default defineConfig({
       ],
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // The console bundle must never be referenced by the public app's precache manifest.
+        globIgnores: ['admin.html', 'assets/admin-*'],
       },
       manifest: {
         name: 'Hilm | AI Personal OS and Workspace OS',
@@ -72,6 +74,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      // admin.html is the private console (served only on ADMIN_HOST via generated _redirects).
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        admin: path.resolve(__dirname, 'admin.html'),
+      },
+      output: {
+        entryFileNames: (chunk) => (chunk.name === 'admin' ? 'assets/admin-[hash].js' : 'assets/[name]-[hash].js'),
+      },
     },
   },
 })

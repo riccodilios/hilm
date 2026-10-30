@@ -1,11 +1,12 @@
 /**
- * DNS change report for Resend on send.hilm.tech, built from the records Resend actually returns.
+ * DNS report for the Resend sending domain (hilm.tech; override with RESEND_DOMAIN), built from the
+ * records Resend actually returns.
  * Checks each record against live DNS and confirms the existing hilm.tech mail/web records are
  * untouched. Makes no DNS changes.
  *
  *   RESEND_API_KEY=re_... npm run email:dns                      # report (domain must exist)
  *   RESEND_API_KEY=re_... npm run email:dns -- --create --region=eu-west-1
- *        creates send.hilm.tech in Resend (sending only, no tracking) if it does not exist yet
+ *        creates the domain in Resend (sending only, no tracking) if it does not exist yet
  *   ... npm run email:dns -- --verify                             # ask Resend to re-check DNS
  *
  * Needs a full-access API key (sending-only keys cannot read domains).
@@ -14,7 +15,7 @@ import dns from 'node:dns/promises'
 import { Resend } from 'resend'
 
 const ZONE = 'hilm.tech'
-const DOMAIN = process.env.RESEND_DOMAIN?.trim() || 'send.hilm.tech'
+const DOMAIN = process.env.RESEND_DOMAIN?.trim() || 'hilm.tech'
 const args = process.argv.slice(2)
 const flag = (name) => args.includes(`--${name}`)
 const option = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split('=')[1]
@@ -115,7 +116,7 @@ for (const r of records) {
 const protectedChecks = [
   ['MX', ZONE, 'Amelu mailbox (info@hilm.tech)'],
   ['TXT', ZONE, 'Root SPF + Google Search Console verification'],
-  ['TXT', `_dmarc.${ZONE}`, 'DMARC policy (applies to send.hilm.tech too)'],
+  ['TXT', `_dmarc.${ZONE}`, 'DMARC policy'],
 ]
 console.log('\nExisting records (must remain unchanged):')
 for (const [type, host, why] of protectedChecks) {

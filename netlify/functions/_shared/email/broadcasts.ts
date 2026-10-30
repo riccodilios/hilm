@@ -1,6 +1,6 @@
 /**
- * Admin product broadcasts (marketing, opt-out). Only addresses listed in HILM_ADMIN_EMAILS may
- * compose. "send" queues one outbox row per opted-in, confirmed, non-suppressed user; the
+ * Admin product broadcasts (marketing, opt-out), composed in the admin portal only.
+ * "send" queues one outbox row per opted-in, confirmed, non-suppressed user; the
  * dispatcher delivers them with a signed one-click unsubscribe link and List-Unsubscribe headers.
  */
 import { randomUUID } from 'node:crypto'
@@ -42,10 +42,6 @@ export class BroadcastError extends Error {
     this.status = status
     this.code = code
   }
-}
-
-export function isBroadcastAdmin(config: EmailConfig, user: { email: string | null; emailConfirmed: boolean }) {
-  return Boolean(user.email && user.emailConfirmed && config.adminEmails.includes(user.email.toLowerCase()))
 }
 
 function validateContent(content: BroadcastRequest['content'], audience: BroadcastRequest['audience']) {

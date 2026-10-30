@@ -1785,45 +1785,5 @@
       "save": "حفظ التفاصيل",
       "skip": "لاحقًا"
     }
-  },
-  "broadcast": {
-    "open": "كتابة بريد عن المنتج",
-    "title": "رسائل المنتج",
-    "description": "أرسل الإعلانات إلى مستخدمي حلم الذين فعّلوا أخبار المنتج.",
-    "notAdmin": "هذه الصفحة متاحة لمسؤولي حلم فقط.",
-    "notConfigured": "الإرسال غير مُعد بعد (مفتاح Resend وسر إلغاء الاشتراك). يمكنك المعاينة.",
-    "compose": "الكتابة",
-    "composeDesc": "اكتب بالعربية و/أو الإنجليزية. يتلقى كل مستخدم لغته، أو الإنجليزية عند عدم توفرها.",
-    "subject": "الموضوع",
-    "preheader": "نص المعاينة (اختياري)",
-    "heading": "العنوان",
-    "body": "الرسالة",
-    "bodyHint": "نص عادي. اترك سطراً فارغاً بين الفقرات.",
-    "ctaLabel": "نص الزر (اختياري)",
-    "ctaUrl": "رابط الزر (hilm.tech أو app.hilm.tech)",
-    "audience": "الجمهور",
-    "audienceAll": "الجميع ({{count}})",
-    "audienceEn": "مستخدمو الإنجليزية ({{count}})",
-    "audienceAr": "مستخدمو العربية ({{count}})",
-    "preview": "معاينة",
-    "sendTest": "إرسال تجربة إليّ",
-    "sendAll": "إرسال إلى {{count}}",
-    "testSent": "أُرسلت رسالة التجربة إلى بريدك",
-    "queued": "جُدولت لـ {{count}} مستلماً",
-    "recent": "الرسائل الأخيرة",
-    "recipients": "{{count}} مستلماً",
-    "confirmTitle": "إرسال هذه الرسالة؟",
-    "confirmBody": "ستصل إلى {{count}} شخصاً الآن ولا يمكن استرجاعها.",
-    "confirmSend": "إرسال الآن",
-    "errors": {
-      "generic": "حدث خطأ ما",
-      "cta_url_not_allowed": "يجب أن يشير رابط الزر إلى hilm.tech أو app.hilm.tech (https).",
-      "cta_incomplete": "أضف نص الزر ورابطه معاً، أو اتركهما فارغين.",
-      "missing_audience_content": "اكتب المحتوى بلغة الجمهور.",
-      "cooldown": "انتظر 10 دقائق بين رسائل المنتج.",
-      "not_configured": "إرسال البريد غير مُعد.",
-      "unsubscribe_not_configured": "EMAIL_UNSUBSCRIBE_SECRET غير مُعد.",
-      "invalid_request": "تحقق من الحقول وحاول مجدداً."
-    }
   }
 }

@@ -61,9 +61,6 @@ const ActivityPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
-const EmailBroadcastPage = lazy(() =>
-  import('@/features/settings/EmailBroadcastPage').then((m) => ({ default: m.EmailBroadcastPage })),
-)
 const ProfilePage = lazy(() =>
   import('@/features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 )
@@ -324,7 +321,6 @@ export function AppRouter() {
               <Route path="search" element={<Suspense fallback={<AppFallback />}><SearchPage /></Suspense>} />
               <Route path="notifications" element={<Navigate to="/personal/tasks" replace />} />
               <Route path="settings" element={<Suspense fallback={<AppFallback />}><SettingsPage /></Suspense>} />
-              <Route path="settings/email-broadcasts" element={<Suspense fallback={<AppFallback />}><EmailBroadcastPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<AppFallback />}><ProfilePage /></Suspense>} />
               <Route path="reports" element={<Suspense fallback={<AppFallback />}><PersonalReportsPage /></Suspense>} />
               <Route

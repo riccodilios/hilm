@@ -7,53 +7,6 @@ export { getProfile, updateProfile } from '@/shared/user-profile'
 import { supabase } from '@/lib/supabase/client'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 
-export type BroadcastContent = {
-  subject: string
-  preheader?: string
-  heading: string
-  body: string
-  ctaLabel?: string
-  ctaUrl?: string
-}
-
-export type BroadcastAdminInfo =
-  | { admin: false }
-  | {
-      admin: true
-      sendingEnabled: boolean
-      audience: { all: number; en: number; ar: number }
-      recent: Array<{ id: string; created_at: string; audience: string; recipients: number; subject: string | null }>
-    }
-
-async function emailAdminRequest<T>(method: 'GET' | 'POST', body?: unknown): Promise<T> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) throw new Error('Not authenticated')
-  const response = await fetch('/api/admin-email', {
-    method,
-    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const payload = (await response.json().catch(() => ({}))) as T & { error?: string }
-  if (!response.ok) {
-    const err = new Error(payload.error || 'request_failed') as Error & { code?: string }
-    err.code = payload.error
-    throw err
-  }
-  return payload
-}
-
-export const getBroadcastAdmin = () => emailAdminRequest<BroadcastAdminInfo>('GET')
-
-export const submitBroadcast = (body: {
-  action: 'preview' | 'test' | 'send'
-  audience: 'all' | 'en' | 'ar'
-  content: Partial<Record<'en' | 'ar', BroadcastContent>>
-  confirm?: string
-}) =>
-  emailAdminRequest<{ html?: Partial<Record<'en' | 'ar', string>>; tested?: string[]; queued?: number }>('POST', body)
-
 export async function deleteAccount(confirm: string) {
   const {
     data: { session },

@@ -1,15 +1,15 @@
 # Transactional email (Resend)
 
 Hilm sends app email through [Resend](https://resend.com) from the dedicated sending subdomain
-**send.hilm.tech**. The business mailbox `info@hilm.tech` (Amelu) is separate and is only used as
+**hilm.tech** (domain verified in Resend; bounces return via `send.hilm.tech`). The business mailbox `info@hilm.tech` (Amelu) is separate and is only used as
 the Reply-To address, because the sending identities below cannot receive mail.
 
 | Identity | Used for |
 |---|---|
-| `Hilm Notifications <notifications@send.hilm.tech>` | Task reminders (personal + workspace), assignments, mentions, task updates and comments |
-| `Hilm Security <security@send.hilm.tech>` | Verification / password-reset / sign-in codes (Supabase hook), account deleted notice |
-| `Hilm Team <team@send.hilm.tech>` | Workspace invitations, delivery tests |
-| `Hilm <noreply@send.hilm.tech>` | Product news broadcasts (opt-out, one-click unsubscribe) |
+| `Hilm Notifications <notifications@hilm.tech>` | Task reminders (personal + workspace), assignments, mentions, task updates and comments |
+| `Hilm Security <security@hilm.tech>` | Verification / password-reset / sign-in codes (Supabase hook), account deleted notice |
+| `Hilm Team <team@hilm.tech>` | Workspace invitations, delivery tests |
+| `Hilm <noreply@hilm.tech>` | Product news broadcasts (opt-out, one-click unsubscribe) |
 
 ## What is sent
 
@@ -22,7 +22,7 @@ the Reply-To address, because the sending identities below cannot receive mail.
 | Mention | DB trigger on @mention | Same as above |
 | Task updates (digest, 5 min) | Someone else changes status/priority/due/title of, or comments on, a task assigned to you | Workspace emails + workspace "Task updates" |
 | Workspace invitation | Owner/admin → Team → Invite by email (max 10 per send, 50 per workspace per day, no repeat within 24 h) | — (recipient is not a user yet) |
-| Product news | Admin → Settings → Compose product email (`HILM_ADMIN_EMAILS`) | Settings → Product news (on by default; unsubscribe link + `List-Unsubscribe` one-click) |
+| Product news | Admin console → Product emails (see `docs/admin-portal.md`) | Settings → Product news (on by default; unsubscribe link + `List-Unsubscribe` one-click) |
 | Account deleted | After deletion | Always (security) |
 
 Invite links are the workspace's existing join link (`/workspace?join=CODE`). If the invitee is not
@@ -34,7 +34,7 @@ signed in, the code is remembered through sign-up/onboarding so they land on the
 reminder job (personal + workspace) ──┐
 DB triggers: assigned / mention / ────┤
   task update / comment               ├─► private.email_outbox ─► email-dispatch (every minute)
-admin broadcast (/api/admin-email) ───┘        (one row per event)      │ re-checks live data + prefs
+admin console broadcast ──────────────┘        (one row per event)      │ re-checks live data + prefs
                                                                          │ renders template (EN/AR)
 delete-account ─────────────────────────────────────────────────────────►│ Resend SDK + idempotency key
 Resend webhooks ─► /api/resend-webhook ─► private.email_suppressions ◄───┘ (skips suppressed)
@@ -65,11 +65,11 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 
 | Variable | Production | Deploy previews / branch deploys | Local dev (`.env`) |
 |---|---|---|---|
-| `RESEND_API_KEY` | Required. Sending-access key restricted to `send.hilm.tech`; mark as secret | **Leave unset** (previews share the production database; unset = no email) | Optional, only for `npm run email:test` |
+| `RESEND_API_KEY` | Required. Sending-access key restricted to `hilm.tech`; mark as secret | **Leave unset** (previews share the production database; unset = no email) | Optional, only for `npm run email:test` |
 | `RESEND_WEBHOOK_SECRET` | Required for bounce/complaint handling (`whsec_…` from the Resend webhook) | Unset | Not needed |
 | `RESEND_FROM_NOTIFICATIONS` / `_SECURITY` / `_TEAM` / `_MARKETING` | Optional; defaults above | — | — |
 | `EMAIL_UNSUBSCRIBE_SECRET` | Required for product news (32+ random characters; signs unsubscribe links) | Unset | — |
-| `HILM_ADMIN_EMAILS` | Comma-separated admin addresses allowed to send product news | Unset | — |
+| `ADMIN_HOST` | Private console hostname (Builds + Functions scope) | Unset | — |
 | `SUPABASE_AUTH_HOOK_SECRET` | Required for Hilm-styled auth emails (`v1,whsec_…` from Supabase → Auth Hooks) | Unset | — |
 | `APP_BASE_URL` | Optional; falls back to existing `APP_URL` (`https://app.hilm.tech`) | — | `http://localhost:5173` if testing links |
 | `EMAIL_TEST_RECIPIENT` | Do not set | — | Your own address, for the manual test |
@@ -82,7 +82,7 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 1. **Database:** apply `supabase/migrations/0037_email_delivery.sql` and `0038_email_engagement.sql`
    *before* deploying the code. The app's settings query reads the new columns.
 2. **Resend domain + DNS:** see below, and wait until the domain shows **Verified** in Resend.
-3. **API key:** Resend → API Keys → create a key with *Sending access*, domain `send.hilm.tech`, then
+3. **API key:** Resend → API Keys → create a key with *Sending access*, domain `hilm.tech`, then
    set `RESEND_API_KEY` in Netlify (Production, Functions).
 4. **Deploy** the code (push to `main`).
 5. **Webhook:**
@@ -96,9 +96,18 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 New domains should ramp up gradually. Hilm's volume (reminders and team notifications) is far below
 Resend's warm-up limits.
 
-## DNS for send.hilm.tech
+## DNS (Resend domain `hilm.tech`, verified)
 
-The DNS for `hilm.tech` is hosted on **Netlify DNS** (zone `hilm.tech`).
+The DNS for `hilm.tech` is hosted on **Netlify DNS** (zone `hilm.tech`). Resend has `hilm.tech`
+verified (region ap-northeast-1, sending only, open/click tracking off) with these records:
+
+| Type | Name | Purpose |
+|---|---|---|
+| TXT | `resend._domainkey.hilm.tech` | DKIM key (d=hilm.tech) |
+| CNAME | `send.hilm.tech` → `send.forge.rmta.net` | Return path (bounces); SPF is evaluated here |
+| CNAME | `rsend.hilm.tech` → `rsend-apne1.forge.rmta.net` | Return path (regional) |
+
+None of these share a hostname with the Amelu or Netlify records below, and the root SPF stays as it is.
 
 Get the exact records from Resend; never type them from memory. With a full-access key:
 
@@ -114,10 +123,6 @@ The report prints, for each record:
 - whether it already exists in live DNS;
 - whether it would conflict with an existing record, such as a second SPF record.
 
-Resend's sending records all live **under** `send.hilm.tech`: a DKIM TXT record, plus an MX and an
-SPF TXT record for the bounce (return-path) host. None of them share a hostname with existing
-records.
-
 ### Records that must not change
 
 | Record | Why |
@@ -130,11 +135,10 @@ records.
 | `TXT _dmarc.hilm.tech "v=DMARC1; p=none; rua=mailto:postmaster@hilm.tech"` | DMARC |
 
 **DMARC:**
-- The root policy also covers `send.hilm.tech`. Resend signs with DKIM for `send.hilm.tech`, so
-  messages from `*@send.hilm.tech` align and pass.
+- Resend signs with DKIM for `hilm.tech`, so messages from `*@hilm.tech` align and pass DMARC.
 - `p=none` only reports. Tightening it to `quarantine` or `reject` later affects Amelu mail too, so
   only do it after the reports show every legitimate source passing.
-- Receiving on `send.hilm.tech` stays disabled in Resend. Never point the root MX at Resend.
+- Receiving stays disabled in Resend. Never point the root MX at Resend (it belongs to Amelu).
 
 ## Supabase Auth email (verification, password reset, magic link)
 
@@ -163,7 +167,7 @@ off. Settings:
    - Port: `465` (SSL), or `587` (STARTTLS)
    - Username: `resend`
    - Password: a Resend API key with sending access (a separate key from Netlify's makes rotation easier)
-   - Sender email: `security@send.hilm.tech`
+   - Sender email: `security@hilm.tech`
    - Sender name: `Hilm`
 2. Authentication → **Rate Limits**: custom SMTP starts with a low hourly email limit; raise it to fit
    sign-up volume.

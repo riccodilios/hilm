@@ -1,6 +1,6 @@
 /**
  * Email configuration, read from server-side environment variables only (never VITE_*).
- * Sender identities live on the dedicated sending subdomain send.hilm.tech; they are sending
+ * Sender identities are on hilm.tech (the domain verified in Resend); they are sending
  * identities, not mailboxes.
  */
 
@@ -17,17 +17,17 @@ export type EmailConfig = {
   unsubscribeSecret: string | null
   /** Supabase Auth "Send Email" hook secret (whsec_… without the "v1," prefix). */
   authHookSecret: string | null
-  /** Lower-cased addresses allowed to compose product broadcasts. */
-  adminEmails: string[]
   /** Problems that disable sending (bad sender format, bad base URL). Never contains secrets. */
   problems: string[]
 }
 
+// hilm.tech is the domain verified in Resend (return path on send.hilm.tech). These are sending
+// identities only; replies go to the Amelu mailbox info@hilm.tech.
 export const DEFAULT_FROM: Record<EmailCategory, string> = {
-  notifications: 'Hilm Notifications <notifications@send.hilm.tech>',
-  security: 'Hilm Security <security@send.hilm.tech>',
-  team: 'Hilm Team <team@send.hilm.tech>',
-  marketing: 'Hilm <noreply@send.hilm.tech>',
+  notifications: 'Hilm Notifications <notifications@hilm.tech>',
+  security: 'Hilm Security <security@hilm.tech>',
+  team: 'Hilm Team <team@hilm.tech>',
+  marketing: 'Hilm <noreply@hilm.tech>',
 }
 
 export const DEFAULT_APP_BASE_URL = 'https://app.hilm.tech'
@@ -86,10 +86,6 @@ export function loadEmailConfig(env: Env = process.env): EmailConfig {
     webhookSecret: env.RESEND_WEBHOOK_SECRET?.trim() || null,
     unsubscribeSecret: unsubscribeSecret && unsubscribeSecret.length >= 32 ? unsubscribeSecret : null,
     authHookSecret: env.SUPABASE_AUTH_HOOK_SECRET?.trim().replace(/^v1,/, '') || null,
-    adminEmails: (env.HILM_ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
     problems,
   }
 }

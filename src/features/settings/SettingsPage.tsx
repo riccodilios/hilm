@@ -6,7 +6,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   deleteAccount,
-  getBroadcastAdmin,
   getProfile,
   getSettings,
   settingsKeys,
@@ -83,12 +82,6 @@ export function SettingsPage({
   const [emailReminders, setEmailReminders] = useState(true)
   const [workspaceEmails, setWorkspaceEmails] = useState(true)
   const [marketingEmails, setMarketingEmails] = useState(true)
-  const broadcastAdmin = useQuery({
-    queryKey: ['email-broadcast-admin'],
-    queryFn: getBroadcastAdmin,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  })
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
@@ -493,11 +486,6 @@ export function SettingsPage({
               </div>
               <Switch checked={marketingEmails} onCheckedChange={setMarketingEmails} />
             </div>
-            {broadcastAdmin.data?.admin ? (
-              <Button asChild variant="secondary" size="sm">
-                <Link to="/personal/settings/email-broadcasts">{t('broadcast.open')}</Link>
-              </Button>
-            ) : null}
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">{t('settings.pushNotifications')}</p>

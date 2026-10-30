@@ -44,7 +44,7 @@ Same as confirm — use `{{ .ConfirmationURL }}`.
 
 1. **Site URL** = `https://app.hilm.tech` (not localhost)
 2. **Redirect URLs** include `/auth/callback**` and `/auth/confirm**`
-3. **Custom SMTP** configured with Resend (`smtp.resend.com`, sender `security@send.hilm.tech`) — see `docs/email.md`
+3. **Custom SMTP** configured with Resend (`smtp.resend.com`, sender `security@hilm.tech`) — see `docs/email.md`
 4. **Confirm email** enabled if you require verification before login
 
 Run locally:

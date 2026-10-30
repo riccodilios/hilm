@@ -1794,45 +1794,5 @@
       "save": "Save details",
       "skip": "Skip for now"
     }
-  },
-  "broadcast": {
-    "open": "Compose product email",
-    "title": "Product emails",
-    "description": "Send announcements to Hilm users who have product news turned on.",
-    "notAdmin": "This page is only available to Hilm administrators.",
-    "notConfigured": "Sending is not configured yet (Resend API key and unsubscribe secret). You can still preview.",
-    "compose": "Compose",
-    "composeDesc": "Write English and/or Arabic. Each user receives their language, or English when missing.",
-    "subject": "Subject",
-    "preheader": "Preview text (optional)",
-    "heading": "Heading",
-    "body": "Message",
-    "bodyHint": "Plain text. Leave a blank line between paragraphs.",
-    "ctaLabel": "Button label (optional)",
-    "ctaUrl": "Button link (hilm.tech or app.hilm.tech)",
-    "audience": "Audience",
-    "audienceAll": "Everyone ({{count}})",
-    "audienceEn": "English users ({{count}})",
-    "audienceAr": "Arabic users ({{count}})",
-    "preview": "Preview",
-    "sendTest": "Send test to me",
-    "sendAll": "Send to {{count}}",
-    "testSent": "Test email sent to your address",
-    "queued": "Queued for {{count}} recipients",
-    "recent": "Recent emails",
-    "recipients": "{{count}} recipients",
-    "confirmTitle": "Send this email?",
-    "confirmBody": "It will go to {{count}} people now and cannot be recalled.",
-    "confirmSend": "Send now",
-    "errors": {
-      "generic": "Something went wrong",
-      "cta_url_not_allowed": "Button links must point to hilm.tech or app.hilm.tech (https).",
-      "cta_incomplete": "Add both a button label and a link, or neither.",
-      "missing_audience_content": "Write content in the audience language.",
-      "cooldown": "Wait 10 minutes between product emails.",
-      "not_configured": "Email sending is not configured.",
-      "unsubscribe_not_configured": "EMAIL_UNSUBSCRIBE_SECRET is not configured.",
-      "invalid_request": "Check the fields and try again."
-    }
   }
 }

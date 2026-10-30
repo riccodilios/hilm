@@ -1,47 +1,7 @@
 import type { Config } from '@netlify/functions'
 import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
-import { loadEmailConfig } from './_shared/email/config.ts'
-import { formatDateTime, normalizeLocale, safeTimeZone } from './_shared/email/format.ts'
-import { REPLY_TO, createEmailService } from './_shared/email/service.ts'
-import { accountDeletedEmail } from './_shared/email/templates.ts'
-
-type DeletedAccount = {
-  email: string | null
-  confirmed: boolean
-  locale: string | null
-  time_zone: string | null
-  time_format: string | null
-}
-
-/** Security notice to the deleted account's own (confirmed) address. Never blocks the deletion. */
-async function sendAccountDeletedNotice(userId: string, account: DeletedAccount | undefined) {
-  if (!account?.email || !account.confirmed) return
-  try {
-    const config = loadEmailConfig()
-    const service = createEmailService(config)
-    if (!service.enabled) return
-    const locale = normalizeLocale(account.locale)
-    const deletedAtLabel =
-      formatDateTime(new Date().toISOString(), {
-        locale,
-        timeZone: safeTimeZone(account.time_zone),
-        timeFormat: account.time_format === '12h' ? '12h' : '24h',
-      }) ?? new Date().toISOString()
-    const email = accountDeletedEmail({ locale, appBaseUrl: config.appBaseUrl, deletedAtLabel, supportEmail: REPLY_TO })
-    await service.send({
-      category: email.category,
-      template: email.template,
-      to: account.email,
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-      idempotencyKey: `hilm/account-deleted/${userId}`,
-    })
-  } catch {
-    // Logged by the service; the account is already deleted.
-  }
-}
+import { deleteUserAccount } from './_shared/account-deletion.ts'
 
 function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
@@ -111,82 +71,21 @@ export default async (request: Request) => {
 
   try {
     await client.connect()
-    await client.query('begin')
-
-    const shared = await client.query<{ id: string; name: string }>(
-      `select w.id, w.name
-       from public.workspaces w
-       where w.owner_id = $1
-         and exists (
-           select 1
-           from public.workspace_members m
-           where m.workspace_id = w.id
-             and m.user_id <> $1
-         )
-       order by w.name
-       limit 5`,
-      [user.id],
-    )
-    if (shared.rows.length) {
-      await client.query('rollback')
+    const result = await deleteUserAccount(client, user.id)
+    if (result.ok) return respond({ ok: true })
+    if (result.code === 'owned_shared_workspaces') {
       return respond(
         {
           error:
             'Transfer or delete workspaces you own that still have other members before deleting your account.',
           code: 'owned_shared_workspaces',
-          workspaces: shared.rows,
+          workspaces: result.workspaces,
         },
         409,
       )
     }
-
-    // Sole-owned workspaces cascade to projects/tasks/members.
-    await client.query(`delete from public.workspaces where owner_id = $1`, [user.id])
-
-    // Leave remaining memberships.
-    await client.query(`delete from public.workspace_members where user_id = $1`, [user.id])
-
-    // Reassign restrict FKs so auth.users delete can succeed.
-    await client.query(
-      `update public.workspace_projects p
-       set created_by = w.owner_id
-       from public.workspaces w
-       where p.workspace_id = w.id
-         and p.created_by = $1
-         and w.owner_id <> $1`,
-      [user.id],
-    )
-    await client.query(
-      `update public.workspace_tasks t
-       set created_by = w.owner_id
-       from public.workspaces w
-       where t.workspace_id = w.id
-         and t.created_by = $1
-         and w.owner_id <> $1`,
-      [user.id],
-    )
-
-    const account = await client.query<DeletedAccount>(
-      // to_jsonb keeps this working whether or not the email-settings columns exist yet.
-      `select u.email, (u.email_confirmed_at is not null) as confirmed,
-              to_jsonb(s) ->> 'locale' as locale,
-              to_jsonb(s) ->> 'time_zone' as time_zone,
-              to_jsonb(s) ->> 'time_format' as time_format
-       from auth.users u left join public.user_settings s on s.user_id = u.id
-       where u.id = $1`,
-      [user.id],
-    )
-
-    await client.query(`delete from auth.users where id = $1`, [user.id])
-    await client.query('commit')
-    await sendAccountDeletedNotice(user.id, account.rows[0])
-    return respond({ ok: true })
+    return respond({ error: 'Account not found' }, 404)
   } catch (error) {
-    try {
-      await client.query('rollback')
-    } catch {
-      // ignore
-    }
     const message = error instanceof Error ? error.message : 'Could not delete account'
     return respond({ error: message }, 500)
   } finally {
