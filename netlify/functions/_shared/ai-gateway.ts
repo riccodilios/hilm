@@ -124,7 +124,7 @@ export async function runAiCompletion(input: {
         headers: {
           Authorization: `Bearer ${input.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hillm.netlify.app',
+          'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hilm.tech',
           'X-Title': title,
         },
         body: JSON.stringify(body),
@@ -248,7 +248,7 @@ export async function streamAiCompletion(input: {
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hillm.netlify.app',
+        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hilm.tech',
         'X-Title': input.title ?? `Hilm ${input.feature}`,
       },
       body: JSON.stringify(body),

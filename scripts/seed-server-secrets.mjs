@@ -26,7 +26,7 @@ const rows = [
   ['VAPID_PUBLIC_KEY', env.VAPID_PUBLIC_KEY],
   ['VAPID_PRIVATE_KEY', env.VAPID_PRIVATE_KEY],
   ['VAPID_SUBJECT', env.VAPID_SUBJECT || 'mailto:noreply@hillm.netlify.app'],
-  ['APP_URL', env.APP_URL || env.VITE_APP_URL || 'https://hillm.netlify.app'],
+  ['APP_URL', env.APP_URL || env.VITE_APP_URL || 'https://hilm.tech'],
   ['CRON_SECRET', env.CRON_SECRET],
   ['OPENROUTER_API_KEY', env.OPENROUTER_API_KEY],
   ['OPENROUTER_DEFAULT_MODEL', env.OPENROUTER_DEFAULT_MODEL || 'google/gemini-2.5-flash'],

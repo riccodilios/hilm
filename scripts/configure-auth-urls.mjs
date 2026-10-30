@@ -21,9 +21,9 @@ function loadEnv() {
 }
 
 const env = loadEnv()
-const prod = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://hillm.netlify.app').replace(/\/$/, '')
+const prod = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://hilm.tech').replace(/\/$/, '')
 const isLocal = /localhost|127\.0\.0\.1/i.test(prod)
-const siteUrl = isLocal ? 'https://hillm.netlify.app' : prod
+const siteUrl = isLocal ? 'https://hilm.tech' : prod
 
 const redirectUrls = [
   `${siteUrl}/auth/callback`,

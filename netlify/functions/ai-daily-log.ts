@@ -314,7 +314,7 @@ Return ONLY valid JSON with this shape:
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hillm.netlify.app',
+        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hilm.tech',
         'X-Title': 'Hilm Daily Log',
       },
       body: JSON.stringify({

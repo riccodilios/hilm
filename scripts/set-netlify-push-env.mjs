@@ -1,5 +1,5 @@
 /**
- * Upsert Netlify env for Web Push reminders (no custom domain).
+ * Upsert Netlify env for Web Push reminders.
  * Uses logged-in Netlify CLI token from %APPDATA%/netlify/Config/config.json
  * or NETLIFY_AUTH_TOKEN.
  *
@@ -62,8 +62,8 @@ const existing = existingRes.ok ? await existingRes.json() : []
 const existingKeys = new Set(existing.map((e) => e.key))
 
 const vars = {
-  APP_URL: local.APP_URL || local.VITE_APP_URL || 'https://hillm.netlify.app',
-  VITE_APP_URL: local.VITE_APP_URL || 'https://hillm.netlify.app',
+  APP_URL: local.APP_URL || local.VITE_APP_URL || 'https://hilm.tech',
+  VITE_APP_URL: local.VITE_APP_URL || 'https://hilm.tech',
   VITE_VAPID_PUBLIC_KEY: local.VITE_VAPID_PUBLIC_KEY || local.VAPID_PUBLIC_KEY,
   VAPID_PUBLIC_KEY: local.VAPID_PUBLIC_KEY || local.VITE_VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: local.VAPID_PRIVATE_KEY,

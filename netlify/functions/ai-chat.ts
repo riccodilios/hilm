@@ -417,7 +417,7 @@ ${contextPack}`
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hillm.netlify.app',
+        'HTTP-Referer': process.env.APP_URL || process.env.VITE_APP_URL || 'https://hilm.tech',
         'X-Title': 'Hilm',
       },
       body: JSON.stringify({

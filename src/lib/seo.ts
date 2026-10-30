@@ -2,7 +2,7 @@
  * SEO config for Hilm — used by index.html mirrors, document head, and structured data.
  * Keep descriptions aligned with landing copy so web + AI search share one entity story.
  */
-export const SITE_URL = 'https://hillm.netlify.app'
+export const SITE_URL = 'https://hilm.tech'
 
 export const SEO = {
   siteName: 'Hilm',

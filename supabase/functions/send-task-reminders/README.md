@@ -10,7 +10,7 @@ supabase functions deploy send-task-reminders --project-ref lrvmlayzmvswfqsqroni
 
 ```bash
 supabase secrets set \
-  APP_URL=https://hillm.netlify.app \
+  APP_URL=https://hilm.tech \
   VAPID_PUBLIC_KEY=... \
   VAPID_PRIVATE_KEY=... \
   VAPID_SUBJECT=mailto:you@example.com \
@@ -20,7 +20,7 @@ supabase secrets set \
 ```
 
 Notes:
-- **Web Push** works on `https://hillm.netlify.app` with no custom domain.
+- **Web Push** works on `https://hilm.tech` (and the original `hillm.netlify.app`).
 - **Email** via Resend’s `onboarding@resend.dev` is for testing; production mail to all users needs a verified domain you control (not `*.netlify.app`).
 
 ## Schedule (every minute)
@@ -30,7 +30,7 @@ Supabase Dashboard → Edge Functions → `send-task-reminders` → Schedules �
 Or HTTP cron (Netlify function — requires CRON_SECRET; no public /api alias):
 
 ```bash
-curl -X POST "https://hillm.netlify.app/.netlify/functions/send-task-reminders" \
+curl -X POST "https://hilm.tech/.netlify/functions/send-task-reminders" \
   -H "x-cron-secret: $CRON_SECRET"
 ```
 
@@ -39,6 +39,6 @@ Netlify's built-in schedule still runs this function every minute when `CRON_SEC
 ## Netlify client env
 
 ```bash
-VITE_APP_URL=https://hillm.netlify.app
+VITE_APP_URL=https://hilm.tech
 VITE_VAPID_PUBLIC_KEY=<same public key as VAPID_PUBLIC_KEY>
 ```

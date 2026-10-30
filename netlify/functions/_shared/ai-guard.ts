@@ -60,7 +60,7 @@ export function aiCorsHeaders(request?: Request) {
     headers['Access-Control-Allow-Origin'] = origin
   } else if (!origin) {
     // Same-origin / non-browser clients
-    headers['Access-Control-Allow-Origin'] = allowed.values().next().value || 'https://hillm.netlify.app'
+    headers['Access-Control-Allow-Origin'] = allowed.values().next().value || 'https://hilm.tech'
   }
   return headers
 }

@@ -87,7 +87,7 @@ export default async (request: Request) => {
       process.env.APP_URL ||
       secrets.APP_URL ||
       process.env.VITE_APP_URL ||
-      'https://hillm.netlify.app'
+      'https://hilm.tech'
     ).replace(/\/$/, '')
 
     if (!vapidPublic || !vapidPrivate) {

@@ -42,7 +42,7 @@ Same as confirm — use `{{ .ConfirmationURL }}`.
 
 ## Production checklist
 
-1. **Site URL** = `https://hillm.netlify.app` (not localhost)
+1. **Site URL** = `https://hilm.tech` (not localhost)
 2. **Redirect URLs** include `/auth/callback**` and `/auth/confirm**`
 3. **Custom SMTP** configured (default Supabase mailer is not production-grade)
 4. **Confirm email** enabled if you require verification before login

@@ -1,4 +1,4 @@
-# https://hillm.netlify.app/robots.txt
+# https://hilm.tech/robots.txt
 User-agent: *
 Allow: /
 Allow: /privacy
@@ -15,4 +15,4 @@ Disallow: /app/
 Disallow: /auth/
 Disallow: /api/
 
-Sitemap: https://hillm.netlify.app/sitemap.xml
+Sitemap: https://hilm.tech/sitemap.xml

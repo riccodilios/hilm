@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Post-deploy smoke checks for https://hillm.netlify.app
+ * Post-deploy smoke checks for https://hilm.tech
  * Usage: node scripts/smoke-production.mjs [baseUrl]
  */
-const BASE = (process.argv[2] ?? process.env.SMOKE_BASE_URL ?? 'https://hillm.netlify.app').replace(/\/$/, '')
+const BASE = (process.argv[2] ?? process.env.SMOKE_BASE_URL ?? 'https://hilm.tech').replace(/\/$/, '')
 
 const ROUTES = [
   '/',
