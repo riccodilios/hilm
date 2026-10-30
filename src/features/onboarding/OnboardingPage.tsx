@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { getSettings, updateSettings, settingsKeys } from '@/features/settings/api'
 import { createWorkspace, joinWorkspaceByInvite, workspaceKeys } from '@/features/workspace-os/api'
 import { resolvePostAuthDestination } from '@/features/auth/startup'
+import { clearPendingInvite, pendingInvite } from '@/features/auth/pending-invite'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,10 +22,12 @@ export function OnboardingPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
-  const [step, setStep] = useState<Step>('choose')
+  // An emailed invite opened before sign-up goes straight to "join" with the code filled in.
+  const [invite] = useState(() => pendingInvite())
+  const [step, setStep] = useState<Step>(invite ? 'workspace-path' : 'choose')
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [mode, setMode] = useState<'create' | 'join' | null>(null)
+  const [code, setCode] = useState(invite ?? '')
+  const [mode, setMode] = useState<'create' | 'join' | null>(invite ? 'join' : null)
   const [doneRedirect, setDoneRedirect] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export function OnboardingPage() {
       return joinWorkspaceByInvite(code)
     },
     onSuccess: async (ws) => {
+      clearPendingInvite()
       await Promise.all([
         qc.invalidateQueries({ queryKey: settingsKeys.me() }),
         qc.invalidateQueries({ queryKey: workspaceKeys.list() }),

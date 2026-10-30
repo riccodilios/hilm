@@ -4,7 +4,7 @@
  * identities, not mailboxes.
  */
 
-export type EmailCategory = 'notifications' | 'security' | 'team'
+export type EmailCategory = 'notifications' | 'security' | 'team' | 'marketing'
 
 export type EmailConfig = {
   /** Null when RESEND_API_KEY is missing: sending is disabled and callers skip quietly. */
@@ -13,6 +13,12 @@ export type EmailConfig = {
   /** Origin used for every link in an email, e.g. https://app.hilm.tech (no trailing slash). */
   appBaseUrl: string
   webhookSecret: string | null
+  /** Signs one-click unsubscribe links; marketing email is refused without it. */
+  unsubscribeSecret: string | null
+  /** Supabase Auth "Send Email" hook secret (whsec_… without the "v1," prefix). */
+  authHookSecret: string | null
+  /** Lower-cased addresses allowed to compose product broadcasts. */
+  adminEmails: string[]
   /** Problems that disable sending (bad sender format, bad base URL). Never contains secrets. */
   problems: string[]
 }
@@ -21,6 +27,7 @@ export const DEFAULT_FROM: Record<EmailCategory, string> = {
   notifications: 'Hilm Notifications <notifications@send.hilm.tech>',
   security: 'Hilm Security <security@send.hilm.tech>',
   team: 'Hilm Team <team@send.hilm.tech>',
+  marketing: 'Hilm <noreply@send.hilm.tech>',
 }
 
 export const DEFAULT_APP_BASE_URL = 'https://app.hilm.tech'
@@ -54,6 +61,7 @@ export function loadEmailConfig(env: Env = process.env): EmailConfig {
     notifications: env.RESEND_FROM_NOTIFICATIONS,
     security: env.RESEND_FROM_SECURITY,
     team: env.RESEND_FROM_TEAM,
+    marketing: env.RESEND_FROM_MARKETING,
   }
   for (const category of Object.keys(overrides) as EmailCategory[]) {
     const value = overrides[category]?.trim()
@@ -66,11 +74,22 @@ export function loadEmailConfig(env: Env = process.env): EmailConfig {
   const appBaseUrl = normalizeBaseUrl(rawBase)
   if (!appBaseUrl) problems.push('APP_BASE_URL must be an https URL without query or credentials')
 
+  const unsubscribeSecret = env.EMAIL_UNSUBSCRIBE_SECRET?.trim() || null
+  if (unsubscribeSecret && unsubscribeSecret.length < 32) {
+    problems.push('EMAIL_UNSUBSCRIBE_SECRET must be at least 32 characters')
+  }
+
   return {
     apiKey,
     from,
     appBaseUrl: appBaseUrl ?? DEFAULT_APP_BASE_URL,
     webhookSecret: env.RESEND_WEBHOOK_SECRET?.trim() || null,
+    unsubscribeSecret: unsubscribeSecret && unsubscribeSecret.length >= 32 ? unsubscribeSecret : null,
+    authHookSecret: env.SUPABASE_AUTH_HOOK_SECRET?.trim().replace(/^v1,/, '') || null,
+    adminEmails: (env.HILM_ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
     problems,
   }
 }

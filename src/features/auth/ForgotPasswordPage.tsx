@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
+import { EmailCodeForm } from '@/features/auth/EmailCodeForm'
 import { normalizeEmail } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 
 export function ForgotPasswordPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { resetPassword } = useAuth()
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -47,7 +49,14 @@ export function ForgotPasswordPage() {
           <LanguageSwitcher compact />
         </div>
         {sent ? (
-          <p className="mt-6 text-sm text-muted">{t('auth.resetEmailSent')}</p>
+          <div className="mt-6 space-y-5">
+            <p className="text-sm text-muted">{t('auth.resetCodeSent')}</p>
+            <EmailCodeForm
+              email={normalizeEmail(email)}
+              purpose="recovery"
+              onVerified={() => navigate('/auth/reset-password', { replace: true })}
+            />
+          </div>
         ) : (
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div className="space-y-2">

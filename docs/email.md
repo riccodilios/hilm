@@ -6,16 +6,35 @@ the Reply-To address, because the sending identities below cannot receive mail.
 
 | Identity | Used for |
 |---|---|
-| `Hilm Notifications <notifications@send.hilm.tech>` | Task reminders, workspace assignments, mentions |
-| `Hilm Security <security@send.hilm.tech>` | Account deleted notice; recommended sender for Supabase Auth email |
-| `Hilm Team <team@send.hilm.tech>` | Delivery tests; reserved for future team announcements |
+| `Hilm Notifications <notifications@send.hilm.tech>` | Task reminders (personal + workspace), assignments, mentions, task updates and comments |
+| `Hilm Security <security@send.hilm.tech>` | Verification / password-reset / sign-in codes (Supabase hook), account deleted notice |
+| `Hilm Team <team@send.hilm.tech>` | Workspace invitations, delivery tests |
+| `Hilm <noreply@send.hilm.tech>` | Product news broadcasts (opt-out, one-click unsubscribe) |
+
+## What is sent
+
+| Email | Trigger | Preference |
+|---|---|---|
+| Verification code (+ button) | Sign-up, resend, password reset, magic link, email change (Supabase Auth → Send Email hook) | Always (security) |
+| Task reminder | Personal reminder due (reminder job) | Settings → Email reminders + per-project |
+| Workspace task reminder | Workspace task `reminder_at` reached (reminder job; assignee, else creator) | Settings → Email reminders |
+| Task assigned | DB trigger on assignment by someone else | Workspace emails + workspace "Mentions and assignments" |
+| Mention | DB trigger on @mention | Same as above |
+| Task updates (digest, 5 min) | Someone else changes status/priority/due/title of, or comments on, a task assigned to you | Workspace emails + workspace "Task updates" |
+| Workspace invitation | Owner/admin → Team → Invite by email (max 10 per send, 50 per workspace per day, no repeat within 24 h) | — (recipient is not a user yet) |
+| Product news | Admin → Settings → Compose product email (`HILM_ADMIN_EMAILS`) | Settings → Product news (on by default; unsubscribe link + `List-Unsubscribe` one-click) |
+| Account deleted | After deletion | Always (security) |
+
+Invite links are the workspace's existing join link (`/workspace?join=CODE`). If the invitee is not
+signed in, the code is remembered through sign-up/onboarding so they land on the join step.
 
 ## How it works
 
 ```
-reminder job (Netlify, every minute) ─┐
-DB trigger: workspace task assigned ──┼─► private.email_outbox ─► email-dispatch (every minute)
-DB trigger: comment mention ──────────┘        (one row per event)      │ re-checks live data + prefs
+reminder job (personal + workspace) ──┐
+DB triggers: assigned / mention / ────┤
+  task update / comment               ├─► private.email_outbox ─► email-dispatch (every minute)
+admin broadcast (/api/admin-email) ───┘        (one row per event)      │ re-checks live data + prefs
                                                                          │ renders template (EN/AR)
 delete-account ─────────────────────────────────────────────────────────►│ Resend SDK + idempotency key
 Resend webhooks ─► /api/resend-webhook ─► private.email_suppressions ◄───┘ (skips suppressed)
@@ -48,7 +67,10 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 |---|---|---|---|
 | `RESEND_API_KEY` | Required. Sending-access key restricted to `send.hilm.tech`; mark as secret | **Leave unset** (previews share the production database; unset = no email) | Optional, only for `npm run email:test` |
 | `RESEND_WEBHOOK_SECRET` | Required for bounce/complaint handling (`whsec_…` from the Resend webhook) | Unset | Not needed |
-| `RESEND_FROM_NOTIFICATIONS` / `_SECURITY` / `_TEAM` | Optional; defaults above | — | — |
+| `RESEND_FROM_NOTIFICATIONS` / `_SECURITY` / `_TEAM` / `_MARKETING` | Optional; defaults above | — | — |
+| `EMAIL_UNSUBSCRIBE_SECRET` | Required for product news (32+ random characters; signs unsubscribe links) | Unset | — |
+| `HILM_ADMIN_EMAILS` | Comma-separated admin addresses allowed to send product news | Unset | — |
+| `SUPABASE_AUTH_HOOK_SECRET` | Required for Hilm-styled auth emails (`v1,whsec_…` from Supabase → Auth Hooks) | Unset | — |
 | `APP_BASE_URL` | Optional; falls back to existing `APP_URL` (`https://app.hilm.tech`) | — | `http://localhost:5173` if testing links |
 | `EMAIL_TEST_RECIPIENT` | Do not set | — | Your own address, for the manual test |
 | `CRON_SECRET`, `DATABASE_URL` | Already set | — | — |
@@ -57,8 +79,8 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 
 ## Deployment order
 
-1. **Database:** apply `supabase/migrations/0037_email_delivery.sql` *before* deploying the code.
-   The app's settings query reads the new columns.
+1. **Database:** apply `supabase/migrations/0037_email_delivery.sql` and `0038_email_engagement.sql`
+   *before* deploying the code. The app's settings query reads the new columns.
 2. **Resend domain + DNS:** see below, and wait until the domain shows **Verified** in Resend.
 3. **API key:** Resend → API Keys → create a key with *Sending access*, domain `send.hilm.tech`, then
    set `RESEND_API_KEY` in Netlify (Production, Functions).
@@ -116,8 +138,25 @@ records.
 
 ## Supabase Auth email (verification, password reset, magic link)
 
-These emails are sent by **Supabase Auth**, not by Hilm's code. Hilm does not replace them and has no
-competing reset flow. To deliver them through Resend:
+Supabase Auth still creates, expires and verifies every token; Hilm has no competing reset flow.
+With the **Send Email hook**, Supabase hands each email to Hilm instead of mailing it itself, so it
+goes out in Hilm's design and language with a 6-digit code plus a button. The app has code-entry
+screens after sign-up and on "Forgot password".
+
+**Recommended — Send Email hook** (only enable after Resend is verified and the key is set;
+while the hook is on, Supabase does not send auth email itself):
+
+1. Supabase Dashboard → Authentication → **Hooks** → *Send Email hook* → Enable → type **HTTPS**:
+   - URL: `https://app.hilm.tech/api/auth-email-hook`
+   - Generate the secret, copy it (`v1,whsec_…`) into Netlify `SUPABASE_AUTH_HOOK_SECRET`, redeploy.
+2. Authentication → **Rate Limits**: raise the hourly email limit to fit sign-up volume.
+3. Keep **URL Configuration** unchanged (Site URL `https://app.hilm.tech`, redirect allow-list
+   `/auth/callback**`, `/auth/confirm**`). The button uses Supabase's own `/auth/v1/verify` link.
+4. Test: sign up with a real inbox → enter the code; "Forgot password" → enter the code → set a
+   new password. If the hook fails, Supabase shows the user an error instead of sending nothing silently.
+
+**Fallback — custom SMTP** (Supabase's own templates, no Hilm design): use this only if the hook is
+off. Settings:
 
 1. Supabase Dashboard → Authentication → Emails → **SMTP Settings** → enable custom SMTP:
    - Host: `smtp.resend.com`

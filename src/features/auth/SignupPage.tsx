@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
 import { PostAuthRedirect } from '@/features/auth/PostAuthRedirect'
+import { EmailCodeForm } from '@/features/auth/EmailCodeForm'
 import { resolvePostAuthDestination } from '@/features/auth/startup'
 import { validateSignupInput } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
@@ -111,7 +112,17 @@ export function SignupPage() {
           <p className="mt-2 text-sm leading-6 text-muted">
             {t('auth.checkEmailBody', { email: pendingEmail })}
           </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted">
+          <div className="mt-6">
+            <EmailCodeForm
+              email={pendingEmail}
+              purpose="signup"
+              onVerified={async () => {
+                toast.success(t('auth.welcomeReady'))
+                navigate(await resolvePostAuthDestination(), { replace: true })
+              }}
+            />
+          </div>
+          <ul className="mt-5 space-y-2 text-sm text-muted">
             <li>• {t('auth.checkEmailTip1')}</li>
             <li>• {t('auth.checkEmailTip2')}</li>
             <li>• {t('auth.checkEmailTip3')}</li>

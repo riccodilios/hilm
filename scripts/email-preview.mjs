@@ -14,6 +14,13 @@ import {
   workspaceMentionEmail,
   workspaceTaskAssignedEmail,
 } from '../netlify/functions/_shared/email/templates.ts'
+import {
+  authEmail,
+  broadcastEmail,
+  workspaceInviteEmail,
+  workspaceTaskReminderEmail,
+  workspaceTaskUpdatesEmail,
+} from '../netlify/functions/_shared/email/templates-engagement.ts'
 
 const app = DEFAULT_APP_BASE_URL
 const ids = {
@@ -67,6 +74,32 @@ for (const locale of ['en', 'ar']) {
     }),
     'account-deleted': accountDeletedEmail({ locale, appBaseUrl: app, deletedAtLabel: s.due, supportEmail: 'info@hilm.tech' }),
     'delivery-test': deliveryTestEmail({ locale, appBaseUrl: app, category: 'team' }),
+    'auth-signup': authEmail({
+      locale, action: 'signup', code: '482913',
+      confirmUrl: 'https://example.supabase.co/auth/v1/verify?token=sample&type=signup&redirect_to=https%3A%2F%2Fapp.hilm.tech%2Fauth%2Fcallback',
+    }),
+    'auth-recovery': authEmail({
+      locale, action: 'recovery', code: '730415',
+      confirmUrl: 'https://example.supabase.co/auth/v1/verify?token=sample&type=recovery&redirect_to=https%3A%2F%2Fapp.hilm.tech%2Fauth%2Fcallback',
+    }),
+    'workspace-invite': workspaceInviteEmail({ locale, appBaseUrl: app, inviterName: s.actor, workspaceName: s.workspace, inviteCode: 'ACME-7K2Q' }),
+    'workspace-task-updates': workspaceTaskUpdatesEmail({
+      locale, appBaseUrl: app, workspaceId: ids.ws, workspaceName: s.workspace,
+      updates: [
+        { taskId: ids.task, ref: 'ACME-12', title: s.task, actorName: s.actor, changes: { status: { from: 'todo', to: 'done' } }, dueLabel: s.due },
+        { taskId: ids.task, ref: 'ACME-14', title: s.task, actorName: s.actor, changes: { comment: true, due: true }, dueLabel: s.due, commentSnippet: s.snippet },
+      ],
+    }),
+    'workspace-task-reminder': workspaceTaskReminderEmail({
+      locale, appBaseUrl: app, workspaceId: ids.ws, workspaceName: s.workspace, taskId: ids.task, ref: 'ACME-12', title: s.task, priority: 'urgent', dueLabel: s.due,
+    }),
+    broadcast: broadcastEmail({
+      locale, appBaseUrl: app,
+      content: locale === 'ar'
+        ? { subject: 'جديد في حلم: تفريغ أدق للاجتماعات', heading: 'اجتماعاتك أصبحت أوضح', body: 'حسّنّا تفريغ الاجتماعات بالعربية والإنجليزية.\n\nجرّبه في اجتماعك القادم.', ctaLabel: 'اكتشف المزيد', ctaUrl: 'https://hilm.tech/ar/meetings' }
+        : { subject: 'New in Hilm: sharper meeting transcripts', heading: 'Your meetings, clearer', body: 'We improved Arabic and English meeting transcription.\n\nTry it in your next meeting.', ctaLabel: 'See what is new', ctaUrl: 'https://hilm.tech/meetings' },
+      unsubscribeUrl: `${app}/api/email-unsubscribe?preview=1`,
+    }),
   }
   for (const [name, email] of Object.entries(emails)) {
     const base = path.join(outDir, `${name}.${locale}`)

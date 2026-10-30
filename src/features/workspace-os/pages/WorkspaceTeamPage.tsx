@@ -1,13 +1,15 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns'
 import { ar, enUS } from 'date-fns/locale'
-import { Copy, RefreshCw } from 'lucide-react'
+import { Copy, Mail, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   inviteLinkForCode,
   listWorkspaceMembers,
   regenerateInviteCode,
+  sendWorkspaceEmailInvites,
   removeMember,
   updateMemberRole,
   workspaceKeys,
@@ -96,6 +98,34 @@ export function WorkspaceTeamPage() {
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const [inviteInput, setInviteInput] = useState('')
+  const inviteEmails = [
+    ...new Set(
+      inviteInput
+        .split(/[\s,;]+/)
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 10)
+
+  const emailInvite = useMutation({
+    mutationFn: (emails: string[]) =>
+      sendWorkspaceEmailInvites(workspaceId, emails, i18n.language.startsWith('ar') ? 'ar' : 'en'),
+    onSuccess: (results) => {
+      const sent = results.filter((r) => r.status === 'sent').length
+      const skipped = results.filter((r) => r.status !== 'sent')
+      if (sent) toast.success(t('workspace.invitesSent', { count: sent }))
+      for (const r of skipped) toast.message(`${r.email}: ${t(`workspace.inviteStatus.${r.status}`)}`)
+      if (!skipped.length) setInviteInput('')
+    },
+    onError: (error: Error & { code?: string }) =>
+      toast.error(
+        error.code === 'not_configured'
+          ? t('workspace.inviteEmailUnavailable')
+          : t(`workspace.inviteError.${error.code}`, { defaultValue: t('workspace.inviteEmailFailed') }),
+      ),
+  })
+
   async function copy(text: string, label: string) {
     await navigator.clipboard.writeText(text)
     toast.success(label)
@@ -130,6 +160,35 @@ export function WorkspaceTeamPage() {
               <RefreshCw className="size-4" /> {t('workspace.regenerate')}
             </Button>
           </div>
+          <form
+            className="mt-4 border-t border-border-subtle pt-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (inviteEmails.length) emailInvite.mutate(inviteEmails)
+            }}
+          >
+            <label htmlFor="invite-emails" className="text-sm font-medium">
+              {t('workspace.inviteByEmail')}
+            </label>
+            <p className="mt-0.5 text-xs text-muted">{t('workspace.inviteByEmailHint')}</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="invite-emails"
+                type="text"
+                inputMode="email"
+                autoComplete="off"
+                dir="ltr"
+                placeholder="name@company.com, teammate@company.com"
+                value={inviteInput}
+                onChange={(e) => setInviteInput(e.target.value)}
+                className="h-9 flex-1 rounded-lg border border-border bg-surface-2 px-3 text-sm"
+              />
+              <Button size="sm" type="submit" disabled={!inviteEmails.length || emailInvite.isPending}>
+                <Mail className="size-4" />
+                {emailInvite.isPending ? t('common.loading') : t('workspace.sendInvites')}
+              </Button>
+            </div>
+          </form>
         </section>
       ) : (
         <section className="mt-6 rounded-2xl border border-border-subtle bg-surface/40 p-4">

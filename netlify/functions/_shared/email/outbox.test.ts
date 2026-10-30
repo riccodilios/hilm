@@ -32,6 +32,7 @@ const recipient = (over: Partial<RecipientRow> = {}): RecipientRow => ({
   time_format: '24h',
   email_reminders_enabled: true,
   email_workspace_enabled: true,
+  email_marketing_enabled: true,
   suppressed: false,
   ...over,
 })
@@ -75,6 +76,10 @@ const assigned = (taskN: number, over: Partial<AssignedItem> = {}): AssignedItem
   taskKey: 'ACME',
   isMember: true,
   wantsMentions: true,
+  wantsTaskUpdates: true,
+  priority: 'medium',
+  createdBy: OTHER,
+  reminderAt: null,
   ...over,
 })
 
@@ -98,6 +103,8 @@ function fakeStore(data: {
     loadTaskReminder: vi.fn(async (rid) => data.reminders?.[rid] ?? null),
     loadAssignedTask: vi.fn(async (tid) => data.tasks?.[tid] ?? null),
     loadMention: vi.fn(async (cid) => data.mentions?.[cid] ?? null),
+    loadComment: vi.fn(async () => null),
+    loadBroadcast: vi.fn(async () => null),
     displayNames: vi.fn(async () => new Map([[OTHER, 'Omar']])),
     assignBatch: vi.fn(async (key, ids) => void state.batches.push({ key, ids })),
     markSent: vi.fn(async (ids, messageId) => void state.sent.push({ ids, messageId })),

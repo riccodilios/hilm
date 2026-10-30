@@ -1,12 +1,15 @@
 import { getSettings } from '@/features/settings/api'
+import { pendingInvitePath } from '@/features/auth/pending-invite'
 import type { StartupMode } from '@/features/workspace-os/lib/permissions'
 
-export type PostAuthDestination = '/onboarding' | '/personal' | '/workspace'
+export type PostAuthDestination = '/onboarding' | '/personal' | '/workspace' | `/workspace?join=${string}`
 
 export async function resolvePostAuthDestination(): Promise<PostAuthDestination> {
   try {
     const settings = await getSettings()
     if (!settings.onboarding_completed) return '/onboarding'
+    const invite = pendingInvitePath()
+    if (invite) return invite as PostAuthDestination
     // Hidden Workspace OS means Personal-only — never send them to the selector.
     if (settings.hide_workspace_os) return '/personal'
     if (settings.default_startup_mode === 'workspace') return '/workspace'

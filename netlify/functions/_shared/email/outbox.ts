@@ -14,9 +14,23 @@ import {
   workspaceTaskAssignedEmail,
   type RenderedEmail,
 } from './templates.ts'
+import {
+  broadcastEmail,
+  workspaceTaskReminderEmail,
+  workspaceTaskUpdatesEmail,
+  type BroadcastContent,
+  type TaskUpdate,
+} from './templates-engagement.ts'
 import { isUuid, isValidEmailAddress } from './text.ts'
+import { unsubscribeUrl } from './unsubscribe.ts'
 
-export type OutboxKind = 'task_reminder' | 'workspace_task_assigned' | 'workspace_mention'
+export type OutboxKind =
+  | 'task_reminder'
+  | 'workspace_task_assigned'
+  | 'workspace_mention'
+  | 'workspace_task_updated'
+  | 'workspace_task_reminder'
+  | 'broadcast'
 
 export type OutboxRow = {
   id: string
@@ -38,6 +52,7 @@ export type RecipientRow = {
   time_format: string | null
   email_reminders_enabled: boolean | null
   email_workspace_enabled: boolean | null
+  email_marketing_enabled: boolean | null
   suppressed: boolean
 }
 
@@ -68,6 +83,19 @@ export type AssignedItem = {
   isMember: boolean
   /** Workspace profile → "Mentions and assignments". */
   wantsMentions: boolean
+  /** Workspace profile → "Task updates". */
+  wantsTaskUpdates: boolean
+  priority: string
+  createdBy: string | null
+  reminderAt: string | Date | null
+}
+
+export type CommentItem = { content: string; authorId: string; taskId: string }
+
+export type BroadcastItem = {
+  audience: 'all' | 'en' | 'ar'
+  content: Partial<Record<'en' | 'ar', BroadcastContent>>
+  createdAt: string | Date
 }
 
 export type MentionItem = {
@@ -91,6 +119,8 @@ export type OutboxStore = {
   loadTaskReminder(reminderId: string, userId: string): Promise<ReminderItem | null>
   loadAssignedTask(taskId: string, userId: string): Promise<AssignedItem | null>
   loadMention(commentId: string, userId: string): Promise<MentionItem | null>
+  loadComment(commentId: string): Promise<CommentItem | null>
+  loadBroadcast(broadcastId: string): Promise<BroadcastItem | null>
   displayNames(workspaceId: string, userIds: string[]): Promise<Map<string, string>>
   assignBatch(batchKey: string, ids: string[]): Promise<void>
   markSent(ids: string[], messageId: string): Promise<void>
@@ -104,6 +134,7 @@ export const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [60, 300, 900, 3600]
 const REMINDER_STALE_MS = 6 * 60 * 60 * 1000
 const WORKSPACE_STALE_MS = 24 * 60 * 60 * 1000
+const BROADCAST_STALE_MS = 3 * 24 * 60 * 60 * 1000
 const CLOSED = new Set(['done', 'archived', 'cancelled'])
 
 /** Seconds until the next attempt, or null once the row should be marked failed. */
@@ -168,9 +199,52 @@ export function recipientSkipReason(recipient: RecipientRow | null, kind: Outbox
   if (!recipient.email_confirmed) return 'unconfirmed'
   if (!isValidEmailAddress(recipient.email)) return 'invalid_recipient'
   if (recipient.suppressed) return 'suppressed'
-  if (kind === 'task_reminder' && recipient.email_reminders_enabled === false) return 'preference_off'
-  if (kind !== 'task_reminder' && recipient.email_workspace_enabled === false) return 'preference_off'
+  if (kind === 'broadcast') return recipient.email_marketing_enabled === false ? 'preference_off' : null
+  if (kind === 'task_reminder' || kind === 'workspace_task_reminder') {
+    return recipient.email_reminders_enabled === false ? 'preference_off' : null
+  }
+  if (recipient.email_workspace_enabled === false) return 'preference_off'
   return null
+}
+
+export function updatedSkipReason(item: AssignedItem | null, userId: string): string | null {
+  if (!item) return 'not_found'
+  if (item.assigneeId !== userId) return 'reassigned'
+  if (!item.isMember) return 'not_member'
+  if (!item.wantsTaskUpdates) return 'preference_off'
+  return null
+}
+
+export function workspaceReminderSkipReason(item: AssignedItem | null, userId: string, now: number): string | null {
+  if (!item) return 'not_found'
+  if ((item.assigneeId ?? item.createdBy) !== userId) return 'reassigned'
+  if (!item.isMember) return 'not_member'
+  if (CLOSED.has(item.status)) return 'task_closed'
+  if (!item.reminderAt || now - ms(item.reminderAt) > REMINDER_STALE_MS) return 'stale'
+  return null
+}
+
+type Changes = TaskUpdate['changes']
+
+/** Validates the trigger's change record and merges several updates of one task. */
+export function mergeChanges(list: unknown[]): Changes {
+  const out: Changes = {}
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue
+    const c = raw as Record<string, unknown>
+    for (const field of ['status', 'priority'] as const) {
+      const v = c[field] as { from?: unknown; to?: unknown } | undefined
+      if (v && typeof v.from === 'string' && typeof v.to === 'string') {
+        out[field] = { from: out[field]?.from ?? v.from.slice(0, 32), to: v.to.slice(0, 32) }
+      }
+    }
+    if (c.due === true) out.due = true
+    if (c.title === true) out.title = true
+    if (c.comment === true) out.comment = true
+  }
+  if (out.status && out.status.from === out.status.to) delete out.status
+  if (out.priority && out.priority.from === out.priority.to) delete out.priority
+  return out
 }
 
 const MENTION_TOKEN = /@\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}/gi
@@ -197,7 +271,7 @@ type Context = {
   log: EmailLogger
 }
 
-type Prepared = { email: RenderedEmail; ids: string[] } | null
+type Prepared = { email: RenderedEmail; ids: string[]; headers?: Record<string, string> } | null
 
 /** Group keys include the workspace, so a mixed batch means corrupted data; never mix workspaces. */
 async function keepWorkspace<T extends { row: OutboxRow; item: { workspaceId: string } }>(
@@ -223,6 +297,10 @@ async function prepareBatch(batch: Batch, recipient: RecipientRow, ctx: Context)
   const skip = async (row: OutboxRow, reason: string) => {
     await store.markSkipped([row.id], reason)
     ctx.log('email.outbox', { outcome: 'skipped', code: reason, outboxIds: [row.id] })
+  }
+  const drop = async (row: OutboxRow, reason: string): Promise<Prepared> => {
+    await skip(row, reason)
+    return null
   }
 
   if (batch.kind === 'task_reminder') {
@@ -251,10 +329,115 @@ async function prepareBatch(batch: Batch, recipient: RecipientRow, ctx: Context)
     }
   }
 
+  if (batch.kind === 'broadcast') {
+    const row = batch.rows[0]!
+    for (const extra of batch.rows.slice(1)) await skip(extra, 'duplicate')
+    const broadcastId = row.payload.broadcast_id
+    const item = isUuid(broadcastId) ? await store.loadBroadcast(broadcastId) : null
+    if (!item) return drop(row, 'not_found')
+    if (ctx.now() - ms(item.createdAt) > BROADCAST_STALE_MS) return drop(row, 'stale')
+    if (!config.unsubscribeSecret) return drop(row, 'not_configured')
+    const content = item.content[fmt.locale] ?? item.content.en ?? item.content.ar
+    if (!content) return drop(row, 'no_content')
+    const unsubscribe = unsubscribeUrl(config.appBaseUrl, config.unsubscribeSecret, row.user_id)
+    return {
+      ids: [row.id],
+      email: broadcastEmail({ locale: fmt.locale, appBaseUrl: config.appBaseUrl, content, unsubscribeUrl: unsubscribe }),
+      headers: {
+        'List-Unsubscribe': `<${unsubscribe}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    }
+  }
+
+  if (batch.kind === 'workspace_task_reminder') {
+    const row = batch.rows[0]!
+    for (const extra of batch.rows.slice(1)) await skip(extra, 'duplicate')
+    const taskId = row.payload.task_id
+    const item = isUuid(taskId) ? await store.loadAssignedTask(taskId, row.user_id) : null
+    const reason = workspaceReminderSkipReason(item, row.user_id, ctx.now())
+    if (reason || !item) return drop(row, reason ?? 'not_found')
+    return {
+      ids: [row.id],
+      email: workspaceTaskReminderEmail({
+        locale: fmt.locale,
+        appBaseUrl: config.appBaseUrl,
+        workspaceId: item.workspaceId,
+        workspaceName: item.workspaceName,
+        taskId: item.taskId,
+        ref: taskRef(item.taskKey, item.taskNumber),
+        title: item.title,
+        priority: item.priority,
+        dueLabel: formatDue({ dueAt: dateString(item.dueAt), dueDate: item.dueDate }, fmt),
+      }),
+    }
+  }
+
   const fresh: OutboxRow[] = []
   for (const row of batch.rows) {
     if (ctx.now() - ms(row.created_at) > WORKSPACE_STALE_MS) await skip(row, 'stale')
     else fresh.push(row)
+  }
+
+  if (batch.kind === 'workspace_task_updated') {
+    const byTask = new Map<string, { item: AssignedItem; rows: OutboxRow[] }>()
+    for (const row of fresh) {
+      const taskId = row.payload.task_id
+      const cached = isUuid(taskId) ? byTask.get(taskId) : undefined
+      const item = cached?.item ?? (isUuid(taskId) ? await store.loadAssignedTask(taskId, row.user_id) : null)
+      const reason = updatedSkipReason(item, row.user_id)
+      if (reason || !item) await skip(row, reason ?? 'not_found')
+      else if (cached) cached.rows.push(row)
+      else byTask.set(item.taskId, { item, rows: [row] })
+    }
+    const groups = await keepWorkspace(
+      [...byTask.values()].map((g) => ({ row: g.rows[0]!, item: g.item, rows: g.rows })),
+      [...byTask.values()][0]?.item.workspaceId ?? '',
+      skip,
+    )
+    if (!groups.length) return null
+    const actorIds = new Set<string>()
+    for (const g of groups) for (const r of g.rows) if (isUuid(r.payload.actor_id)) actorIds.add(r.payload.actor_id)
+    const workspace = groups[0]!.item
+    const names = await store.displayNames(workspace.workspaceId, [...actorIds])
+    const updates: TaskUpdate[] = []
+    for (const g of groups) {
+      const changes = mergeChanges(g.rows.map((r) => r.payload.changes))
+      let commentSnippet: string | null = null
+      const commentRow = [...g.rows].reverse().find((r) => isUuid(r.payload.comment_id))
+      if (changes.comment && commentRow) {
+        const comment = await store.loadComment(commentRow.payload.comment_id as string)
+        if (comment && comment.taskId === g.item.taskId) commentSnippet = mentionSnippet(comment.content, names)
+        else delete changes.comment
+      }
+      if (!Object.keys(changes).length) continue
+      const actors = new Set(g.rows.map((r) => r.payload.actor_id).filter(isUuid))
+      const actorId = actors.size === 1 ? [...actors][0]! : null
+      updates.push({
+        taskId: g.item.taskId,
+        ref: taskRef(g.item.taskKey, g.item.taskNumber),
+        title: g.item.title,
+        actorName: actorId ? (names.get(actorId.toLowerCase()) ?? null) : null,
+        changes,
+        dueLabel: formatDue({ dueAt: dateString(g.item.dueAt), dueDate: g.item.dueDate }, fmt),
+        commentSnippet,
+      })
+    }
+    const ids = groups.flatMap((g) => g.rows.map((r) => r.id))
+    if (!updates.length) {
+      await store.markSkipped(ids, 'no_changes')
+      return null
+    }
+    return {
+      ids,
+      email: workspaceTaskUpdatesEmail({
+        locale: fmt.locale,
+        appBaseUrl: config.appBaseUrl,
+        workspaceId: workspace.workspaceId,
+        workspaceName: workspace.workspaceName,
+        updates,
+      }),
+    }
   }
 
   if (batch.kind === 'workspace_task_assigned') {
@@ -413,6 +596,7 @@ export async function drainOutbox(
         subject: prepared.email.subject,
         html: prepared.email.html,
         text: prepared.email.text,
+        headers: prepared.headers,
         idempotencyKey: idempotencyKeyFor(batch),
       })
       await settle(prepared.ids, result, attempts, ctx, out)

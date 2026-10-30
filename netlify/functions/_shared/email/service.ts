@@ -18,6 +18,8 @@ export type SendInput = {
   text: string
   /** Stable per logical email so retries never deliver twice (Resend keeps keys 24h). */
   idempotencyKey: string
+  /** Extra headers (e.g. List-Unsubscribe). Names/values are validated. */
+  headers?: Record<string, string>
 }
 
 export type SendErrorCode =
@@ -58,6 +60,16 @@ export type EmailTransport = {
 export const REPLY_TO = 'info@hilm.tech'
 const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9/_.:-]{1,256}$/
 const TAG_VALUE_RE = /[^A-Za-z0-9_-]/g
+const HEADER_NAME_RE = /^[A-Za-z][A-Za-z0-9-]{0,63}$/
+// oxlint-disable-next-line no-control-regex
+const HEADER_VALUE_UNSAFE = /[\u0000-\u001f\u007f]/
+
+function safeHeaders(headers: Record<string, string> | undefined) {
+  if (!headers) return undefined
+  const entries = Object.entries(headers)
+  if (entries.some(([k, v]) => !HEADER_NAME_RE.test(k) || HEADER_VALUE_UNSAFE.test(v) || v.length > 900)) return null
+  return Object.fromEntries(entries)
+}
 
 export function mapProviderError(error: { name: string; statusCode?: number | null }): {
   code: SendErrorCode
@@ -116,7 +128,8 @@ export function createEmailService(
         return { ok: false, code: 'invalid_recipient', retryable: false }
       }
       const subject = singleLine(input.subject, 200)
-      if (!subject || !input.html || !input.text || !IDEMPOTENCY_KEY_RE.test(input.idempotencyKey)) {
+      const headers = safeHeaders(input.headers)
+      if (!subject || !input.html || !input.text || headers === null || !IDEMPOTENCY_KEY_RE.test(input.idempotencyKey)) {
         log('email.send', { ...base, outcome: 'failed', code: 'invalid_input' })
         return { ok: false, code: 'invalid_input', retryable: false }
       }
@@ -131,6 +144,7 @@ export function createEmailService(
             html: input.html,
             text: input.text,
             replyTo: REPLY_TO,
+            ...(headers ? { headers } : {}),
             tags: [
               { name: 'category', value: input.category },
               { name: 'template', value: input.template.replace(TAG_VALUE_RE, '_').slice(0, 256) },

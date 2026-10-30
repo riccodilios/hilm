@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Skeleton } from '@/components/ui/page'
+import { rememberPendingInvite } from '@/features/auth/pending-invite'
 
 export function RequireAuth() {
   const { user, loading } = useAuth()
@@ -19,6 +20,11 @@ export function RequireAuth() {
   }
 
   if (!user) {
+    // Emailed invite links (/workspace?join=CODE) must survive sign-in or sign-up.
+    if (location.pathname === '/workspace') {
+      const join = new URLSearchParams(location.search).get('join')
+      if (join && join !== '1') rememberPendingInvite(join)
+    }
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 

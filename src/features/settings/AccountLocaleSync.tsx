@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { getSettings, updateSettings } from '@/features/settings/api'
+import { supabase } from '@/lib/supabase/client'
 
 function deviceTimeZone() {
   try {
@@ -36,6 +37,10 @@ export function AccountLocaleSync() {
     let cancelled = false
     void (async () => {
       try {
+        // Auth emails (verification, password reset) read the language from user metadata.
+        if (user.user_metadata?.locale !== locale) {
+          await supabase.auth.updateUser({ data: { locale } })
+        }
         const settings = await getSettings()
         if (cancelled) return
         if (settings.locale === locale && (settings.time_zone ?? null) === timeZone) return

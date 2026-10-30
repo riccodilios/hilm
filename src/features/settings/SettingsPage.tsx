@@ -4,7 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, LogOut, Save, Trash2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { getProfile, getSettings, settingsKeys, updateProfile, updateSettings, deleteAccount } from '@/features/settings/api'
+import {
+  deleteAccount,
+  getBroadcastAdmin,
+  getProfile,
+  getSettings,
+  settingsKeys,
+  updateProfile,
+  updateSettings,
+} from '@/features/settings/api'
 import { aiKeys, getAiUsageSummary, type AiUsageSummary } from '@/features/ai/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
@@ -74,6 +82,13 @@ export function SettingsPage({
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [emailReminders, setEmailReminders] = useState(true)
   const [workspaceEmails, setWorkspaceEmails] = useState(true)
+  const [marketingEmails, setMarketingEmails] = useState(true)
+  const broadcastAdmin = useQuery({
+    queryKey: ['email-broadcast-admin'],
+    queryFn: getBroadcastAdmin,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
@@ -122,6 +137,7 @@ export function SettingsPage({
     if (settings.data) {
       setEmailReminders(settings.data.email_reminders_enabled ?? true)
       setWorkspaceEmails(settings.data.email_workspace_enabled ?? true)
+      setMarketingEmails(settings.data.email_marketing_enabled ?? true)
       setPushNotifications(settings.data.push_notifications_enabled ?? false)
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
       setStartupMode(settings.data.default_startup_mode ?? 'personal')
@@ -227,6 +243,7 @@ export function SettingsPage({
           theme: themeToSave,
           email_reminders_enabled: emailReminders,
           email_workspace_enabled: workspaceEmails,
+          email_marketing_enabled: marketingEmails,
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,
           default_startup_mode: hideWorkspaceOs ? 'personal' : startupMode,
@@ -469,6 +486,18 @@ export function SettingsPage({
               </div>
               <Switch checked={workspaceEmails} onCheckedChange={setWorkspaceEmails} />
             </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">{t('settings.marketingEmails')}</p>
+                <p className="text-xs text-muted">{t('settings.marketingEmailsDesc')}</p>
+              </div>
+              <Switch checked={marketingEmails} onCheckedChange={setMarketingEmails} />
+            </div>
+            {broadcastAdmin.data?.admin ? (
+              <Button asChild variant="secondary" size="sm">
+                <Link to="/personal/settings/email-broadcasts">{t('broadcast.open')}</Link>
+              </Button>
+            ) : null}
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">{t('settings.pushNotifications')}</p>

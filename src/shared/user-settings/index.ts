@@ -10,7 +10,7 @@ export const settingsKeys = {
 }
 
 const settingsSelect =
-  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, onboarding_completed, default_startup_mode, hide_workspace_os, hide_personal_os, time_format, last_seen_announcement_version, email_workspace_enabled, locale, time_zone, created_at, updated_at'
+  'user_id, theme, default_model, notification_prefs, has_openrouter_key, default_reminder_type, email_reminders_enabled, push_notifications_enabled, onboarding_completed, default_startup_mode, hide_workspace_os, hide_personal_os, time_format, last_seen_announcement_version, email_workspace_enabled, email_marketing_enabled, locale, time_zone, created_at, updated_at'
 
 export async function getSettings() {
   const userId = await requireUserId()
@@ -37,6 +37,7 @@ export async function updateSettings(patch: {
   time_format?: '12h' | '24h'
   last_seen_announcement_version?: string | null
   email_workspace_enabled?: boolean
+  email_marketing_enabled?: boolean
   locale?: 'en' | 'ar'
   time_zone?: string | null
 }) {

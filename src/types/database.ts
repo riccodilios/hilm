@@ -164,6 +164,7 @@ export type Database = {
           time_format: '12h' | '24h'
           last_seen_announcement_version: string | null
           email_workspace_enabled: boolean
+          email_marketing_enabled: boolean
           locale: 'en' | 'ar' | null
           time_zone: string | null
           created_at: string
@@ -186,6 +187,7 @@ export type Database = {
           time_format?: '12h' | '24h'
           last_seen_announcement_version?: string | null
           email_workspace_enabled?: boolean
+          email_marketing_enabled?: boolean
           locale?: 'en' | 'ar' | null
           time_zone?: string | null
           created_at?: string
@@ -207,6 +209,7 @@ export type Database = {
           time_format?: '12h' | '24h'
           last_seen_announcement_version?: string | null
           email_workspace_enabled?: boolean
+          email_marketing_enabled?: boolean
           locale?: 'en' | 'ar' | null
           time_zone?: string | null
           updated_at?: string

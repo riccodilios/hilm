@@ -1,6 +1,16 @@
 /** Postgres implementation of the outbox store (service connection; private schema). */
 import type pg from 'pg'
-import type { AssignedItem, MentionItem, OutboxKind, OutboxRow, OutboxStore, RecipientRow, ReminderItem } from './outbox.ts'
+import type {
+  AssignedItem,
+  BroadcastItem,
+  CommentItem,
+  MentionItem,
+  OutboxKind,
+  OutboxRow,
+  OutboxStore,
+  RecipientRow,
+  ReminderItem,
+} from './outbox.ts'
 
 type Queryable = Pick<pg.Client, 'query'>
 
@@ -49,7 +59,7 @@ export function createPgOutboxStore(db: Queryable): OutboxStore {
                 (u.email_confirmed_at is not null) as email_confirmed,
                 nullif(btrim(p.display_name), '') as display_name,
                 s.locale, s.time_zone, s.time_format,
-                s.email_reminders_enabled, s.email_workspace_enabled,
+                s.email_reminders_enabled, s.email_workspace_enabled, s.email_marketing_enabled,
                 exists (select 1 from private.email_suppressions x where x.email = lower(u.email)) as suppressed
          from auth.users u
          left join public.profiles p on p.id = u.id
@@ -83,7 +93,9 @@ export function createPgOutboxStore(db: Queryable): OutboxStore {
                 w.id as "workspaceId", w.name as "workspaceName", w.task_key as "taskKey",
                 exists (select 1 from public.workspace_members m
                         where m.workspace_id = t.workspace_id and m.user_id = $2) as "isMember",
-                private.wants_workspace_mentions(t.workspace_id, $2) as "wantsMentions"
+                private.wants_workspace_mentions(t.workspace_id, $2) as "wantsMentions",
+                private.wants_workspace_task_updates(t.workspace_id, $2) as "wantsTaskUpdates",
+                t.priority::text as priority, t.created_by as "createdBy", t.reminder_at as "reminderAt"
          from public.workspace_tasks t
          join public.workspaces w on w.id = t.workspace_id
          where t.id = $1`,
@@ -107,6 +119,23 @@ export function createPgOutboxStore(db: Queryable): OutboxStore {
          join public.workspaces w on w.id = c.workspace_id
          where c.id = $1`,
         [commentId, userId],
+      )
+      return rows[0] ?? null
+    },
+
+    async loadComment(commentId) {
+      const { rows } = await db.query<CommentItem>(
+        `select c.content, c.author_user_id as "authorId", c.task_id as "taskId"
+         from public.workspace_task_comments c where c.id = $1`,
+        [commentId],
+      )
+      return rows[0] ?? null
+    },
+
+    async loadBroadcast(broadcastId) {
+      const { rows } = await db.query<BroadcastItem>(
+        `select audience, content, created_at as "createdAt" from private.email_broadcasts where id = $1`,
+        [broadcastId],
       )
       return rows[0] ?? null
     },
@@ -179,6 +208,69 @@ export function createPgOutboxStore(db: Queryable): OutboxStore {
       )
     },
   }
+}
+
+/**
+ * Deliver due workspace task reminders: in-app notification + queued email for the assignee (or
+ * the creator when unassigned). Each reminder_at fires once; changing it re-arms the reminder.
+ */
+export async function processWorkspaceTaskReminders(db: Queryable, windowEnd: string) {
+  const { rows } = await db.query<{
+    id: string
+    workspace_id: string
+    title: string
+    reminder_at: Date
+    recipient: string
+    task_ref: string | null
+    status: string
+  }>(
+    `with due as (
+       select t.id from public.workspace_tasks t
+       where t.reminder_at is not null and t.reminder_sent_at is null and t.reminder_at <= $1::timestamptz
+       order by t.reminder_at
+       limit 100
+       for update skip locked
+     )
+     update public.workspace_tasks t
+     set reminder_sent_at = now()
+     from due
+     where t.id = due.id
+     returning t.id, t.workspace_id, t.title, t.reminder_at, coalesce(t.assignee_id, t.created_by) as recipient,
+       (select w.task_key || '-' || t.task_number from public.workspaces w
+        where w.id = t.workspace_id and w.task_key is not null and t.task_number is not null) as task_ref,
+       t.status::text as status`,
+    [windowEnd],
+  )
+  let queued = 0
+  for (const row of rows) {
+    if (!row.recipient || ['done', 'archived', 'cancelled'].includes(row.status)) continue
+    const member = await db.query(
+      `select 1 from public.workspace_members where workspace_id = $1 and user_id = $2`,
+      [row.workspace_id, row.recipient],
+    )
+    if (!member.rowCount) continue
+    await db.query(
+      `insert into public.notifications
+         (user_id, channel, type, title, body, entity_type, entity_id, href, metadata)
+       values ($1, 'in_app', 'workspace.task.reminder', $2, $3, 'workspace_task', $4, $5, $6::jsonb)`,
+      [
+        row.recipient,
+        `Reminder — ${row.task_ref ?? row.title}`,
+        row.task_ref ? `${row.task_ref} · ${row.title}` : row.title,
+        row.id,
+        `/workspace/${row.workspace_id}/tasks/${row.id}`,
+        JSON.stringify({ workspace_id: row.workspace_id, task_id: row.id }),
+      ],
+    )
+    await db.query(
+      `insert into private.email_outbox (kind, user_id, dedupe_key, payload)
+       values ('workspace_task_reminder', $1, $2, jsonb_build_object('task_id', $3::uuid))
+       on conflict (dedupe_key) do nothing`,
+      [row.recipient, `workspace-task-reminder/${row.id}/${new Date(row.reminder_at).getTime()}`, row.id],
+    )
+    queued += 1
+  }
+  return { due: rows.length, queued }
 }
 
 /** Queue a personal task reminder email (idempotent per reminder). */

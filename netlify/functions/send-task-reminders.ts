@@ -5,7 +5,11 @@ import { authorizeCronRequest } from './_shared/cron-auth'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { drainOutbox } from './_shared/email/outbox.ts'
 import { createEmailService } from './_shared/email/service.ts'
-import { createPgOutboxStore, enqueueTaskReminderEmail } from './_shared/email/store-pg.ts'
+import {
+  createPgOutboxStore,
+  enqueueTaskReminderEmail,
+  processWorkspaceTaskReminders,
+} from './_shared/email/store-pg.ts'
 
 type ReminderRow = {
   id: string
@@ -253,13 +257,20 @@ export default async (request: Request) => {
       )
     }
 
+    let workspaceReminders = { due: 0, queued: 0 }
+    try {
+      workspaceReminders = await processWorkspaceTaskReminders(client, windowEnd)
+    } catch {
+      // Workspace reminders are independent of personal ones; retried next minute.
+    }
+
     let emailed = 0
-    if (emailQueued) {
+    if (emailQueued || workspaceReminders.queued) {
       try {
         const emailConfig = loadEmailConfig()
         const drained = await drainOutbox(
           { store: createPgOutboxStore(client), service: createEmailService(emailConfig), config: emailConfig },
-          { kinds: ['task_reminder'], limit: 20, budgetMs: 8_000 },
+          { kinds: ['task_reminder', 'workspace_task_reminder'], limit: 20, budgetMs: 8_000 },
         )
         emailed = drained.sent
       } catch {
@@ -267,7 +278,7 @@ export default async (request: Request) => {
       }
     }
 
-    return json({ ok: true, processed, pushed, emailQueued, emailed })
+    return json({ ok: true, processed, pushed, emailQueued, emailed, workspaceReminders })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Reminder job failed' }, 500)
   } finally {

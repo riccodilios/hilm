@@ -1098,6 +1098,31 @@ export async function getWorkspaceHome(workspaceId: string) {
   }
 }
 
+export type EmailInviteResult = {
+  email: string
+  status: 'sent' | 'invalid' | 'already_member' | 'already_invited' | 'suppressed' | 'limit_reached' | 'failed'
+}
+
+/** Email the workspace invite link (owners/admins). Server enforces role, limits and duplicates. */
+export async function sendWorkspaceEmailInvites(workspaceId: string, emails: string[], locale: 'en' | 'ar') {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+  const response = await fetch('/api/workspace-invite', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId, emails, locale }),
+  })
+  const payload = (await response.json().catch(() => ({}))) as { error?: string; results?: EmailInviteResult[] }
+  if (!response.ok) {
+    const err = new Error(payload.error || 'invite_failed') as Error & { code?: string }
+    err.code = payload.error
+    throw err
+  }
+  return payload.results ?? []
+}
+
 export function inviteLinkForCode(code: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}/workspace?join=${encodeURIComponent(code)}`

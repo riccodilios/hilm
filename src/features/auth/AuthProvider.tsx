@@ -25,6 +25,16 @@ type AuthContextValue = {
   resetPassword: (email: string) => Promise<void>
   resendSignupEmail: (email: string) => Promise<void>
   signInWithMagicLink: (email: string) => Promise<void>
+  /** Verify the 6-digit code from a sign-up or password-reset email (creates the session). */
+  verifyEmailCode: (email: string, code: string, purpose: 'signup' | 'recovery') => Promise<void>
+}
+
+function interfaceLocale() {
+  try {
+    return (localStorage.getItem('hilm-lang') ?? navigator.language ?? '').startsWith('ar') ? 'ar' : 'en'
+  } catch {
+    return 'en'
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -93,7 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: normalized,
             password,
             options: {
-              data: { display_name: displayName?.trim() || undefined },
+              // locale picks the language of Hilm's verification email (Send Email hook).
+              data: { display_name: displayName?.trim() || undefined, locale: interfaceLocale() },
               emailRedirectTo: redirectTo,
             },
           }),
@@ -192,6 +203,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throwMapped(error)
         }
         authDebug('MagicLink:sent', { email: normalized })
+      },
+      async verifyEmailCode(email, code, purpose) {
+        const normalized = normalizeEmail(email)
+        const token = code.replace(/\s+/g, '')
+        // Sign-up codes verify as 'email' on current Supabase Auth; 'signup' covers older projects.
+        const types = purpose === 'recovery' ? (['recovery'] as const) : (['email', 'signup'] as const)
+        let lastError: unknown = null
+        for (const type of types) {
+          const { error } = await supabase.auth.verifyOtp({ email: normalized, token, type })
+          if (!error) {
+            authDebug('VerifyCode:success', { purpose })
+            return
+          }
+          lastError = error
+        }
+        authDebug('VerifyCode:failure', { purpose, code: mapAuthError(lastError).key })
+        throwMapped(lastError)
       },
     }),
     [session, loading],

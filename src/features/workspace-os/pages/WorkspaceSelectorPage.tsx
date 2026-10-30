@@ -10,6 +10,7 @@ import {
   listMyWorkspaces,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import { clearPendingInvite } from '@/features/auth/pending-invite'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,6 +54,7 @@ export function WorkspaceSelectorPage() {
   const join = useMutation({
     mutationFn: () => joinWorkspaceByInvite(code),
     onSuccess: async (ws) => {
+      clearPendingInvite()
       closeDialogs()
       toast.success(t('workspace.joinedToast'))
       navigate(`/workspace/${ws.id}`)
@@ -62,6 +64,8 @@ export function WorkspaceSelectorPage() {
   })
 
   function closeDialogs() {
+    // Dismissing the dialog also drops an invite remembered from an emailed link.
+    if (joinOpen) clearPendingInvite()
     setCreateOpen(false)
     setJoinOpen(false)
     setParams({})

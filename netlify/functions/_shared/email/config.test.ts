@@ -10,8 +10,24 @@ describe('loadEmailConfig', () => {
       notifications: 'Hilm Notifications <notifications@send.hilm.tech>',
       security: 'Hilm Security <security@send.hilm.tech>',
       team: 'Hilm Team <team@send.hilm.tech>',
+      marketing: 'Hilm <noreply@send.hilm.tech>',
     })
     expect(config.appBaseUrl).toBe('https://app.hilm.tech')
+    expect(config.unsubscribeSecret).toBeNull()
+    expect(config.authHookSecret).toBeNull()
+    expect(config.adminEmails).toEqual([])
+  })
+
+  it('reads the hook secret without its "v1," prefix, admins, and requires a long unsubscribe secret', () => {
+    const config = loadEmailConfig({
+      SUPABASE_AUTH_HOOK_SECRET: 'v1,whsec_abc',
+      HILM_ADMIN_EMAILS: ' Owner@Hilm.tech ,',
+      EMAIL_UNSUBSCRIBE_SECRET: 'short',
+    })
+    expect(config.authHookSecret).toBe('whsec_abc')
+    expect(config.adminEmails).toEqual(['owner@hilm.tech'])
+    expect(config.unsubscribeSecret).toBeNull()
+    expect(config.problems).toContain('EMAIL_UNSUBSCRIBE_SECRET must be at least 32 characters')
   })
 
   it('reads the key, sender overrides and base URL', () => {

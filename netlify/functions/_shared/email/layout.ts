@@ -14,6 +14,8 @@ export type EmailContent = {
   eyebrow?: string
   heading: string
   paragraphs: string[]
+  /** One-time code shown large (verification emails). */
+  code?: { label: string; value: string }
   quote?: string
   details?: Array<{ label: string; value: string }>
   items?: Array<{ title: string; meta?: string; url?: string }>
@@ -23,6 +25,7 @@ export type EmailContent = {
   footer: {
     reason: string
     manage?: { label: string; url: string }
+    unsubscribe?: { label: string; url: string }
   }
 }
 
@@ -68,6 +71,11 @@ export function renderEmailHtml(content: EmailContent) {
     )
     .join('')
 
+  const code = content.code
+    ? `<p style="margin:8px 0 6px;font-size:12px;letter-spacing:${locale === 'ar' ? '0' : '0.08em'};text-transform:uppercase;color:${C.muted};">${e(content.code.label)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;"><tr><td dir="ltr" style="padding:14px 22px;border:1px solid ${C.border};border-radius:12px;background:#0d0d0f;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:30px;font-weight:600;letter-spacing:0.28em;color:${C.text};" bgcolor="#0d0d0f">${e(content.code.value)}</td></tr></table>`
+    : ''
+
   const quoteBorder = locale === 'ar' ? 'border-right' : 'border-left'
   const quotePad = locale === 'ar' ? 'padding-right' : 'padding-left'
   const quote = content.quote
@@ -110,9 +118,10 @@ export function renderEmailHtml(content: EmailContent) {
     ? `<p style="margin:0 0 10px;font-size:12px;letter-spacing:${locale === 'ar' ? '0' : '0.08em'};text-transform:uppercase;color:${C.muted};">${e(content.eyebrow)}</p>`
     : ''
 
-  const manage = content.footer.manage
-    ? `<br /><a href="${e(content.footer.manage.url)}" style="color:${C.muted};text-decoration:underline;">${e(content.footer.manage.label)}</a>`
-    : ''
+  const footerLinks = [content.footer.manage, content.footer.unsubscribe]
+    .filter((link): link is { label: string; url: string } => Boolean(link))
+    .map((link) => `<a href="${e(link.url)}" style="color:${C.muted};text-decoration:underline;">${e(link.label)}</a>`)
+  const manage = footerLinks.length ? `<br />${footerLinks.join(' · ')}` : ''
 
   return `<!DOCTYPE html>
 <html lang="${locale}" dir="${dir}">
@@ -132,7 +141,7 @@ export function renderEmailHtml(content: EmailContent) {
 <tr><td align="${align}" style="padding:0 4px 18px;font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${C.text};">${e(BRAND[locale])}</td></tr>
 <tr><td align="${align}" style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:32px 28px;" bgcolor="${C.card}">
 ${eyebrow}<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;font-weight:600;color:${C.text};">${e(content.heading)}</h1>
-${paragraphs}${quote}${details}${items}${action}${note}
+${paragraphs}${code}${quote}${details}${items}${action}${note}
 </td></tr>
 <tr><td align="${align}" style="padding:20px 4px 0;font-size:12px;line-height:1.6;color:${C.muted};">${e(content.footer.reason)}${manage}<br /><br />${e(BRAND[locale])} · ${e(TAGLINE[locale])}</td></tr>
 </table>
@@ -145,6 +154,7 @@ ${paragraphs}${quote}${details}${items}${action}${note}
 export function renderEmailText(content: EmailContent) {
   const lines: string[] = [BRAND[content.locale], '', content.heading, '']
   for (const p of content.paragraphs) lines.push(p, '')
+  if (content.code) lines.push(`${content.code.label}: ${content.code.value}`, '')
   if (content.quote) lines.push(`> ${content.quote}`, '')
   if (content.details?.length) {
     for (const row of content.details) lines.push(`${row.label}: ${row.value}`)
@@ -161,6 +171,7 @@ export function renderEmailText(content: EmailContent) {
   if (content.note) lines.push(content.note, '')
   lines.push('—', content.footer.reason)
   if (content.footer.manage) lines.push(`${content.footer.manage.label}: ${content.footer.manage.url}`)
+  if (content.footer.unsubscribe) lines.push(`${content.footer.unsubscribe.label}: ${content.footer.unsubscribe.url}`)
   lines.push(`${BRAND[content.locale]} · ${TAGLINE[content.locale]}`)
   return lines.join('\n')
 }
