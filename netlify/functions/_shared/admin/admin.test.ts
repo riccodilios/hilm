@@ -172,6 +172,29 @@ describe('handleAdminRequest', () => {
     expect(deleteAccount).toHaveBeenCalledWith(deps.db, OTHER)
   })
 
+  it('stores uploaded email images by content hash and refuses non-images', async () => {
+    const { deps } = setup()
+    const stored: Array<{ key: string; type: string }> = []
+    deps.assets = { put: async (key, _bytes, type) => void stored.push({ key, type }) }
+    const upload = (bytes: Uint8Array) =>
+      handleAdminRequest(
+        new Request(`https://${HOST}/api/admin/assets`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${fresh()}`, origin: `https://${HOST}`, 'x-nf-client-connection-ip': '203.0.113.7' },
+          body: new Blob([bytes.slice()]),
+        }),
+        deps,
+      )
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+    const ok = await upload(png)
+    expect(ok.status).toBe(200)
+    expect((await ok.json()).url).toMatch(/^https:\/\/app\.hilm\.tech\/email-assets\/[a-f0-9]{64}\.png$/)
+    expect(stored[0]?.type).toBe('image/png')
+    const svg = await upload(new TextEncoder().encode('<svg onload="alert(1)"/>'))
+    expect(svg.status).toBe(415)
+    expect(stored).toHaveLength(1)
+  })
+
   it('approves a new network only via the emailed link opened from that network', async () => {
     const { deps, networks, sends } = setup()
     expect((await handleAdminRequest(req('overview', { ip: '192.0.2.5' }), deps)).status).toBe(403)

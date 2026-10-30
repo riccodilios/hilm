@@ -9,7 +9,8 @@ import { z } from 'zod'
 import type { EmailConfig } from './config.ts'
 import type { EmailLocale } from './layout.ts'
 import type { EmailService } from './service.ts'
-import { allowedCtaUrl, broadcastEmail, type BroadcastContent } from './templates-engagement.ts'
+import { allowedImageUrl } from './images.ts'
+import { allowedCtaUrl, bodyImageUrls, broadcastEmail, type BroadcastContent } from './templates-engagement.ts'
 import { unsubscribeUrl } from './unsubscribe.ts'
 
 type Queryable = Pick<pg.Client, 'query'>
@@ -21,11 +22,13 @@ const contentSchema = z.object({
   body: z.string().trim().min(1).max(8000),
   ctaLabel: z.string().trim().max(40).optional(),
   ctaUrl: z.string().trim().max(500).optional(),
+  heroImage: z.object({ url: z.string().trim().max(300), alt: z.string().trim().max(150).optional() }).optional(),
 })
 
 export const broadcastRequestSchema = z.object({
   action: z.enum(['preview', 'test', 'send']),
-  audience: z.enum(['all', 'en', 'ar']).default('all'),
+  /** 'admin' = a real send to the admin only (no "[Test]" prefix, recorded like any send). */
+  audience: z.enum(['all', 'en', 'ar', 'admin']).default('all'),
   content: z
     .object({ en: contentSchema.optional(), ar: contentSchema.optional() })
     .refine((c) => c.en || c.ar, 'Provide English or Arabic content'),
@@ -44,14 +47,19 @@ export class BroadcastError extends Error {
   }
 }
 
-function validateContent(content: BroadcastRequest['content'], audience: BroadcastRequest['audience']) {
+function validateContent(content: BroadcastRequest['content'], audience: BroadcastRequest['audience'], appBaseUrl: string) {
   for (const locale of ['en', 'ar'] as const) {
     const c = content[locale]
     if (!c) continue
     if (c.ctaUrl && !allowedCtaUrl(c.ctaUrl)) throw new BroadcastError(400, 'cta_url_not_allowed')
     if (Boolean(c.ctaUrl) !== Boolean(c.ctaLabel)) throw new BroadcastError(400, 'cta_incomplete')
+    // Images must be uploaded through the console (no remote images, tracking pixels or SVG).
+    if (c.heroImage && !allowedImageUrl(c.heroImage.url, appBaseUrl)) throw new BroadcastError(400, 'image_url_not_allowed')
+    if (bodyImageUrls(c.body).some((url) => !allowedImageUrl(url, appBaseUrl))) {
+      throw new BroadcastError(400, 'image_url_not_allowed')
+    }
   }
-  if (audience !== 'all' && !content[audience]) throw new BroadcastError(400, 'missing_audience_content')
+  if ((audience === 'en' || audience === 'ar') && !content[audience]) throw new BroadcastError(400, 'missing_audience_content')
 }
 
 const AUDIENCE_SQL = `
@@ -63,7 +71,7 @@ const AUDIENCE_SQL = `
     and ($1 = 'all' or coalesce(s.locale, 'en') = $1)`
 
 export async function audienceCounts(db: Queryable) {
-  const counts: Record<'all' | 'en' | 'ar', number> = { all: 0, en: 0, ar: 0 }
+  const counts: Record<'all' | 'en' | 'ar' | 'admin', number> = { all: 0, en: 0, ar: 0, admin: 1 }
   for (const audience of ['all', 'en', 'ar'] as const) {
     const { rows } = await db.query<{ n: number }>(`select count(*)::int as n ${AUDIENCE_SQL}`, [audience])
     counts[audience] = rows[0]?.n ?? 0
@@ -85,8 +93,8 @@ export async function handleBroadcast(
   admin: { id: string; email: string },
   deps: { db: Queryable; service: EmailService; config: EmailConfig },
 ) {
-  validateContent(request.content, request.audience)
   const { config } = deps
+  validateContent(request.content, request.audience, config.appBaseUrl)
   const locales = (['en', 'ar'] as const).filter((l) => request.content[l])
 
   if (request.action === 'preview') {
@@ -133,6 +141,40 @@ export async function handleBroadcast(
   }
 
   if (request.confirm !== 'SEND') throw new BroadcastError(400, 'confirm_required')
+
+  if (request.audience === 'admin') {
+    // The real email (same sender, headers and unsubscribe link as everyone gets), only to the admin.
+    const created = await deps.db.query<{ id: string }>(
+      `insert into private.email_broadcasts (created_by, audience, content) values ($1, 'admin', $2::jsonb) returning id`,
+      [admin.id, JSON.stringify(request.content)],
+    )
+    const broadcastId = created.rows[0]!.id
+    const unsubscribe = unsubscribeUrl(config.appBaseUrl, config.unsubscribeSecret, admin.id)
+    let sent = 0
+    for (const locale of locales) {
+      const email = broadcastEmail({
+        locale,
+        appBaseUrl: config.appBaseUrl,
+        content: request.content[locale] as BroadcastContent,
+        unsubscribeUrl: unsubscribe,
+      })
+      const result = await deps.service.send({
+        category: email.category,
+        template: email.template,
+        to: admin.email,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        idempotencyKey: `hilm/broadcast-admin/${broadcastId}/${locale}`,
+        headers: { 'List-Unsubscribe': `<${unsubscribe}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+      })
+      if (!result.ok) throw new BroadcastError(502, result.code)
+      sent += 1
+    }
+    await deps.db.query(`update private.email_broadcasts set recipients = 1 where id = $1`, [broadcastId])
+    return { broadcastId, queued: 1, sentToAdmin: sent }
+  }
+
   const last = await deps.db.query<{ recent: boolean }>(
     `select exists (select 1 from private.email_broadcasts where created_at > now() - interval '10 minutes') as recent`,
   )

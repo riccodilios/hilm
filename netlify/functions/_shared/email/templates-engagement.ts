@@ -3,7 +3,8 @@
  * reminders and product broadcasts. Same rules as templates.ts: single-line clamped user text,
  * escaping in the layout, links only from fixed shapes or an allow-list.
  */
-import { renderEmail, type EmailLocale } from './layout.ts'
+import { allowedImageUrl } from './images.ts'
+import { renderEmail, type EmailImage, type EmailLocale } from './layout.ts'
 import type { RenderedEmail } from './templates.ts'
 import { appLink, singleLine } from './text.ts'
 
@@ -300,6 +301,8 @@ export type BroadcastContent = {
   body: string
   ctaLabel?: string
   ctaUrl?: string
+  /** Uploaded image shown above the heading. */
+  heroImage?: { url: string; alt?: string }
 }
 
 const CTA_HOSTS = new Set(['hilm.tech', 'www.hilm.tech', 'app.hilm.tech'])
@@ -316,13 +319,34 @@ export function allowedCtaUrl(value: string | undefined | null): string | null {
   }
 }
 
-export function broadcastParagraphs(body: string) {
+const IMAGE_LINE = /^!\[([^\]\n]{0,150})\]\(([^)\s]{1,300})\)$/
+
+/** Image lines whose URL is not an uploaded asset (or that use any other syntax) stay plain text. */
+export function bodyImageUrls(body: string) {
   return body
     .replace(/\r\n?/g, '\n')
     .split(/\n{2,}/)
-    .map((p) => singleLine(p, 1200))
-    .filter(Boolean)
-    .slice(0, 12)
+    .map((p) => p.trim().match(IMAGE_LINE)?.[2])
+    .filter((u): u is string => Boolean(u))
+}
+
+/**
+ * Paragraphs separated by blank lines; a paragraph that is exactly ![alt](url) becomes an image
+ * when the URL is an uploaded email asset on the app origin.
+ */
+export function broadcastParagraphs(body: string, appBaseUrl?: string): Array<string | EmailImage> {
+  return body
+    .replace(/\r\n?/g, '\n')
+    .split(/\n{2,}/)
+    .map((raw): string | EmailImage => {
+      const match = raw.trim().match(IMAGE_LINE)
+      if (match && appBaseUrl && allowedImageUrl(match[2], appBaseUrl)) {
+        return { image: match[2]!, alt: singleLine(match[1], 150) }
+      }
+      return singleLine(raw, 1200)
+    })
+    .filter((p) => (typeof p === 'string' ? Boolean(p) : true))
+    .slice(0, 20)
 }
 
 export function broadcastEmail(d: {
@@ -337,7 +361,11 @@ export function broadcastEmail(d: {
     locale: d.locale,
     preheader: singleLine(d.content.preheader || d.content.heading, 140),
     heading: singleLine(d.content.heading, 160),
-    paragraphs: broadcastParagraphs(d.content.body),
+    hero:
+      d.content.heroImage && allowedImageUrl(d.content.heroImage.url, d.appBaseUrl)
+        ? { image: d.content.heroImage.url, alt: singleLine(d.content.heroImage.alt, 150) }
+        : undefined,
+    paragraphs: broadcastParagraphs(d.content.body, d.appBaseUrl),
     action: cta && d.content.ctaLabel ? { label: singleLine(d.content.ctaLabel, 40), url: cta } : undefined,
     footer: {
       reason: ar

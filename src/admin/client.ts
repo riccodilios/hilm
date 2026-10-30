@@ -57,6 +57,24 @@ export async function adminApi<T>(path: string, init: { method?: 'GET' | 'POST';
   throw new AdminApiError(response.status, code, payload)
 }
 
+/** Upload an image for product emails; returns its public https URL. */
+export async function uploadEmailImage(file: File): Promise<string> {
+  const { data } = await adminSupabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new AdminApiError(401, 'unauthorized', {})
+  const response = await fetch('/api/admin/assets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
+    body: file,
+    cache: 'no-store',
+    credentials: 'omit',
+    referrerPolicy: 'no-referrer',
+  })
+  const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string }
+  if (!response.ok || !payload.url) throw new AdminApiError(response.status, payload.error ?? 'upload_failed', payload)
+  return payload.url
+}
+
 export const usd = (value: unknown) =>
   `$${Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
 

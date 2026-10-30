@@ -7,13 +7,20 @@ import { escapeHtml, singleLine } from './text.ts'
 
 export type EmailLocale = 'en' | 'ar'
 
+export type EmailImage = { image: string; alt: string }
+
+const isImage = (p: string | EmailImage): p is EmailImage => typeof p === 'object'
+
 export type EmailContent = {
   locale: EmailLocale
   /** Inbox preview line. */
   preheader: string
   eyebrow?: string
   heading: string
-  paragraphs: string[]
+  /** Text paragraphs; image blocks are only produced from validated asset URLs (images.ts). */
+  paragraphs: Array<string | EmailImage>
+  /** Full-width image above the heading. */
+  hero?: EmailImage
   /** One-time code shown large (verification emails). */
   code?: { label: string; value: string }
   quote?: string
@@ -64,12 +71,16 @@ export function renderEmailHtml(content: EmailContent) {
   const font = fontStack(locale)
   const e = escapeHtml
 
+  const image = (img: EmailImage, margin: string) =>
+    `<img src="${e(img.image)}" alt="${e(img.alt)}" width="504" style="display:block;width:100%;max-width:504px;height:auto;margin:${margin};border:0;border-radius:12px;" />`
   const paragraphs = content.paragraphs
-    .map(
-      (p) =>
-        `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${C.body};">${e(p)}</p>`,
+    .map((p) =>
+      isImage(p)
+        ? image(p, '6px 0 18px')
+        : `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${C.body};">${e(p)}</p>`,
     )
     .join('')
+  const hero = content.hero ? image(content.hero, '0 0 22px') : ''
 
   const code = content.code
     ? `<p style="margin:8px 0 6px;font-size:12px;letter-spacing:${locale === 'ar' ? '0' : '0.08em'};text-transform:uppercase;color:${C.muted};">${e(content.code.label)}</p>
@@ -140,7 +151,7 @@ export function renderEmailHtml(content: EmailContent) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${dir}" style="max-width:560px;font-family:${font};">
 <tr><td align="${align}" style="padding:0 4px 18px;font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${C.text};">${e(BRAND[locale])}</td></tr>
 <tr><td align="${align}" style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:32px 28px;" bgcolor="${C.card}">
-${eyebrow}<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;font-weight:600;color:${C.text};">${e(content.heading)}</h1>
+${hero}${eyebrow}<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;font-weight:600;color:${C.text};">${e(content.heading)}</h1>
 ${paragraphs}${code}${quote}${details}${items}${action}${note}
 </td></tr>
 <tr><td align="${align}" style="padding:20px 4px 0;font-size:12px;line-height:1.6;color:${C.muted};">${e(content.footer.reason)}${manage}<br /><br />${e(BRAND[locale])} · ${e(TAGLINE[locale])}</td></tr>
@@ -153,7 +164,7 @@ ${paragraphs}${code}${quote}${details}${items}${action}${note}
 
 export function renderEmailText(content: EmailContent) {
   const lines: string[] = [BRAND[content.locale], '', content.heading, '']
-  for (const p of content.paragraphs) lines.push(p, '')
+  for (const p of content.paragraphs) lines.push(isImage(p) ? `[${p.alt || 'Image'}]` : p, '')
   if (content.code) lines.push(`${content.code.label}: ${content.code.value}`, '')
   if (content.quote) lines.push(`> ${content.quote}`, '')
   if (content.details?.length) {

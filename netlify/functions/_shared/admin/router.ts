@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { deleteUserAccount } from '../account-deletion.ts'
 import { BroadcastError, audienceCounts, broadcastRequestSchema, handleBroadcast, recentBroadcasts } from '../email/broadcasts.ts'
 import type { EmailConfig } from '../email/config.ts'
+import { MAX_EMAIL_IMAGE_BYTES, assetKey, assetUrl, sniffImage } from '../email/images.ts'
 import type { EmailService } from '../email/service.ts'
 import { adminNetworkApprovalEmail } from '../email/templates-engagement.ts'
 import { isUuid } from '../email/text.ts'
@@ -29,6 +30,8 @@ type Db = Pick<pg.Client, 'query'>
 export type AdminDeps = GuardDeps & {
   db: Db
   email: { service: EmailService; config: EmailConfig }
+  /** Public image storage for product emails (Netlify Blobs in production). */
+  assets?: { put(key: string, bytes: Uint8Array, contentType: string): Promise<void> }
   /** Delete an account (injected so tests do not need a real transaction). */
   deleteAccount?: (db: Db, userId: string) => ReturnType<typeof deleteUserAccount>
 }
@@ -185,6 +188,21 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   }
 
   // ── Product emails ──────────────────────────────────────────────────────
+  if (path === 'assets' && method === 'POST') {
+    if (!deps.assets) return adminJson(503, { error: 'storage_not_configured' })
+    if (Number(request.headers.get('content-length') || 0) > MAX_EMAIL_IMAGE_BYTES) return adminJson(413, { error: 'image_too_large' })
+    const bytes = new Uint8Array(await request.arrayBuffer())
+    if (!bytes.length) return adminJson(400, { error: 'empty_upload' })
+    if (bytes.length > MAX_EMAIL_IMAGE_BYTES) return adminJson(413, { error: 'image_too_large' })
+    // The type comes from the file's bytes, never from the client's Content-Type.
+    const kind = sniffImage(bytes)
+    if (!kind) return adminJson(415, { error: 'unsupported_image' })
+    const key = assetKey(bytes, kind.ext)
+    await deps.assets.put(key, bytes, kind.contentType)
+    await log('email_image_uploaded', key, { bytes: bytes.length })
+    return adminJson(200, { url: assetUrl(deps.email.config.appBaseUrl, key) })
+  }
+
   if (path === 'broadcasts' && method === 'GET') {
     return adminJson(200, {
       sendingEnabled: deps.email.service.enabled && Boolean(deps.email.config.unsubscribeSecret),
@@ -195,8 +213,8 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   if (path === 'broadcasts' && method === 'POST') {
     const parsed = broadcastRequestSchema.safeParse(await body(request))
     if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
-    if (parsed.data.action === 'send') {
-      // Sending to everyone is sensitive: require a fresh TOTP.
+    if (parsed.data.action === 'send' && parsed.data.audience !== 'admin') {
+      // Sending to users is sensitive: require a fresh TOTP.
       const fresh = await authorizeAdmin(request, deps, { sensitive: true })
       if (!fresh.ok) return fresh.response
     }

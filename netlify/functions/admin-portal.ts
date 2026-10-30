@@ -3,7 +3,9 @@
  * for the full access policy and docs/admin-portal.md for setup.
  */
 import type { Config } from '@netlify/functions'
+import { getStore } from '@netlify/blobs'
 import pg from 'pg'
+import { EMAIL_ASSET_STORE } from './_shared/email/images.ts'
 import { handleAdminRequest } from './_shared/admin/router.ts'
 import { adminJson } from './_shared/admin/guard.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
@@ -28,6 +30,13 @@ export default async (request: Request) => {
         return user ? { id: user.id, email: user.email } : null
       },
       email: { service: createEmailService(emailConfig), config: emailConfig },
+      assets: {
+        async put(key, bytes, contentType) {
+          await getStore({ name: EMAIL_ASSET_STORE, consistency: 'strong' }).set(key, bytes.slice().buffer, {
+            metadata: { contentType, uploadedAt: new Date().toISOString() },
+          })
+        },
+      },
     })
   } catch {
     console.error(JSON.stringify({ scope: 'admin', event: 'admin.request', outcome: 'failed' }))

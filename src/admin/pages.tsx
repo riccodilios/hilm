@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { AdminApiError, adminApi, usd, when } from '@/admin/client'
+import { ImagePlus, X } from 'lucide-react'
+import { AdminApiError, adminApi, uploadEmailImage, usd, when } from '@/admin/client'
 
 const errorText = (e: unknown) => (e instanceof AdminApiError ? e.code.replaceAll('_', ' ') : 'Request failed')
 
@@ -379,8 +380,17 @@ export function AccountsPage() {
 
 // ── Product emails ──────────────────────────────────────────────────────────
 
-type Content = { subject: string; preheader: string; heading: string; body: string; ctaLabel: string; ctaUrl: string }
-const EMPTY: Content = { subject: '', preheader: '', heading: '', body: '', ctaLabel: '', ctaUrl: '' }
+type Content = {
+  subject: string
+  preheader: string
+  heading: string
+  body: string
+  ctaLabel: string
+  ctaUrl: string
+  heroUrl: string
+  heroAlt: string
+}
+const EMPTY: Content = { subject: '', preheader: '', heading: '', body: '', ctaLabel: '', ctaUrl: '', heroUrl: '', heroAlt: '' }
 const filled = (c: Content) => Boolean(c.subject.trim() && c.heading.trim() && c.body.trim())
 const clean = (c: Content) => ({
   subject: c.subject.trim(),
@@ -388,32 +398,59 @@ const clean = (c: Content) => ({
   body: c.body.trim(),
   ...(c.preheader.trim() ? { preheader: c.preheader.trim() } : {}),
   ...(c.ctaLabel.trim() && c.ctaUrl.trim() ? { ctaLabel: c.ctaLabel.trim(), ctaUrl: c.ctaUrl.trim() } : {}),
+  ...(c.heroUrl ? { heroImage: { url: c.heroUrl, ...(c.heroAlt.trim() ? { alt: c.heroAlt.trim() } : {}) } } : {}),
 })
+
+type Audience = 'all' | 'en' | 'ar' | 'admin'
 
 type BroadcastInfo = {
   sendingEnabled: boolean
-  audience: { all: number; en: number; ar: number }
+  audience: Record<Audience, number>
   recent: Array<{ id: string; created_at: string; audience: string; recipients: number; subject: string | null }>
+}
+
+const IMAGE_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp'
+
+function ImagePicker({ label, busy, onFile }: { label: string; busy: boolean; onFile: (file: File) => void }) {
+  return (
+    <label className={cn('inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 text-sm', busy && 'pointer-events-none opacity-60')}>
+      <ImagePlus className="size-4" />
+      {busy ? 'Uploading…' : label}
+      <input
+        type="file"
+        accept={IMAGE_ACCEPT}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) onFile(file)
+        }}
+      />
+    </label>
+  )
 }
 
 export function EmailsPage() {
   const qc = useQueryClient()
   const info = useQuery({ queryKey: ['admin', 'broadcasts'], queryFn: () => adminApi<BroadcastInfo>('broadcasts') })
   const [locale, setLocale] = useState<'en' | 'ar'>('en')
-  const [audience, setAudience] = useState<'all' | 'en' | 'ar'>('all')
+  const [audience, setAudience] = useState<Audience>('all')
   const [content, setContent] = useState<Record<'en' | 'ar', Content>>({ en: { ...EMPTY }, ar: { ...EMPTY } })
   const [preview, setPreview] = useState<Partial<Record<'en' | 'ar', string>>>({})
   const [confirm, setConfirm] = useState(false)
+  const [uploading, setUploading] = useState<'hero' | 'inline' | null>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   const payload = () => {
     const out: Partial<Record<'en' | 'ar', ReturnType<typeof clean>>> = {}
     for (const l of ['en', 'ar'] as const) if (filled(content[l])) out[l] = clean(content[l])
     return out
   }
-  const ready = Object.keys(payload()).length > 0 && (audience === 'all' || filled(content[audience]))
+  const ready =
+    Object.keys(payload()).length > 0 && (audience === 'all' || audience === 'admin' || filled(content[audience]))
   const run = useMutation({
     mutationFn: (action: 'preview' | 'test' | 'send') =>
-      adminApi<{ html?: Partial<Record<'en' | 'ar', string>>; queued?: number }>('broadcasts', {
+      adminApi<{ html?: Partial<Record<'en' | 'ar', string>>; queued?: number; sentToAdmin?: number }>('broadcasts', {
         method: 'POST',
         body: { action, audience, content: payload(), ...(action === 'send' ? { confirm: 'SEND' } : {}) },
       }),
@@ -422,16 +459,43 @@ export function EmailsPage() {
       if (action === 'test') toast.success('Test sent to your email')
       if (action === 'send') {
         setConfirm(false)
-        toast.success(`Queued for ${res.queued ?? 0} recipients`)
+        toast.success(res.sentToAdmin ? 'Sent to your email only' : `Queued for ${res.queued ?? 0} recipients`)
         await qc.invalidateQueries({ queryKey: ['admin', 'broadcasts'] })
       }
     },
     onError: (e) => toast.error(errorText(e)),
   })
+
   const current = content[locale]
-  const set = (field: keyof Content) => (e: { target: { value: string } }) =>
-    setContent((prev) => ({ ...prev, [locale]: { ...prev[locale], [field]: e.target.value } }))
+  const update = (patch: Partial<Content>) => setContent((prev) => ({ ...prev, [locale]: { ...prev[locale], ...patch } }))
+  const set = (field: keyof Content) => (e: { target: { value: string } }) => update({ [field]: e.target.value })
+
+  async function upload(file: File, kind: 'hero' | 'inline') {
+    if (file.size > 3 * 1024 * 1024) return toast.error('Images can be up to 3 MB')
+    setUploading(kind)
+    try {
+      const url = await uploadEmailImage(file)
+      if (kind === 'hero') {
+        update({ heroUrl: url })
+      } else {
+        // Insert as its own paragraph at the cursor (or at the end).
+        const alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[[\]()]/g, '').slice(0, 80)
+        const text = current.body
+        const at = bodyRef.current?.selectionStart ?? text.length
+        const before = text.slice(0, at).replace(/\s+$/, '')
+        const after = text.slice(at).replace(/^\s+/, '')
+        update({ body: [before, `![${alt}](${url})`, after].filter(Boolean).join('\n\n') })
+      }
+      toast.success('Image added')
+    } catch (e) {
+      toast.error(errorText(e))
+    } finally {
+      setUploading(null)
+    }
+  }
+
   const recipients = info.data?.audience[audience] ?? 0
+  const sendLabel = audience === 'admin' ? 'Send to me only' : `Send to ${recipients}`
 
   return (
     <div className="space-y-5">
@@ -456,13 +520,42 @@ export function EmailsPage() {
           ))}
         </div>
         <div dir={locale === 'ar' ? 'rtl' : 'ltr'} className="grid gap-4">
+          <div className="space-y-1.5">
+            <Label>Header image (optional)</Label>
+            {current.heroUrl ? (
+              <div className="space-y-2">
+                <img src={current.heroUrl} alt="" className="max-h-48 rounded-xl border border-border-subtle object-cover" />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    placeholder="Image description (for screen readers and blocked images)"
+                    maxLength={150}
+                    value={current.heroAlt}
+                    onChange={set('heroAlt')}
+                    className="max-w-md"
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => update({ heroUrl: '', heroAlt: '' })}>
+                    <X className="size-4" /> Remove
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <ImagePicker label="Upload header image" busy={uploading === 'hero'} onFile={(f) => void upload(f, 'hero')} />
+              </div>
+            )}
+          </div>
           <div className="space-y-1.5"><Label>Subject</Label><Input maxLength={150} value={current.subject} onChange={set('subject')} /></div>
           <div className="space-y-1.5"><Label>Preview text (optional)</Label><Input maxLength={150} value={current.preheader} onChange={set('preheader')} /></div>
           <div className="space-y-1.5"><Label>Heading</Label><Input maxLength={160} value={current.heading} onChange={set('heading')} /></div>
           <div className="space-y-1.5">
-            <Label>Message</Label>
-            <Textarea rows={8} maxLength={8000} value={current.body} onChange={set('body')} />
-            <p className="text-xs text-muted">Plain text; blank line between paragraphs.</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Message</Label>
+              <ImagePicker label="Insert image" busy={uploading === 'inline'} onFile={(f) => void upload(f, 'inline')} />
+            </div>
+            <Textarea ref={bodyRef} rows={10} maxLength={8000} value={current.body} onChange={set('body')} />
+            <p className="text-xs text-muted">
+              Plain text; blank line between paragraphs. Images appear where their ![description](link) line is. PNG, JPEG, GIF or WebP up to 3 MB.
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Button label (optional)</Label><Input maxLength={40} value={current.ctaLabel} onChange={set('ctaLabel')} /></div>
@@ -470,33 +563,41 @@ export function EmailsPage() {
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
-          <select className="h-9 rounded-lg border border-border bg-surface px-3 text-sm" value={audience} onChange={(e) => setAudience(e.target.value as typeof audience)}>
+          <select className="h-9 rounded-lg border border-border bg-surface px-3 text-sm" value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
             <option value="all">Everyone ({info.data?.audience.all ?? 0})</option>
             <option value="en">English users ({info.data?.audience.en ?? 0})</option>
             <option value="ar">Arabic users ({info.data?.audience.ar ?? 0})</option>
+            <option value="admin">Only me (admin)</option>
           </select>
           <Button variant="secondary" disabled={!ready || run.isPending} onClick={() => run.mutate('preview')}>Preview</Button>
           <Button variant="secondary" disabled={!ready || run.isPending || !info.data?.sendingEnabled} onClick={() => run.mutate('test')}>Send test to me</Button>
-          <Button disabled={!ready || !recipients || !info.data?.sendingEnabled} onClick={() => setConfirm(true)}>Send to {recipients}</Button>
+          <Button disabled={!ready || !recipients || !info.data?.sendingEnabled} onClick={() => setConfirm(true)}>{sendLabel}</Button>
         </div>
       </Panel>
       {Object.keys(preview).length ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {(['en', 'ar'] as const).map((l) =>
-            preview[l] ? <iframe key={l} title={`preview-${l}`} sandbox="" srcDoc={preview[l]} className="h-[640px] w-full rounded-2xl border border-border-subtle bg-black" /> : null,
+            preview[l] ? <iframe key={l} title={`preview-${l}`} sandbox="" srcDoc={preview[l]} className="h-[720px] w-full rounded-2xl border border-border-subtle bg-black" /> : null,
           )}
         </div>
       ) : null}
       {info.data?.recent.length ? (
         <Panel title="Sent">
-          <Table head={['Subject', 'Sent', 'Audience', 'Recipients']} rows={info.data.recent.map((b) => [b.subject ?? '—', when(b.created_at), b.audience, b.recipients])} />
+          <Table
+            head={['Subject', 'Sent', 'Audience', 'Recipients']}
+            rows={info.data.recent.map((b) => [b.subject ?? '—', when(b.created_at), b.audience === 'admin' ? 'Only me' : b.audience, b.recipients])}
+          />
         </Panel>
       ) : null}
       {confirm ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6">
-            <h2 className="text-lg font-medium">Send to {recipients} people?</h2>
-            <p className="mt-2 text-sm text-muted">It goes out now and cannot be recalled.</p>
+            <h2 className="text-lg font-medium">{audience === 'admin' ? 'Send this email to yourself?' : `Send to ${recipients} people?`}</h2>
+            <p className="mt-2 text-sm text-muted">
+              {audience === 'admin'
+                ? 'The final email (no [Test] prefix), only to your admin address.'
+                : 'It goes out now and cannot be recalled.'}
+            </p>
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>
               <Button disabled={run.isPending} onClick={() => run.mutate('send')}>Send now</Button>
