@@ -175,8 +175,12 @@ export async function handleBroadcast(
     return { broadcastId, queued: 1, sentToAdmin: sent }
   }
 
+  // Guards against an accidental double send only; "Only me" sends never count.
   const last = await deps.db.query<{ recent: boolean }>(
-    `select exists (select 1 from private.email_broadcasts where created_at > now() - interval '10 minutes') as recent`,
+    `select exists (
+       select 1 from private.email_broadcasts
+       where audience <> 'admin' and created_at > now() - interval '1 minute'
+     ) as recent`,
   )
   if (last.rows[0]?.recent) throw new BroadcastError(429, 'cooldown')
 

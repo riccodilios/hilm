@@ -11,7 +11,11 @@ import { cn } from '@/lib/utils'
 import { Bold, Heading1, Heading2, ImagePlus, Link2, X } from 'lucide-react'
 import { AdminApiError, adminApi, uploadEmailImage, usd, when } from '@/admin/client'
 
-const errorText = (e: unknown) => (e instanceof AdminApiError ? e.code.replaceAll('_', ' ') : 'Request failed')
+const errorText = (e: unknown) => {
+  if (!(e instanceof AdminApiError)) return 'Request failed'
+  if (e.code === 'cooldown') return 'A product email was just sent. Wait a minute before sending another.'
+  return e.code.replaceAll('_', ' ')
+}
 
 export function Panel({ title, action, children, className }: { title?: string; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
