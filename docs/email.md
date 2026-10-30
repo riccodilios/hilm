@@ -132,12 +132,15 @@ The report prints, for each record:
 | `TXT hilm.tech "v=spf1 mx -all"` | Root SPF for Amelu. Resend's SPF goes on its own hostname, so no merge is needed. Never add a second SPF record at `hilm.tech` |
 | `TXT v1-ed25519-20261030._domainkey` / `v1-rsa-20261030._domainkey` | Amelu DKIM |
 | `TXT hilm.tech google-site-verification=…` | Google Search Console |
-| `TXT _dmarc.hilm.tech "v=DMARC1; p=none; rua=mailto:postmaster@hilm.tech"` | DMARC |
+| `TXT _dmarc.hilm.tech "v=DMARC1; p=quarantine; pct=100; rua=mailto:postmaster@hilm.tech"` | DMARC (enforced since 2026-10-31 for BIMI) |
+| `TXT default._bimi.hilm.tech "v=BIMI1; l=https://hilm.tech/bimi/hilm.svg; a=;"` | BIMI inbox logo (`public/bimi/hilm.svg`, SVG Tiny PS). Gmail/Apple also need a VMC/CMC certificate URL in `a=` |
 
 **DMARC:**
 - Resend signs with DKIM for `hilm.tech`, so messages from `*@hilm.tech` align and pass DMARC.
-- `p=none` only reports. Tightening it to `quarantine` or `reject` later affects Amelu mail too, so
-  only do it after the reports show every legitimate source passing.
+- Policy is `p=quarantine`: mail claiming to be from `@hilm.tech` that fails both SPF and DKIM
+  alignment goes to spam. This covers Amelu mail too (it signs with its own DKIM keys). Any new
+  service that sends as `@hilm.tech` must be DKIM-signed for hilm.tech first. Aggregate reports go
+  to postmaster@hilm.tech.
 - Receiving stays disabled in Resend. Never point the root MX at Resend (it belongs to Amelu).
 
 ## Supabase Auth email (verification, password reset, magic link)
