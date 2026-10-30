@@ -9,7 +9,15 @@ export type EmailLocale = 'en' | 'ar'
 
 export type EmailImage = { image: string; alt: string }
 
-const isImage = (p: string | EmailImage): p is EmailImage => typeof p === 'object'
+/** Inline run of text; href is only set from a validated URL (templates-engagement.ts). */
+export type Inline = { text: string; bold?: boolean; href?: string }
+/** Formatted paragraph: body text, title (h2) or subtitle (h3). */
+export type RichBlock = { kind: 'p' | 'h2' | 'h3'; inlines: Inline[] }
+
+type Paragraph = string | EmailImage | RichBlock
+
+const isImage = (p: Paragraph): p is EmailImage => typeof p === 'object' && 'image' in p
+const isRich = (p: Paragraph): p is RichBlock => typeof p === 'object' && 'inlines' in p
 
 export type EmailContent = {
   locale: EmailLocale
@@ -18,7 +26,7 @@ export type EmailContent = {
   eyebrow?: string
   heading: string
   /** Text paragraphs; image blocks are only produced from validated asset URLs (images.ts). */
-  paragraphs: Array<string | EmailImage>
+  paragraphs: Paragraph[]
   /** Full-width image above the heading. */
   hero?: EmailImage
   /** One-time code shown large (verification emails). */
@@ -73,11 +81,31 @@ export function renderEmailHtml(content: EmailContent) {
 
   const image = (img: EmailImage, margin: string) =>
     `<img src="${e(img.image)}" alt="${e(img.alt)}" width="504" style="display:block;width:100%;max-width:504px;height:auto;margin:${margin};border:0;border-radius:12px;" />`
+  const inlines = (runs: Inline[]) =>
+    runs
+      .map((run) => {
+        let html = e(run.text)
+        if (run.bold) html = `<strong style="font-weight:600;color:${C.text};">${html}</strong>`
+        if (run.href) html = `<a href="${e(run.href)}" style="color:${C.text};text-decoration:underline;">${html}</a>`
+        return html
+      })
+      .join('')
+  const rich = (block: RichBlock) => {
+    if (block.kind === 'h2') {
+      return `<h2 style="margin:24px 0 10px;font-size:20px;line-height:1.35;font-weight:600;color:${C.text};">${inlines(block.inlines)}</h2>`
+    }
+    if (block.kind === 'h3') {
+      return `<h3 style="margin:20px 0 8px;font-size:17px;line-height:1.4;font-weight:600;color:${C.text};">${inlines(block.inlines)}</h3>`
+    }
+    return `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${C.body};">${inlines(block.inlines)}</p>`
+  }
   const paragraphs = content.paragraphs
     .map((p) =>
       isImage(p)
         ? image(p, '6px 0 18px')
-        : `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${C.body};">${e(p)}</p>`,
+        : isRich(p)
+          ? rich(p)
+          : `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${C.body};">${e(p)}</p>`,
     )
     .join('')
   const hero = content.hero ? image(content.hero, '0 0 22px') : ''
@@ -149,7 +177,7 @@ export function renderEmailHtml(content: EmailContent) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${C.page}" style="background:${C.page};">
 <tr><td align="center" style="padding:32px 16px 40px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${dir}" style="max-width:560px;font-family:${font};">
-<tr><td align="${align}" style="padding:0 4px 18px;font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${C.text};">${e(BRAND[locale])}</td></tr>
+<tr><td align="center" style="padding:4px 4px 22px;font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-0.02em;color:${C.text};">${e(BRAND[locale])}</td></tr>
 <tr><td align="${align}" style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:32px 28px;" bgcolor="${C.card}">
 ${hero}${eyebrow}<h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;font-weight:600;color:${C.text};">${e(content.heading)}</h1>
 ${paragraphs}${code}${quote}${details}${items}${action}${note}
@@ -164,7 +192,13 @@ ${paragraphs}${code}${quote}${details}${items}${action}${note}
 
 export function renderEmailText(content: EmailContent) {
   const lines: string[] = [BRAND[content.locale], '', content.heading, '']
-  for (const p of content.paragraphs) lines.push(isImage(p) ? `[${p.alt || 'Image'}]` : p, '')
+  for (const p of content.paragraphs) {
+    if (isImage(p)) lines.push(`[${p.alt || 'Image'}]`, '')
+    else if (isRich(p)) {
+      const text = p.inlines.map((run) => (run.href && run.href !== run.text ? `${run.text} (${run.href})` : run.text)).join('')
+      lines.push(p.kind === 'h2' ? text.toUpperCase() : text, '')
+    } else lines.push(p, '')
+  }
   if (content.code) lines.push(`${content.code.label}: ${content.code.value}`, '')
   if (content.quote) lines.push(`> ${content.quote}`, '')
   if (content.details?.length) {

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { ImagePlus, X } from 'lucide-react'
+import { Bold, Heading1, Heading2, ImagePlus, Link2, X } from 'lucide-react'
 import { AdminApiError, adminApi, uploadEmailImage, usd, when } from '@/admin/client'
 
 const errorText = (e: unknown) => (e instanceof AdminApiError ? e.code.replaceAll('_', ' ') : 'Request failed')
@@ -470,6 +470,39 @@ export function EmailsPage() {
   const update = (patch: Partial<Content>) => setContent((prev) => ({ ...prev, [locale]: { ...prev[locale], ...patch } }))
   const set = (field: keyof Content) => (e: { target: { value: string } }) => update({ [field]: e.target.value })
 
+  function wrapSelection(before: string, after: string, placeholder: string) {
+    const el = bodyRef.current
+    const text = current.body
+    const start = el?.selectionStart ?? text.length
+    const end = el?.selectionEnd ?? text.length
+    const selected = text.slice(start, end) || placeholder
+    update({ body: text.slice(0, start) + before + selected + after + text.slice(end) })
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(start + before.length, start + before.length + selected.length)
+    })
+  }
+
+  /** Make the paragraph at the cursor a title ("# ") or subtitle ("## "); again to remove. */
+  function toggleHeading(prefix: '# ' | '## ') {
+    const el = bodyRef.current
+    const text = current.body
+    const at = el?.selectionStart ?? text.length
+    const blockStart = Math.max(text.lastIndexOf('\n\n', at - 1) + 2, 0)
+    const head = text.slice(blockStart)
+    const existing = head.match(/^#{1,2} /)?.[0] ?? ''
+    const next = existing === prefix ? '' : prefix
+    update({ body: text.slice(0, blockStart) + next + head.slice(existing.length) })
+    requestAnimationFrame(() => el?.focus())
+  }
+
+  function insertLink() {
+    const url = window.prompt('Link address (https://… or mailto:…)')?.trim()
+    if (!url) return
+    if (!/^(https:\/\/|mailto:)/i.test(url)) return toast.error('Links must start with https:// or mailto:')
+    wrapSelection('[', `](${url})`, 'link text')
+  }
+
   async function upload(file: File, kind: 'hero' | 'inline') {
     if (file.size > 3 * 1024 * 1024) return toast.error('Images can be up to 3 MB')
     setUploading(kind)
@@ -550,11 +583,26 @@ export function EmailsPage() {
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Message</Label>
-              <ImagePicker label="Insert image" busy={uploading === 'inline'} onFile={(f) => void upload(f, 'inline')} />
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button type="button" size="sm" variant="secondary" title="Title (# )" onClick={() => toggleHeading('# ')}>
+                  <Heading1 className="size-4" />
+                </Button>
+                <Button type="button" size="sm" variant="secondary" title="Subtitle (## )" onClick={() => toggleHeading('## ')}>
+                  <Heading2 className="size-4" />
+                </Button>
+                <Button type="button" size="sm" variant="secondary" title="Bold (*text*)" onClick={() => wrapSelection('*', '*', 'bold text')}>
+                  <Bold className="size-4" />
+                </Button>
+                <Button type="button" size="sm" variant="secondary" title="Link ([text](https://…))" onClick={insertLink}>
+                  <Link2 className="size-4" />
+                </Button>
+                <ImagePicker label="Insert image" busy={uploading === 'inline'} onFile={(f) => void upload(f, 'inline')} />
+              </div>
             </div>
-            <Textarea ref={bodyRef} rows={10} maxLength={8000} value={current.body} onChange={set('body')} />
+            <Textarea ref={bodyRef} rows={12} maxLength={8000} value={current.body} onChange={set('body')} />
             <p className="text-xs text-muted">
-              Plain text; blank line between paragraphs. Images appear where their ![description](link) line is. PNG, JPEG, GIF or WebP up to 3 MB.
+              Blank line between paragraphs. <code># Title</code>, <code>## Subtitle</code>, <code>*bold*</code>,{' '}
+              <code>[text](https://…)</code> for links. Images appear where their ![description](link) line is (PNG, JPEG, GIF or WebP up to 3 MB).
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

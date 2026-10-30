@@ -97,7 +97,7 @@ for (const locale of ['en', 'ar']) {
       locale, appBaseUrl: app,
       content: locale === 'ar'
         ? { subject: 'جديد في حلم: تفريغ أدق للاجتماعات', heading: 'اجتماعاتك أصبحت أوضح', body: 'حسّنّا تفريغ الاجتماعات بالعربية والإنجليزية.\n\nجرّبه في اجتماعك القادم.', ctaLabel: 'اكتشف المزيد', ctaUrl: 'https://hilm.tech/ar/meetings' }
-        : { subject: 'New in Hilm: sharper meeting transcripts', heading: 'Your meetings, clearer', body: 'We improved Arabic and English meeting transcription.\n\nTry it in your next meeting.', ctaLabel: 'See what is new', ctaUrl: 'https://hilm.tech/meetings' },
+        : { subject: 'New in Hilm: sharper meeting transcripts', heading: 'Your meetings, clearer', body: 'We improved *Arabic and English* meeting transcription.\n\n# What is new\n\nSpeakers are labelled more accurately, and long meetings are handled in one go.\n\n## Try it\n\nRecord your next meeting, or read [the meetings guide](https://hilm.tech/meetings).', ctaLabel: 'See what is new', ctaUrl: 'https://hilm.tech/meetings' },
       unsubscribeUrl: `${app}/api/email-unsubscribe?preview=1`,
     }),
   }

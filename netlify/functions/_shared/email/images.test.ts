@@ -46,7 +46,12 @@ describe('allowedImageUrl', () => {
 describe('broadcast images', () => {
   it('renders the header image and image paragraphs; other syntax stays text', () => {
     const paragraphs = broadcastParagraphs(`Intro\n\n![Team photo](${IMG})\n\n![remote](https://evil.example/a.png)`, APP)
-    expect(paragraphs).toEqual(['Intro', { image: IMG, alt: 'Team photo' }, '![remote](https://evil.example/a.png)'])
+    expect(paragraphs).toEqual([
+      { kind: 'p', inlines: [{ text: 'Intro' }] },
+      { image: IMG, alt: 'Team photo' },
+      // Not an uploaded asset: stays literal text ("!" + a normal link to the URL).
+      { kind: 'p', inlines: [{ text: '!' }, { text: 'remote', href: 'https://evil.example/a.png', bold: false }] },
+    ])
 
     const email = broadcastEmail({
       locale: 'en',
@@ -70,6 +75,60 @@ describe('broadcast images', () => {
     await expect(
       handleBroadcast(body({ body: '![x](https://evil.example/x.png)' }), { id: 'a', email: 'a@hilm.tech' }, { db: fakeDb([]), service, config }),
     ).rejects.toMatchObject({ code: 'image_url_not_allowed' })
+  })
+})
+
+describe('message formatting', () => {
+  it('supports titles, subtitles, bold and links', () => {
+    const blocks = broadcastParagraphs('# Big news\n\n## What changed\n\nThis is *really* fast. Read [the guide](https://hilm.tech/features) or email [us](mailto:info@hilm.tech).', APP)
+    expect(blocks).toEqual([
+      { kind: 'h2', inlines: [{ text: 'Big news' }] },
+      { kind: 'h3', inlines: [{ text: 'What changed' }] },
+      {
+        kind: 'p',
+        inlines: [
+          { text: 'This is ' },
+          { text: 'really', bold: true },
+          { text: ' fast. Read ' },
+          { text: 'the guide', href: 'https://hilm.tech/features', bold: false },
+          { text: ' or email ' },
+          { text: 'us', href: 'mailto:info@hilm.tech', bold: false },
+          { text: '.' },
+        ],
+      },
+    ])
+  })
+
+  it('never turns unsafe links into anchors and escapes everything', () => {
+    const email = broadcastEmail({
+      locale: 'en',
+      appBaseUrl: APP,
+      content: {
+        subject: 'S',
+        heading: 'H',
+        body: '# <script>x</script>\n\n[click](javascript:alert(1)) [plain](http://insecure.example) **<b>bold</b>**',
+      },
+      unsubscribeUrl: `${APP}/api/email-unsubscribe?preview=1`,
+    })
+    // Unsafe links stay inert literal text, never an href.
+    expect(email.html).not.toContain('href="javascript:')
+    expect(email.html).toContain('[click](javascript:alert(1))')
+    expect(email.html).not.toContain('href="http://')
+    expect(email.html).not.toContain('<script>')
+    expect(email.html).toContain('&lt;script&gt;x&lt;/script&gt;</h2>')
+    expect(email.html).toContain('<strong style="font-weight:600;color:#f4f4f5;">&lt;b&gt;bold&lt;/b&gt;</strong>')
+    expect(email.text).toContain('<SCRIPT>X</SCRIPT>')
+  })
+
+  it('renders links in the plain-text part with their address', () => {
+    const email = broadcastEmail({
+      locale: 'en',
+      appBaseUrl: APP,
+      content: { subject: 'S', heading: 'H', body: 'See [features](https://hilm.tech/features).' },
+      unsubscribeUrl: `${APP}/api/email-unsubscribe?preview=1`,
+    })
+    expect(email.text).toContain('See features (https://hilm.tech/features).')
+    expect(email.html).toContain('<a href="https://hilm.tech/features"')
   })
 })
 

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Hilm</title>
+  <rect width="128" height="128" fill="#0a0a0b"/>
+  <path d="M38 34h18v24h16V34h18v60H72V74H56v20H38V34z" fill="#f4f4f5"/>
+</svg>

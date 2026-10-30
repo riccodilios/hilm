@@ -4,7 +4,7 @@
  * escaping in the layout, links only from fixed shapes or an allow-list.
  */
 import { allowedImageUrl } from './images.ts'
-import { renderEmail, type EmailImage, type EmailLocale } from './layout.ts'
+import { renderEmail, type EmailImage, type EmailLocale, type Inline, type RichBlock } from './layout.ts'
 import type { RenderedEmail } from './templates.ts'
 import { appLink, singleLine } from './text.ts'
 
@@ -330,23 +330,69 @@ export function bodyImageUrls(body: string) {
     .filter((u): u is string => Boolean(u))
 }
 
+/** Links in message text: any https URL or a mailto: address (no javascript:, data:, http:). */
+export function safeLinkUrl(value: string): string | null {
+  const raw = value.trim()
+  if (raw.length > 500) return null
+  if (/^mailto:/i.test(raw)) {
+    const address = raw.slice(7).split('?')[0] ?? ''
+    return /^[^\s@<>()"]+@[^\s@<>()"]+\.[a-z]{2,}$/i.test(address) ? `mailto:${address}` : null
+  }
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' || url.username || url.password) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+const INLINE = /\[([^\]\n]{1,200})\]\(([^)\s]{1,500})\)|\*\*([^*\n]{1,300})\*\*|\*([^*\n]{1,300})\*/g
+
+/** *bold* / **bold** and [text](url). Anything malformed stays literal text. */
+export function parseInline(text: string): Inline[] {
+  const runs: Inline[] = []
+  let last = 0
+  for (const m of text.matchAll(INLINE)) {
+    const at = m.index ?? 0
+    if (at > last) runs.push({ text: text.slice(last, at) })
+    if (m[1] !== undefined) {
+      const href = safeLinkUrl(m[2]!)
+      // A bolded label ([*text*](url)) stays bold.
+      const label = m[1].replace(/^\*{1,2}(.+?)\*{1,2}$/, '$1')
+      runs.push(href ? { text: label, href, bold: label !== m[1] } : { text: m[0] })
+    } else {
+      runs.push({ text: (m[3] ?? m[4])!, bold: true })
+    }
+    last = at + m[0].length
+  }
+  if (last < text.length) runs.push({ text: text.slice(last) })
+  return runs.filter((r) => r.text)
+}
+
 /**
- * Paragraphs separated by blank lines; a paragraph that is exactly ![alt](url) becomes an image
- * when the URL is an uploaded email asset on the app origin.
+ * Message blocks separated by blank lines:
+ *  - "# Title" / "## Subtitle" → larger headings
+ *  - a paragraph that is exactly ![alt](url) → image (only uploaded email assets on the app origin)
+ *  - anything else → body text with *bold* and [link](https://…)
  */
-export function broadcastParagraphs(body: string, appBaseUrl?: string): Array<string | EmailImage> {
+export function broadcastParagraphs(body: string, appBaseUrl?: string): Array<string | EmailImage | RichBlock> {
   return body
     .replace(/\r\n?/g, '\n')
     .split(/\n{2,}/)
-    .map((raw): string | EmailImage => {
-      const match = raw.trim().match(IMAGE_LINE)
+    .map((raw): EmailImage | RichBlock | null => {
+      const trimmed = raw.trim()
+      const match = trimmed.match(IMAGE_LINE)
       if (match && appBaseUrl && allowedImageUrl(match[2], appBaseUrl)) {
         return { image: match[2]!, alt: singleLine(match[1], 150) }
       }
-      return singleLine(raw, 1200)
+      const heading = trimmed.match(/^(#{1,2})\s+(.+)$/s)
+      const kind = heading ? (heading[1] === '#' ? 'h2' : 'h3') : 'p'
+      const text = singleLine(heading ? heading[2] : trimmed, kind === 'p' ? 1200 : 160)
+      return text ? { kind, inlines: parseInline(text) } : null
     })
-    .filter((p) => (typeof p === 'string' ? Boolean(p) : true))
-    .slice(0, 20)
+    .filter((p): p is EmailImage | RichBlock => p !== null)
+    .slice(0, 30)
 }
 
 export function broadcastEmail(d: {
