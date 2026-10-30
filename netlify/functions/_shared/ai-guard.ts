@@ -35,6 +35,8 @@ const CORS_HEADERS = {
 }
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  'https://hilm.tech',
+  'https://www.hilm.tech',
   'https://hillm.netlify.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
