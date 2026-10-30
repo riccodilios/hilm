@@ -2,28 +2,44 @@ import { Link } from 'react-router-dom'
 import appI18n from '@/i18n'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { PRODUCT_PAGE_IDS, PUBLIC_UI, SITE, publicPath } from '@/content/site.ts'
+import { PRODUCT_PAGE_IDS, PUBLIC_LOCALES, PUBLIC_UI, SITE, publicPath } from '@/content/site.ts'
 import { usePublicPage } from './PublicPage'
 
 const BRAND = { en: 'Hilm', ar: 'حلم' } as const
 
-/** Links to the same page in the other language and remembers the choice for the app. */
+const LANGUAGE_LABEL = { en: 'Language', ar: 'اللغة' } as const
+const LANGUAGE_SHORT = { en: 'EN', ar: 'ع' } as const
+
+/**
+ * Same EN / ع toggle as the app's LanguageSwitcher, but each option links to this page's URL in
+ * that language and remembers the choice for the app.
+ */
 export function PublicLanguageSwitch({ className }: { className?: string }) {
   const { id, locale } = usePublicPage()
-  const target = locale === 'en' ? 'ar' : 'en'
   return (
-    <Link
-      to={publicPath(id, target)}
-      hrefLang={target}
-      lang={target}
-      onClick={() => void appI18n.changeLanguage(target)}
-      className={cn(
-        'inline-flex h-8 items-center rounded-full border border-border-subtle px-3 text-xs font-medium text-muted transition-colors hover:text-foreground',
-        className,
-      )}
+    <div
+      className={cn('inline-flex items-center rounded-xl border border-border bg-surface-2/60 p-1', className)}
+      role="group"
+      aria-label={LANGUAGE_LABEL[locale]}
     >
-      {PUBLIC_UI[locale].otherLanguage}
-    </Link>
+      {PUBLIC_LOCALES.map((lng) => (
+        <Link
+          key={lng}
+          to={publicPath(id, lng)}
+          hrefLang={lng}
+          lang={lng}
+          aria-label={PUBLIC_UI[lng].language}
+          aria-current={lng === locale ? 'true' : undefined}
+          onClick={() => void appI18n.changeLanguage(lng)}
+          className={cn(
+            'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+            lng === locale ? 'bg-surface text-foreground shadow-sm' : 'text-muted hover:text-foreground',
+          )}
+        >
+          {LANGUAGE_SHORT[lng]}
+        </Link>
+      ))}
+    </div>
   )
 }
 
