@@ -11,8 +11,14 @@ import { ThemeAccountSync } from '@/features/settings/ThemeAccountSync'
 import { requestAppReload } from '@/lib/app-update'
 import { NotificationListener } from '@/features/notifications/NotificationListener'
 import { WorkspaceRealtime } from '@/features/home/WorkspaceRealtime'
-import '@/i18n'
+import { arabicPublicPath } from '@/lib/domains'
+import i18n from '@/i18n'
 import '@/styles/globals.css'
+
+// Arabic visitors (saved choice, or browser language on a first visit) get the /ar version of an
+// English public page. Rewritten before the first render so the English page never flashes.
+const arabicPath = arabicPublicPath(window.location, i18n.resolvedLanguage ?? i18n.language)
+if (arabicPath) window.history.replaceState(null, '', arabicPath)
 
 const updateSW = registerSW({
   immediate: true,

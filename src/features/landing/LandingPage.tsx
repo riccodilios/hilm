@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { LandingHero } from '@/features/landing/sections/Hero'
 import { DemoSection } from '@/features/landing/sections/Demo'
 import { SystemsSection } from '@/features/landing/sections/Systems'
@@ -16,24 +15,12 @@ import { PublicFooter } from '@/features/landing/public/PublicChrome'
 import { usePublicPage } from '@/features/landing/public/PublicPage'
 import { ensureLandingGsap, refreshLandingScrollTriggers } from '@/features/landing/gsap-setup'
 import { usePublicPageSeo } from '@/hooks/useDocumentSeo'
-import { publicPath } from '@/content/site.ts'
 
 ensureLandingGsap()
 
 export function LandingPage() {
   const { locale } = usePublicPage()
-  const navigate = useNavigate()
   usePublicPageSeo('home', locale)
-
-  // Visitors who chose Arabic in Hilm land on the Arabic homepage (crawlers have no saved choice).
-  useEffect(() => {
-    if (locale !== 'en') return
-    try {
-      if ((localStorage.getItem('hilm-lang') ?? '').startsWith('ar')) navigate(publicPath('home', 'ar'), { replace: true })
-    } catch {
-      // Storage unavailable: stay on the English page.
-    }
-  }, [locale, navigate])
 
   useEffect(() => {
     refreshLandingScrollTriggers()

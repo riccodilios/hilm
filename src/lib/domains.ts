@@ -4,7 +4,7 @@
  * Other hosts (localhost, deploy previews) serve everything.
  * netlify.toml mirrors these rules server-side for direct visits.
  */
-import { SITE, matchPublicPath } from '@/content/site.ts'
+import { SITE, matchPublicPath, publicPath } from '@/content/site.ts'
 
 export const MARKETING_ORIGIN = SITE.origin
 export const APP_ORIGIN = SITE.appOrigin
@@ -37,4 +37,15 @@ export function domainRedirect(location: { host: string; pathname: string; searc
     return { kind: 'external', url: `${isPublic ? MARKETING_ORIGIN : APP_ORIGIN}${location.pathname}${rest}` }
   }
   return null
+}
+
+/** The /ar twin of an English public page for an Arabic-language visitor, on hosts that serve public pages. */
+export function arabicPublicPath(
+  location: { host: string; pathname: string; search: string; hash: string },
+  language: string,
+): string | null {
+  if (!language.startsWith('ar') || domainRedirect(location)) return null
+  const page = matchPublicPath(location.pathname)
+  if (page?.locale !== 'en') return null
+  return `${publicPath(page.id, 'ar')}${location.search}${location.hash}`
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { domainRedirect, isPublicSitePath } from './domains'
+import { arabicPublicPath, domainRedirect, isPublicSitePath } from './domains'
 
 const at = (host: string, pathname: string, search = '', hash = '') => domainRedirect({ host, pathname, search, hash })
 
@@ -52,5 +52,26 @@ describe('domainRedirect', () => {
     expect(isPublicSitePath('/ar')).toBe(true)
     expect(isPublicSitePath('/personal/projects/1/meetings/2')).toBe(false)
     expect(isPublicSitePath('/shared/meeting/abc')).toBe(false)
+  })
+})
+
+describe('arabicPublicPath', () => {
+  const ar = (host: string, pathname: string, language = 'ar', search = '', hash = '') =>
+    arabicPublicPath({ host, pathname, search, hash }, language)
+
+  it('sends Arabic visitors from English public pages to their /ar twin, keeping query and hash', () => {
+    expect(ar('hilm.tech', '/')).toBe('/ar')
+    expect(ar('www.hilm.tech', '/features/')).toBe('/ar/features')
+    expect(ar('hilm.tech', '/meetings', 'ar-SA', '?utm_source=x', '#faq')).toBe('/ar/meetings?utm_source=x#faq')
+    expect(ar('localhost:5173', '/privacy')).toBe('/ar/privacy')
+  })
+
+  it('leaves English visitors, Arabic pages, app routes and other hosts alone', () => {
+    expect(ar('hilm.tech', '/', 'en')).toBeNull()
+    expect(ar('hilm.tech', '/ar/meetings')).toBeNull()
+    expect(ar('app.hilm.tech', '/')).toBeNull()
+    expect(ar('app.hilm.tech', '/login')).toBeNull()
+    expect(ar('hillm.netlify.app', '/')).toBeNull()
+    expect(ar('localhost:5173', '/personal')).toBeNull()
   })
 })
