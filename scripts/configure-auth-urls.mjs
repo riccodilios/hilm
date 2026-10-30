@@ -21,9 +21,9 @@ function loadEnv() {
 }
 
 const env = loadEnv()
-const prod = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://hilm.tech').replace(/\/$/, '')
+const prod = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://app.hilm.tech').replace(/\/$/, '')
 const isLocal = /localhost|127\.0\.0\.1/i.test(prod)
-const siteUrl = isLocal ? 'https://hilm.tech' : prod
+const siteUrl = isLocal ? 'https://app.hilm.tech' : prod
 
 const redirectUrls = [
   `${siteUrl}/auth/callback`,

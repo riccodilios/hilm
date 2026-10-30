@@ -2,7 +2,9 @@
  * SEO config for Hilm — used by index.html mirrors, document head, and structured data.
  * Keep descriptions aligned with landing copy so web + AI search share one entity story.
  */
-export const SITE_URL = 'https://hilm.tech'
+import { APP_ORIGIN, MARKETING_ORIGIN } from './domains'
+
+export const SITE_URL = MARKETING_ORIGIN
 
 export const SEO = {
   siteName: 'Hilm',
@@ -54,7 +56,7 @@ export function buildWebSiteJsonLd() {
     publisher: { '@id': `${SITE_URL}/#organization` },
     potentialAction: {
       '@type': 'SearchAction',
-      target: `${SITE_URL}/personal/search?q={search_term_string}`,
+      target: `${APP_ORIGIN}/personal/search?q={search_term_string}`,
       'query-input': 'required name=search_term_string',
     },
   }

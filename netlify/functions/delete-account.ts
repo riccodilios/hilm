@@ -6,6 +6,7 @@ function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
   const allowed = new Set(
     [
+      'https://app.hilm.tech',
       'https://hilm.tech',
       'https://www.hilm.tech',
       'https://hillm.netlify.app',

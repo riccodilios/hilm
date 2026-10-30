@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
+import { lazy, Suspense, useEffect, type ReactNode } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { domainRedirect } from '@/lib/domains'
 import { MeetingRecorderProvider } from '@/shared/meetings/recorder/MeetingRecorderProvider'
 import { useTranslation } from 'react-i18next'
 import { PersonalShell } from '@/components/layout/PersonalShell'
@@ -216,9 +217,28 @@ function WorkspaceLoadBalancerRedirect() {
   return <Navigate to={`/workspace/${workspaceId}/team-lead`} replace />
 }
 
+/** Keeps product routes on app.hilm.tech and the public pages on hilm.tech (client-side navigation). */
+function DomainGate({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  const redirect = domainRedirect({
+    host: window.location.host,
+    pathname: location.pathname,
+    search: location.search,
+    hash: location.hash,
+  })
+  const externalUrl = redirect?.kind === 'external' ? redirect.url : null
+  useEffect(() => {
+    if (externalUrl) window.location.replace(externalUrl)
+  }, [externalUrl])
+  if (externalUrl) return null
+  if (redirect?.kind === 'internal') return <Navigate to={redirect.to} replace />
+  return <>{children}</>
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
+      <DomainGate>
       <Routes>
         <Route
           path="/"
@@ -396,6 +416,7 @@ export function AppRouter() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </DomainGate>
     </BrowserRouter>
   )
 }

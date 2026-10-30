@@ -22,7 +22,7 @@ const env = Object.fromEntries(
 )
 
 const lines = [
-  `APP_URL=${env.APP_URL || 'https://hilm.tech'}`,
+  `APP_URL=${env.APP_URL || 'https://app.hilm.tech'}`,
   `VAPID_PUBLIC_KEY=${env.VAPID_PUBLIC_KEY}`,
   `VAPID_PRIVATE_KEY=${env.VAPID_PRIVATE_KEY}`,
   `VAPID_SUBJECT=${env.VAPID_SUBJECT || 'mailto:noreply@hillm.netlify.app'}`,
@@ -35,4 +35,4 @@ console.log('\nThen:')
 console.log('supabase functions deploy send-task-reminders --project-ref lrvmlayzmvswfqsqroni')
 console.log('\nNetlify env:')
 console.log(`VITE_VAPID_PUBLIC_KEY=${env.VAPID_PUBLIC_KEY}`)
-console.log('VITE_APP_URL=https://hilm.tech')
+console.log('VITE_APP_URL=https://app.hilm.tech')

@@ -21,7 +21,7 @@ function loadEnv() {
 }
 
 const env = loadEnv()
-const prodUrl = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://hilm.tech').replace(/\/$/, '')
+const prodUrl = (env.VITE_APP_URL || env.NEXT_PUBLIC_APP_URL || 'https://app.hilm.tech').replace(/\/$/, '')
 const supabaseUrl = env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || ''
 const ref =
   env.SUPABASE_PROJECT_REF || supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || ''
@@ -38,7 +38,7 @@ console.log(
 )
 
 if (/localhost|127\.0\.0\.1/i.test(prodUrl)) {
-  console.warn('\n⚠ VITE_APP_URL points at localhost — Netlify production builds must use https://hilm.tech')
+  console.warn('\n⚠ VITE_APP_URL points at localhost — Netlify production builds must use https://app.hilm.tech')
 }
 
 console.log('\nResend (task reminders only — NOT auth signup emails):')
@@ -48,7 +48,7 @@ console.log('  RESEND_FROM_EMAIL:', env.RESEND_FROM_EMAIL || '(default onboardin
 if (!token || !ref) {
   console.log('\nSupabase Management API: skipped (set SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF)')
   console.log('\nManual Dashboard checks (Authentication):')
-  console.log('  1. URL Configuration → Site URL = https://hilm.tech (NOT localhost:3000)')
+  console.log('  1. URL Configuration → Site URL = https://app.hilm.tech (NOT localhost:3000)')
   console.log('  2. Redirect URLs include /auth/callback** and /auth/confirm** for prod + localhost:5173 dev')
   console.log('  3. Providers → Email → Confirm email = ON (if verification required)')
   console.log('  4. SMTP Settings → configure custom SMTP for production deliverability')

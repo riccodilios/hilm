@@ -87,7 +87,7 @@ export default async (request: Request) => {
       process.env.APP_URL ||
       secrets.APP_URL ||
       process.env.VITE_APP_URL ||
-      'https://hilm.tech'
+      'https://app.hilm.tech'
     ).replace(/\/$/, '')
 
     if (!vapidPublic || !vapidPrivate) {

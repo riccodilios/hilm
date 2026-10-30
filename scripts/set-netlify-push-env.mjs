@@ -62,8 +62,8 @@ const existing = existingRes.ok ? await existingRes.json() : []
 const existingKeys = new Set(existing.map((e) => e.key))
 
 const vars = {
-  APP_URL: local.APP_URL || local.VITE_APP_URL || 'https://hilm.tech',
-  VITE_APP_URL: local.VITE_APP_URL || 'https://hilm.tech',
+  APP_URL: local.APP_URL || local.VITE_APP_URL || 'https://app.hilm.tech',
+  VITE_APP_URL: local.VITE_APP_URL || 'https://app.hilm.tech',
   VITE_VAPID_PUBLIC_KEY: local.VITE_VAPID_PUBLIC_KEY || local.VAPID_PUBLIC_KEY,
   VAPID_PUBLIC_KEY: local.VAPID_PUBLIC_KEY || local.VITE_VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: local.VAPID_PRIVATE_KEY,

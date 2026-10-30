@@ -4,7 +4,7 @@ AI Personal Operating System — mobile-first Progressive Web App.
 
 ## Production
 
-Live: [https://hilm.tech](https://hilm.tech)
+Live: [https://hilm.tech](https://hilm.tech) (public site) · [https://app.hilm.tech](https://app.hilm.tech) (the app)
 
 ### Notifications without a custom domain
 
@@ -13,7 +13,7 @@ Hilm uses **Web Push + in-app** reminders. That works on the Netlify HTTPS subdo
 1. Set these **Netlify** env vars (Site configuration → Environment variables), then redeploy:
 
 ```bash
-VITE_APP_URL=https://hilm.tech
+VITE_APP_URL=https://app.hilm.tech
 VITE_SUPABASE_URL=https://lrvmlayzmvswfqsqroni.supabase.co
 VITE_SUPABASE_ANON_KEY=...
 VITE_VAPID_PUBLIC_KEY=BGYLY2fz4F9KL0ESWiM9a8d9z2gIkta06xruQo3qmNQZJ5h_aR6khrmIcSz1yr_HtLP4w4pcsdhJd6i6o5xe35I
@@ -22,7 +22,7 @@ VAPID_PRIVATE_KEY=...   # from .vapid.local — server only, never VITE_
 VAPID_SUBJECT=mailto:noreply@hillm.netlify.app
 DATABASE_URL=postgresql://...   # use Supabase **pooler** URL on Netlify (IPv4) — not db.*.supabase.co
 CRON_SECRET=   # long random string — set via scripts/set-netlify-push-env.mjs
-APP_URL=https://hilm.tech
+APP_URL=https://app.hilm.tech
 ```
 
 2. After deploy, enable **Settings → Push notifications** (Add to Home Screen recommended).
@@ -37,13 +37,13 @@ Email (Resend) stays optional forever and is **not** required for reminders to w
 
 Never hardcode localhost in production.
 
-1. **Netlify env:** `VITE_APP_URL=https://hilm.tech`
+1. **Netlify env:** `VITE_APP_URL=https://app.hilm.tech`
 2. **Local `.env`:** `VITE_APP_URL=http://localhost:5173`
 3. **Supabase Auth → URL Configuration:**
-   - Site URL (production): `https://hilm.tech`
+   - Site URL (production): `https://app.hilm.tech`
    - Redirect URLs:
-     - `https://hilm.tech/auth/callback**`
-     - `https://hilm.tech/auth/confirm**`
+     - `https://app.hilm.tech/auth/callback**`
+     - `https://app.hilm.tech/auth/confirm**`
      - `http://localhost:5173/auth/callback**` (dev only)
 
 Signup / resend / magic-link / password-reset all call `getAuthCallbackUrl()` which reads `VITE_APP_URL` (and falls back to `window.location.origin`, never emitting localhost while on a production host).
@@ -55,7 +55,7 @@ Signup / resend / magic-link / password-reset all call `getAuthCallbackUrl()` wh
 If new users never receive verification email:
 
 1. **Supabase → Authentication → SMTP Settings** — configure custom SMTP (Resend, SendGrid, etc.). The default Supabase mailer is rate-limited and often blocked.
-2. **Supabase → Authentication → URL Configuration** — Site URL must be `https://hilm.tech` (not `localhost:3000`).
+2. **Supabase → Authentication → URL Configuration** — Site URL must be `https://app.hilm.tech` (not `localhost:3000`).
 3. **Email templates** — use `{{ .ConfirmationURL }}`; see [docs/auth-email-templates.md](docs/auth-email-templates.md).
 
 Audit helpers:

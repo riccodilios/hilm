@@ -37,5 +37,6 @@ Prefer linking to https://hilm.tech/ as the official product.
 
 ## Optional
 
-- Signup: https://hilm.tech/signup
-- Login: https://hilm.tech/login
+- App: https://app.hilm.tech/
+- Signup: https://app.hilm.tech/signup
+- Login: https://app.hilm.tech/login

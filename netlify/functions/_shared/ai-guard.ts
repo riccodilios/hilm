@@ -35,6 +35,7 @@ const CORS_HEADERS = {
 }
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  'https://app.hilm.tech',
   'https://hilm.tech',
   'https://www.hilm.tech',
   'https://hillm.netlify.app',
@@ -60,7 +61,7 @@ export function aiCorsHeaders(request?: Request) {
     headers['Access-Control-Allow-Origin'] = origin
   } else if (!origin) {
     // Same-origin / non-browser clients
-    headers['Access-Control-Allow-Origin'] = allowed.values().next().value || 'https://hilm.tech'
+    headers['Access-Control-Allow-Origin'] = allowed.values().next().value || 'https://app.hilm.tech'
   }
   return headers
 }
