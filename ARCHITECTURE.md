@@ -227,7 +227,7 @@ When creating a standalone Workspace product repo:
 
 1. Personal feature folders: `tasks/`, `projects/`, `home/`, `notes/`, `ideas/`, `daily-log/`, `search/`, personal mission page, `reports/PersonalReportsPage.tsx`, `ai/registry/personal.ts`, `ai/PersonalAiPage.tsx`
 2. Personal cron functions: `send-task-reminders`, `ai-daily-log`
-3. Personal-only lib: `features/activity/record.ts`, `features/tasks/email/`
+3. Personal-only lib: `features/activity/record.ts`
 
 ### Replace
 

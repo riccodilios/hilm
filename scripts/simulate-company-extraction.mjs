@@ -29,7 +29,6 @@ const PERSONAL_DOMAIN_PREFIXES = [
   'src/features/mission-control/MissionControlPage.tsx',
   'src/features/reports/PersonalReportsPage.tsx',
   'src/features/reports/personal-api.ts',
-  'src/features/tasks/email/',
 ]
 
 /** Personal-only files inside otherwise-shared trees. */

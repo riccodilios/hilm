@@ -163,6 +163,9 @@ export type Database = {
           hide_personal_os: boolean
           time_format: '12h' | '24h'
           last_seen_announcement_version: string | null
+          email_workspace_enabled: boolean
+          locale: 'en' | 'ar' | null
+          time_zone: string | null
           created_at: string
           updated_at: string
         },
@@ -182,6 +185,9 @@ export type Database = {
           hide_personal_os?: boolean
           time_format?: '12h' | '24h'
           last_seen_announcement_version?: string | null
+          email_workspace_enabled?: boolean
+          locale?: 'en' | 'ar' | null
+          time_zone?: string | null
           created_at?: string
           updated_at?: string
         },
@@ -200,6 +206,9 @@ export type Database = {
           hide_personal_os?: boolean
           time_format?: '12h' | '24h'
           last_seen_announcement_version?: string | null
+          email_workspace_enabled?: boolean
+          locale?: 'en' | 'ar' | null
+          time_zone?: string | null
           updated_at?: string
         }
       >

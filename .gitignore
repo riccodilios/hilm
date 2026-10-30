@@ -29,3 +29,6 @@ supabase/.temp/
 # Local Netlify CLI build output
 .netlify
 
+# Rendered email previews (npm run email:preview)
+email-previews/
+

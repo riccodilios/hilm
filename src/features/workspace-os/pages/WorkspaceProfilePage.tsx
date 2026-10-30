@@ -71,6 +71,7 @@ export function WorkspaceProfilePage() {
   const [homeDepartmentId, setHomeDepartmentId] = useState('')
   const [notifyTasks, setNotifyTasks] = useState(true)
   const [notifyMentions, setNotifyMentions] = useState(true)
+  const [workspaceEmails, setWorkspaceEmails] = useState(true)
   const [compactUi, setCompactUi] = useState(false)
   const [aiSuggestAssign, setAiSuggestAssign] = useState(true)
   const [wsName, setWsName] = useState(workspace.name)
@@ -97,6 +98,7 @@ export function WorkspaceProfilePage() {
 
   useEffect(() => {
     setHidePersonalOs(accountSettings.data?.hide_personal_os ?? false)
+    setWorkspaceEmails(accountSettings.data?.email_workspace_enabled ?? true)
   }, [accountSettings.data])
 
   useEffect(() => {
@@ -167,7 +169,7 @@ export function WorkspaceProfilePage() {
           departmentId: homeDepartmentId || null,
         }),
         updateProfile({ display_name: accountDisplayName.trim() || undefined }),
-        updateSettings({ hide_personal_os: hidePersonalOs }),
+        updateSettings({ hide_personal_os: hidePersonalOs, email_workspace_enabled: workspaceEmails }),
       ])
     },
     onSuccess: async () => {
@@ -402,6 +404,17 @@ export function WorkspaceProfilePage() {
                 type="checkbox"
                 checked={notifyMentions}
                 onChange={(e) => setNotifyMentions(e.target.checked)}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>
+                {t('settings.workspaceEmails')}
+                <span className="block text-xs text-muted">{t('settings.workspaceEmailsDesc')}</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={workspaceEmails}
+                onChange={(e) => setWorkspaceEmails(e.target.checked)}
               />
             </label>
           </CardContent>

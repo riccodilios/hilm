@@ -2,6 +2,10 @@ import type { Config } from '@netlify/functions'
 import pg from 'pg'
 import webpush from 'web-push'
 import { authorizeCronRequest } from './_shared/cron-auth'
+import { loadEmailConfig } from './_shared/email/config.ts'
+import { drainOutbox } from './_shared/email/outbox.ts'
+import { createEmailService } from './_shared/email/service.ts'
+import { createPgOutboxStore, enqueueTaskReminderEmail } from './_shared/email/store-pg.ts'
 
 type ReminderRow = {
   id: string
@@ -70,6 +74,7 @@ export default async (request: Request) => {
 
   let pushed = 0
   let processed = 0
+  let emailQueued = 0
 
   try {
     await client.connect()
@@ -188,6 +193,17 @@ export default async (request: Request) => {
         }
       }
 
+      // Email goes through the outbox (one per reminder); the dispatcher re-checks preferences.
+      const emailAllowed = row.email_reminders_enabled !== false && row.project_email !== false
+      if (emailAllowed) {
+        try {
+          await enqueueTaskReminderEmail(client, { reminderId: row.id, userId: row.user_id })
+          emailQueued += 1
+        } catch {
+          // Email is best effort; the reminder itself (push/in-app) must still complete.
+        }
+      }
+
       // Always create an in-app row unless the project muted in-app notifications.
       if (inAppAllowed) {
         await client.query(
@@ -232,12 +248,26 @@ export default async (request: Request) => {
           row.task_id,
           row.project_id,
           `Reminder sent for "${row.task_title}"`,
-          JSON.stringify({ reminder_id: row.id, channels, push: pushAllowed, app_url: appUrl }),
+          JSON.stringify({ reminder_id: row.id, channels, push: pushAllowed, email: emailAllowed, app_url: appUrl }),
         ],
       )
     }
 
-    return json({ ok: true, processed, pushed, emailed: 0 })
+    let emailed = 0
+    if (emailQueued) {
+      try {
+        const emailConfig = loadEmailConfig()
+        const drained = await drainOutbox(
+          { store: createPgOutboxStore(client), service: createEmailService(emailConfig), config: emailConfig },
+          { kinds: ['task_reminder'], limit: 20, budgetMs: 8_000 },
+        )
+        emailed = drained.sent
+      } catch {
+        // Anything left is picked up by the email-dispatch schedule.
+      }
+    }
+
+    return json({ ok: true, processed, pushed, emailQueued, emailed })
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Reminder job failed' }, 500)
   } finally {

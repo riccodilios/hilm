@@ -612,25 +612,9 @@ export async function createWorkspaceTask(
     },
   } as WorkspaceTask
 
+  // The assignee's in-app notification and email come from the workspace_tasks_notify_assignment
+  // database trigger (RLS does not let one member write another member's notifications).
   if (!input.quiet) {
-  if (assignment.assigneeId && assignment.assigneeId !== userId) {
-    await supabase.from('notifications').insert({
-      user_id: assignment.assigneeId,
-      channel: 'in_app',
-      type: 'workspace.task.assigned',
-      title: 'Task assigned',
-      body: `You were assigned ${shortRef} — "${input.title}"`,
-      entity_type: 'workspace_task',
-      entity_id: created.id,
-      href: `/workspace/${workspaceId}/tasks/${created.id}`,
-      metadata: {
-        workspace_id: workspaceId,
-        task_id: created.id,
-        task_ref: shortRef,
-        task_title: input.title,
-      },
-    })
-  }
   for (const leadId of assignment.notifyLeadIds) {
     if (leadId === assignment.assigneeId) continue
     await supabase.from('notifications').insert({
@@ -830,26 +814,7 @@ export async function updateWorkspaceTask(
       })
     }
 
-    if (resolved.assigneeId && resolved.assigneeId !== before.assignee_id) {
-      const userId = await requireUserId()
-      if (resolved.assigneeId !== userId) {
-        await supabase.from('notifications').insert({
-          user_id: resolved.assigneeId,
-          channel: 'in_app',
-          type: 'workspace.task.assigned',
-          title: 'Task assigned',
-          body: `You were assigned "${before.title}"`,
-          entity_type: 'workspace_task',
-          entity_id: taskId,
-          href: `/workspace/${workspaceId}/tasks/${taskId}`,
-          metadata: {
-            workspace_id: workspaceId,
-            task_id: taskId,
-            task_title: before.title,
-          },
-        })
-      }
-    }
+    // A new assignee is notified (in-app + email) by the workspace_tasks_notify_assignment trigger.
   }
 
   const { error } = await supabase

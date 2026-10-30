@@ -1,11 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
-import {
-  extractMentionUserIds,
-  formatWorkspaceTaskRef,
-  plainTextFromMentionContent,
-} from '@/features/workspace-os/lib/task-refs'
-import { getWorkspace, getWorkspaceTask, workspaceKeys } from '@/features/workspace-os/api'
+import { extractMentionUserIds } from '@/features/workspace-os/lib/task-refs'
+import { workspaceKeys } from '@/features/workspace-os/api'
 import type { Tables } from '@/types/database'
 
 export type WorkspaceTaskComment = Tables<'workspace_task_comments'> & {
@@ -73,14 +69,15 @@ export async function listWorkspaceTaskComments(workspaceId: string, taskId: str
   })) satisfies WorkspaceTaskComment[]
 }
 
+/**
+ * Newly mentioned members are notified (in-app + email) by the workspace_comment_mentions_notify
+ * database trigger when their mention row is inserted here.
+ */
 async function syncCommentMentions(input: {
   workspaceId: string
   commentId: string
   content: string
   previousMentionIds?: string[]
-  notifyNew: boolean
-  taskId: string
-  authorName: string
 }) {
   const nextIds = extractMentionUserIds(input.content)
   const prev = new Set((input.previousMentionIds ?? []).map((id) => id.toLowerCase()))
@@ -108,44 +105,6 @@ async function syncCommentMentions(input: {
     )
     if (error) throw error
   }
-
-  if (!input.notifyNew || !toAdd.length) return
-
-  const [workspace, task] = await Promise.all([
-    getWorkspace(input.workspaceId),
-    getWorkspaceTask(input.workspaceId, input.taskId),
-  ])
-  const shortId =
-    formatWorkspaceTaskRef(workspace.task_key, task.task_number) ?? task.title
-  const nameById: Record<string, string> = {}
-  const snippet = plainTextFromMentionContent(input.content, nameById).slice(0, 140)
-  const authorId = await requireUserId()
-
-  const rows = toAdd
-    .filter((id) => id !== authorId)
-    .map((user_id) => ({
-      user_id,
-      channel: 'in_app' as const,
-      type: 'workspace.task.mention',
-      title: 'New mention',
-      body: `${input.authorName} mentioned you in ${shortId}\n“${snippet}”`,
-      entity_type: 'workspace_task_comment',
-      entity_id: input.commentId,
-      href: `/workspace/${input.workspaceId}/tasks/${input.taskId}?comment=${input.commentId}`,
-      metadata: {
-        workspace_id: input.workspaceId,
-        task_id: input.taskId,
-        comment_id: input.commentId,
-        task_ref: shortId,
-        author_name: input.authorName,
-        snippet,
-      },
-    }))
-
-  if (rows.length) {
-    const { error } = await supabase.from('notifications').insert(rows)
-    if (error) throw error
-  }
 }
 
 export async function createWorkspaceTaskComment(
@@ -156,12 +115,6 @@ export async function createWorkspaceTaskComment(
   const userId = await requireUserId()
   const trimmed = content.trim()
   if (!trimmed) throw new Error('Comment cannot be empty')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle()
 
   const { data, error } = await supabase
     .from('workspace_task_comments')
@@ -180,9 +133,6 @@ export async function createWorkspaceTaskComment(
     commentId: data.id,
     content: trimmed,
     previousMentionIds: [],
-    notifyNew: true,
-    taskId,
-    authorName: profile?.display_name || 'Someone',
   })
 
   return data as Tables<'workspace_task_comments'>
@@ -221,20 +171,11 @@ export async function updateWorkspaceTaskComment(
     .single()
   if (error) throw error
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', userId)
-    .maybeSingle()
-
   await syncCommentMentions({
     workspaceId,
     commentId,
     content: trimmed,
     previousMentionIds: (prevMentions ?? []).map((row) => row.mentioned_user_id),
-    notifyNew: true,
-    taskId: existing.task_id,
-    authorName: profile?.display_name || 'Someone',
   })
 
   return data as Tables<'workspace_task_comments'>

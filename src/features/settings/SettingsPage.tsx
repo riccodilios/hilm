@@ -73,6 +73,7 @@ export function SettingsPage({
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [emailReminders, setEmailReminders] = useState(true)
+  const [workspaceEmails, setWorkspaceEmails] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(false)
   const [defaultReminder, setDefaultReminder] = useState<ReminderType>('1h')
   const [startupMode, setStartupMode] = useState<'personal' | 'workspace'>('personal')
@@ -120,6 +121,7 @@ export function SettingsPage({
     // with a stale DB value and writing light back into localStorage.
     if (settings.data) {
       setEmailReminders(settings.data.email_reminders_enabled ?? true)
+      setWorkspaceEmails(settings.data.email_workspace_enabled ?? true)
       setPushNotifications(settings.data.push_notifications_enabled ?? false)
       setDefaultReminder((settings.data.default_reminder_type as ReminderType) ?? '1h')
       setStartupMode(settings.data.default_startup_mode ?? 'personal')
@@ -224,6 +226,7 @@ export function SettingsPage({
         updateSettings({
           theme: themeToSave,
           email_reminders_enabled: emailReminders,
+          email_workspace_enabled: workspaceEmails,
           push_notifications_enabled: pushNotifications,
           default_reminder_type: defaultReminder,
           default_startup_mode: hideWorkspaceOs ? 'personal' : startupMode,
@@ -458,6 +461,13 @@ export function SettingsPage({
                 <p className="text-xs text-muted">{t('settings.emailRemindersDesc')}</p>
               </div>
               <Switch checked={emailReminders} onCheckedChange={setEmailReminders} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">{t('settings.workspaceEmails')}</p>
+                <p className="text-xs text-muted">{t('settings.workspaceEmailsDesc')}</p>
+              </div>
+              <Switch checked={workspaceEmails} onCheckedChange={setWorkspaceEmails} />
             </div>
             <div className="flex items-center justify-between gap-4">
               <div>

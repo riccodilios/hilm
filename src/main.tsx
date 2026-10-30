@@ -8,6 +8,7 @@ import { QueryProvider } from '@/lib/query/client'
 import { AppRouter } from '@/app/router'
 import { ThemeProvider, useTheme } from '@/hooks/useTheme'
 import { ThemeAccountSync } from '@/features/settings/ThemeAccountSync'
+import { AccountLocaleSync } from '@/features/settings/AccountLocaleSync'
 import { requestAppReload } from '@/lib/app-update'
 import { NotificationListener } from '@/features/notifications/NotificationListener'
 import { WorkspaceRealtime } from '@/features/home/WorkspaceRealtime'
@@ -59,6 +60,7 @@ function App() {
     <QueryProvider>
       <AuthProvider>
         <ThemeAccountSync />
+        <AccountLocaleSync />
         <NotificationListener />
         <WorkspaceRealtime />
         <AppRouter />
