@@ -629,7 +629,12 @@ describe('storage registry, uploads and lifecycle', () => {
   it('orphans and missing objects are inventoried, never treated as deleted, and late registrations are adopted', async () => {
     const project = String((await one(`insert into public.projects (user_id, name) values ($1, 'Storage tests') returning id`, [u.headHR])).id)
     const meeting = String((await one(`insert into public.meetings (user_id, project_id, title) values ($1, $2, 'late') returning id`, [u.headHR, project])).id)
-    const orphanKey = `${u.headHR}/meetings/${meeting}/0.wav`
+    const orphanKey = `${u.headHR}/${meeting}/0000.wav`
+    const goneKey = `${u.headHR}/${uid()}/0000.wav`
+    await client.query(
+      `insert into storage.objects (bucket_id, name, owner_id, metadata, created_at) values ('meeting-audio', $1, $2, '{"size": 50, "mimetype": "audio/wav"}'::jsonb, now() - interval '2 days')`,
+      [goneKey, u.headHR],
+    )
     await client.query(
       `insert into storage.objects (bucket_id, name, owner_id, metadata, created_at) values ('meeting-audio', $1, $2, '{"size": 100, "mimetype": "audio/wav"}'::jsonb, now() - interval '2 days')`,
       [orphanKey, u.headHR],
@@ -643,6 +648,12 @@ describe('storage registry, uploads and lifecycle', () => {
     expect(Number(stats.orphans_detected)).toBeGreaterThanOrEqual(1)
     const orphan = await one(`select * from public.storage_files where object_key = $1 and status <> 'deleted'`, [orphanKey])
     expect(orphan.status).toBe('orphaned')
+    // The meeting still exists: kept for review, never purged automatically.
+    expect(orphan.purge_after).toBeNull()
+    expect(orphan.deletion_reason).toBe('orphan_review')
+    const gone = await one(`select * from public.storage_files where object_key = $1 and status <> 'deleted'`, [goneKey])
+    expect(gone.status).toBe('orphaned')
+    expect(gone.purge_after).not.toBeNull()
     expect((await fileRow(String(missing.begun.file_id))).status).toBe('missing')
     expect(missingKey).toBeTruthy()
 

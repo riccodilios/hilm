@@ -103,12 +103,16 @@ async function handler(request: Request) {
     }
 
     try {
-      report.email = await drainEmail(client, Math.min(10_000, Math.max(0, remaining() - 12_000)))
+      report.email = await drainEmail(client, Math.min(8_000, Math.max(0, remaining() - 14_000)))
     } catch {
       report.email = { error: 'dispatch_failed' }
     }
 
+    // At most one periodic job per invocation keeps every run well under the 30 s limit; a job
+    // that is due but skipped here is picked up the next minute.
+    let periodicRan = false
     if (remaining() > 12_000 && (await claimJob(client, 'lifecycle'))) {
+      periodicRan = true
       try {
         const lifecycle = await runStorageLifecycle(client, storageProviders(), {
           trigger: 'schedule',
@@ -124,7 +128,7 @@ async function handler(request: Request) {
       }
     }
 
-    if (remaining() > 9_000 && (await claimJob(client, 'metrics'))) {
+    if (!periodicRan && remaining() > 12_000 && (await claimJob(client, 'metrics'))) {
       const daily = await claimJob(client, 'daily')
       try {
         const collected = await runMetricsCollection(client, {
