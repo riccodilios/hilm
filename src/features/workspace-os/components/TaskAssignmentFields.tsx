@@ -11,11 +11,13 @@ import {
   type WorkspaceMember,
 } from '@/features/workspace-os/api'
 import {
+  listAllTeamMembers,
   listDepartments,
   listTeamMembers,
   listTeams,
   orgKeys,
 } from '@/features/workspace-os/org-api'
+import { resolveMemberDepartments } from '@/features/workspace-os/lib/member-visibility'
 import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
 import {
   memberInitials,
@@ -118,9 +120,19 @@ export function TaskAssignmentFields({
     [teams.data, value.departmentId],
   )
 
+  const allTeamMembers = useQuery({
+    queryKey: orgKeys.allTeamMembers(workspaceId),
+    queryFn: () => listAllTeamMembers(workspaceId),
+  })
   const homeDepartmentByUser = useMemo(
-    () => new Map((allSettings.data ?? []).map((row) => [row.user_id, row.department_id])),
-    [allSettings.data],
+    () =>
+      resolveMemberDepartments({
+        departments: departments.data ?? [],
+        teams: teams.data ?? [],
+        teamMembers: allTeamMembers.data ?? [],
+        memberSettings: allSettings.data ?? [],
+      }),
+    [departments.data, teams.data, allTeamMembers.data, allSettings.data],
   )
 
   const people = useMemo(() => {

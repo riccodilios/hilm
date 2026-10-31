@@ -13,6 +13,16 @@ export const orgKeys = {
   teams: (workspaceId: string) => [...orgKeys.all(workspaceId), 'teams'] as const,
   teamMembers: (workspaceId: string, teamId: string) =>
     [...orgKeys.all(workspaceId), 'team-members', teamId] as const,
+  allTeamMembers: (workspaceId: string) => [...orgKeys.all(workspaceId), 'team-members-all'] as const,
+}
+
+export async function listAllTeamMembers(workspaceId: string) {
+  const { data, error } = await supabase
+    .from('workspace_team_members')
+    .select('team_id, user_id')
+    .eq('workspace_id', workspaceId)
+  if (error) throw error
+  return (data ?? []) as Pick<WorkspaceTeamMember, 'team_id' | 'user_id'>[]
 }
 
 export async function listDepartments(workspaceId: string) {

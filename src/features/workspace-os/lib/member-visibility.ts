@@ -20,10 +20,33 @@ export type TaskVisibilityScope = {
   seesAll: boolean
   /** Departments the user heads, with every department below them. */
   headDepartmentIds: Set<string>
-  /** user id → home department id */
-  homeDepartmentByUser: Map<string, string | null>
+  /** user id → the department they work in (see resolveMemberDepartments) */
+  departmentByUser: Map<string, string>
   /** team id → department id */
   teamDepartmentById: Map<string, string | null>
+}
+
+/**
+ * The department each person works in: their chosen home department, else the department they
+ * head, else the department of a team they lead, else of a team they belong to.
+ */
+export function resolveMemberDepartments(input: {
+  departments: Pick<WorkspaceDepartment, 'id' | 'head_user_id'>[]
+  teams: Pick<WorkspaceTeam, 'id' | 'department_id' | 'lead_user_id'>[]
+  teamMembers: { team_id: string; user_id: string }[]
+  memberSettings: { user_id: string; department_id: string | null }[]
+}): Map<string, string> {
+  const known = new Set(input.departments.map((dept) => dept.id))
+  const teamDepartment = new Map(input.teams.map((team) => [team.id, team.department_id]))
+  const byUser = new Map<string, string>()
+  const assign = (userId: string | null | undefined, departmentId: string | null | undefined) => {
+    if (userId && departmentId && known.has(departmentId) && !byUser.has(userId)) byUser.set(userId, departmentId)
+  }
+  for (const row of input.memberSettings) assign(row.user_id, row.department_id)
+  for (const dept of input.departments) assign(dept.head_user_id, dept.id)
+  for (const team of input.teams) assign(team.lead_user_id, team.department_id)
+  for (const row of input.teamMembers) assign(row.user_id, teamDepartment.get(row.team_id))
+  return byUser
 }
 
 type ScopedTask = Pick<WorkspaceTask, 'assignee_id' | 'created_by' | 'department_id' | 'team_id'> & {
@@ -34,7 +57,8 @@ export function buildTaskVisibilityScope(input: {
   userId: string | null | undefined
   role: WorkspaceRole | null | undefined
   departments: WorkspaceDepartment[]
-  teams: Pick<WorkspaceTeam, 'id' | 'department_id'>[]
+  teams: Pick<WorkspaceTeam, 'id' | 'department_id' | 'lead_user_id'>[]
+  teamMembers: { team_id: string; user_id: string }[]
   memberSettings: { user_id: string; department_id: string | null }[]
 }): TaskVisibilityScope {
   const userId = input.userId ?? null
@@ -49,18 +73,21 @@ export function buildTaskVisibilityScope(input: {
     userId,
     seesAll: seesAllWorkspaceData(input.role),
     headDepartmentIds,
-    homeDepartmentByUser: new Map(input.memberSettings.map((row) => [row.user_id, row.department_id])),
+    departmentByUser: resolveMemberDepartments(input),
     teamDepartmentById: new Map(input.teams.map((team) => [team.id, team.department_id])),
   }
 }
 
-/** The department a task belongs to: its own, its team's, or else its assignee's home department. */
+/**
+ * The department a task counts under. An assigned task follows its assignee's department, so a
+ * Tech member's work never shows under HR; otherwise the task's own department or team decides.
+ */
 export function taskDepartmentId(task: ScopedTask, scope: TaskVisibilityScope): string | null {
+  const assigneeDepartment = task.assignee_id ? scope.departmentByUser.get(task.assignee_id) : undefined
+  if (assigneeDepartment) return assigneeDepartment
   if (task.department_id) return task.department_id
   if (task.assignment?.department?.id) return task.assignment.department.id
-  const teamDepartment = task.team_id ? scope.teamDepartmentById.get(task.team_id) : null
-  if (teamDepartment) return teamDepartment
-  return (task.assignee_id ? scope.homeDepartmentByUser.get(task.assignee_id) : null) ?? null
+  return (task.team_id ? scope.teamDepartmentById.get(task.team_id) : null) ?? null
 }
 
 export function canSeeWorkspaceTask(task: ScopedTask, scope: TaskVisibilityScope) {
@@ -75,8 +102,8 @@ export function canSeeWorkspaceTask(task: ScopedTask, scope: TaskVisibilityScope
 /** Members the user can see work for: everyone for owners/admins, a head's department, or just themselves. */
 export function canSeeMemberWork(memberUserId: string, scope: TaskVisibilityScope) {
   if (scope.seesAll || memberUserId === scope.userId) return true
-  const home = scope.homeDepartmentByUser.get(memberUserId)
-  return home != null && scope.headDepartmentIds.has(home)
+  const department = scope.departmentByUser.get(memberUserId)
+  return department != null && scope.headDepartmentIds.has(department)
 }
 
 export function filterProjectsForScope<P extends Pick<WorkspaceProject, 'id' | 'created_by' | 'team_id'>>(

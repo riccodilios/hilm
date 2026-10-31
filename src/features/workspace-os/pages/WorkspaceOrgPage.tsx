@@ -64,7 +64,10 @@ function TeamBlock({
   const addMember = useMutation({
     mutationFn: (userId: string) => addTeamMember(workspaceId, team.id, userId),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: orgKeys.teamMembers(workspaceId, team.id) })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: orgKeys.teamMembers(workspaceId, team.id) }),
+        qc.invalidateQueries({ queryKey: orgKeys.allTeamMembers(workspaceId) }),
+      ])
       toast.success(t('workspace.orgMemberAdded', { defaultValue: 'Member added to team' }))
     },
     onError: (error: Error) => toast.error(error.message),
@@ -73,7 +76,10 @@ function TeamBlock({
   const removeMemberMut = useMutation({
     mutationFn: (userId: string) => removeTeamMember(workspaceId, team.id, userId),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: orgKeys.teamMembers(workspaceId, team.id) })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: orgKeys.teamMembers(workspaceId, team.id) }),
+        qc.invalidateQueries({ queryKey: orgKeys.allTeamMembers(workspaceId) }),
+      ])
       toast.success(t('workspace.orgMemberRemoved', { defaultValue: 'Member removed' }))
     },
     onError: (error: Error) => toast.error(error.message),

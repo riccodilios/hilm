@@ -4,6 +4,8 @@ import {
   canSeeMemberWork,
   canSeeWorkspaceTask,
   filterProjectsForScope,
+  resolveMemberDepartments,
+  taskDepartmentId,
 } from '@/features/workspace-os/lib/member-visibility'
 import type { WorkspaceProject, WorkspaceTask } from '@/features/workspace-os/api'
 import type { WorkspaceDepartment } from '@/features/workspace-os/org-api'
@@ -30,7 +32,8 @@ const departments = [
   dept('hr-payroll', { parent_id: 'hr' }),
   dept('eng'),
 ]
-const teams = [{ id: 'team-eng', department_id: 'eng' }]
+const teams = [{ id: 'team-eng', department_id: 'eng', lead_user_id: null }]
+const teamMembers = [{ team_id: 'team-eng', user_id: 'dev-on-team' }]
 const memberSettings = [
   { user_id: 'u1', department_id: null },
   { user_id: 'hr-person', department_id: 'hr' },
@@ -39,7 +42,7 @@ const memberSettings = [
 ]
 
 const scopeFor = (userId: string, role: 'owner' | 'admin' | 'member' | 'viewer') =>
-  buildTaskVisibilityScope({ userId, role, departments, teams, memberSettings })
+  buildTaskVisibilityScope({ userId, role, departments, teams, teamMembers, memberSettings })
 
 describe('workspace task visibility', () => {
   it('owners and admins see every task', () => {
@@ -80,6 +83,30 @@ describe('workspace task visibility', () => {
     expect(canSeeMemberWork('engineer', scopeFor('u1', 'member'))).toBe(false)
     expect(canSeeMemberWork('u1', scopeFor('u1', 'member'))).toBe(true)
     expect(canSeeMemberWork('engineer', scopeFor('boss', 'admin'))).toBe(true)
+  })
+
+  it('an assigned task counts under its assignee’s department, team membership included', () => {
+    const scope = scopeFor('boss', 'owner')
+    // In Engineering only through a team, no home department set.
+    expect(taskDepartmentId(task({ assignee_id: 'dev-on-team', team_id: 'team-eng', department_id: 'eng' }), scope)).toBe('eng')
+    expect(taskDepartmentId(task({ assignee_id: 'dev-on-team' }), scope)).toBe('eng')
+    expect(taskDepartmentId(task({ assignee_id: 'dev-on-team', department_id: 'hr' }), scope)).toBe('eng')
+    // Unassigned work keeps its own department or team.
+    expect(taskDepartmentId(task({ assignee_id: null, department_id: 'hr' }), scope)).toBe('hr')
+    expect(taskDepartmentId(task({ assignee_id: null, team_id: 'team-eng' }), scope)).toBe('eng')
+  })
+
+  it('a home department beats team membership; heads and leads count too', () => {
+    const map = resolveMemberDepartments({
+      departments,
+      teams: [{ id: 'team-eng', department_id: 'eng', lead_user_id: 'lead' }],
+      teamMembers: [{ team_id: 'team-eng', user_id: 'hr-person' }],
+      memberSettings,
+    })
+    expect(map.get('hr-person')).toBe('hr')
+    expect(map.get('head')).toBe('hr')
+    expect(map.get('lead')).toBe('eng')
+    expect(map.has('u1')).toBe(false)
   })
 
   it('projects follow task visibility', () => {

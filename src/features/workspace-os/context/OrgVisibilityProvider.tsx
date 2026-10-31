@@ -15,7 +15,7 @@ import {
   type WorkspaceProject,
   type WorkspaceTask,
 } from '@/features/workspace-os/api'
-import { listDepartments, listTeams, orgKeys } from '@/features/workspace-os/org-api'
+import { listAllTeamMembers, listDepartments, listTeams, orgKeys } from '@/features/workspace-os/org-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import {
   buildTaskVisibilityScope,
@@ -82,6 +82,10 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
     queryKey: [...workspaceKeys.all, 'member-settings-all', workspaceId],
     queryFn: () => listAllMemberSettings(workspaceId),
   })
+  const allTeamMembers = useQuery({
+    queryKey: orgKeys.allTeamMembers(workspaceId),
+    queryFn: () => listAllTeamMembers(workspaceId),
+  })
 
   const homeDepartmentId = memberSettings.data?.department_id ?? null
   const canSeeAll = role === 'owner' || role === 'admin'
@@ -93,9 +97,10 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
         role,
         departments: departments.data ?? [],
         teams: teams.data ?? [],
+        teamMembers: allTeamMembers.data ?? [],
         memberSettings: allMemberSettings.data ?? [],
       }),
-    [user?.id, role, departments.data, teams.data, allMemberSettings.data],
+    [user?.id, role, departments.data, teams.data, allTeamMembers.data, allMemberSettings.data],
   )
 
   const visibleDepartmentIds = useMemo(
