@@ -29,7 +29,7 @@ export async function latestMetrics(db: Db) {
     `select distinct on (metric, scope) metric, scope, value, unit, source, quality, details, collected_at
      from private.ops_metric_snapshots
      where collected_at > now() - interval '30 days'
-     order by metric, scope, collected_at desc`,
+     order by metric, scope, collected_at desc, id desc`,
   )
   const now = Date.now()
   return rows.map((r) => {
@@ -293,13 +293,14 @@ export const settingsSchema = z
 export async function updateLifecycleSettings(db: Db, adminId: string, patch: z.infer<typeof settingsSchema>) {
   const keys = Object.keys(patch) as Array<keyof typeof patch>
   if (!keys.length) return
-  const sets = keys.map((k, i) => `${k} = $${i + 2}`)
+  const sets = keys.map((k, i) => `${k} = $${i + 3}`)
   const approving = patch.historical_audio_approved === true || patch.mode === 'enforce'
   await db.query(
-    `update private.storage_lifecycle_settings set ${sets.join(', ')}, updated_at = now()
-       ${approving ? ', approved_by = $1, approved_at = now()' : ''}
+    `update private.storage_lifecycle_settings set ${sets.join(', ')}, updated_at = now(),
+       approved_by = case when $2::boolean then $1::uuid else approved_by end,
+       approved_at = case when $2::boolean then now() else approved_at end
      where id`,
-    [adminId, ...keys.map((k) => patch[k])],
+    [adminId, approving, ...keys.map((k) => patch[k])],
   )
   if (patch.attachment_max_bytes != null) {
     await db.query(`update storage.buckets set file_size_limit = $1 where id = 'attachments'`, [patch.attachment_max_bytes])

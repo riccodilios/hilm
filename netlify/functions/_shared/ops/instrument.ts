@@ -34,7 +34,7 @@ export async function recordInvocation(fn: string, durationMs: number, failed: b
     await withDb((db) =>
       db.query(
         `insert into private.ops_function_daily (day, fn, invocations, errors, total_ms, max_ms)
-         values (current_date, $1, 1, $2, $3, $3)
+         values (current_date, $1, 1, $2::int, $3::bigint, $3::int)
          on conflict (day, fn) do update set
            invocations = ops_function_daily.invocations + 1,
            errors = ops_function_daily.errors + excluded.errors,

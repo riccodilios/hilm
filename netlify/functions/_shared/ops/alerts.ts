@@ -61,7 +61,7 @@ export async function evaluateAlerts(db: Queryable, now = Date.now()): Promise<A
       `select distinct on (metric, scope) metric, scope, value, collected_at
        from private.ops_metric_snapshots
        where collected_at > now() - interval '3 days' and value is not null
-       order by metric, scope, collected_at desc`,
+       order by metric, scope, collected_at desc, id desc`,
     )
   ).rows
   const values = new Map(latest.map((r) => [`${r.metric}|${r.scope}`, Number(r.value)]))
