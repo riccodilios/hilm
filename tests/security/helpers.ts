@@ -112,17 +112,21 @@ export const uid = () => randomUUID()
 
 export async function createAuthUser(client: pg.Client, id: string, email: string, password?: string) {
   await client.query(
+    // GoTrue cannot read NULL token columns, so password sign-in needs them as empty strings.
     `insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, encrypted_password,
-       raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+       raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+       confirmation_token, recovery_token, email_change_token_new, email_change, email_change_token_current,
+       phone_change, phone_change_token, reauthentication_token)
      values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2, now(),
        case when $3::text is null then null else extensions.crypt($3, extensions.gen_salt('bf')) end,
-       '{"provider":"email","providers":["email"]}'::jsonb, jsonb_build_object('display_name', $4::text), now(), now())`,
+       '{"provider":"email","providers":["email"]}'::jsonb, jsonb_build_object('display_name', $4::text), now(), now(),
+       '', '', '', '', '', '', '', '')`,
     [id, email, password ?? null, email.split('@')[0]],
   )
   if (password) {
     await client.query(
       `insert into auth.identities (id, user_id, provider_id, provider, identity_data, created_at, updated_at, last_sign_in_at)
-       values (gen_random_uuid(), $1, $1::text, 'email', jsonb_build_object('sub', $1::text, 'email', $2::text, 'email_verified', true), now(), now(), now())`,
+       values (gen_random_uuid(), $1::uuid, $1::uuid::text, 'email', jsonb_build_object('sub', $1::uuid::text, 'email', $2::text, 'email_verified', true), now(), now(), now())`,
       [id, email],
     )
   }
