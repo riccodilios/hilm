@@ -1,4 +1,4 @@
-import { getSettings } from '@/features/settings/api'
+import { fetchSettings } from '@/features/settings/api'
 import { pendingInvitePath } from '@/features/auth/pending-invite'
 import type { StartupMode } from '@/features/workspace-os/lib/permissions'
 
@@ -6,7 +6,7 @@ export type PostAuthDestination = '/onboarding' | '/personal' | '/workspace' | `
 
 export async function resolvePostAuthDestination(): Promise<PostAuthDestination> {
   try {
-    const settings = await getSettings()
+    const settings = await fetchSettings()
     if (!settings.onboarding_completed) return '/onboarding'
     const invite = pendingInvitePath()
     if (invite) return invite as PostAuthDestination

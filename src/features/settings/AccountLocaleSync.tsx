@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { getSettings, updateSettings } from '@/features/settings/api'
+import { fetchSettings, settingsKeys, updateSettings } from '@/features/settings/api'
 import { supabase } from '@/lib/supabase/client'
+
+/** updateUser holds the auth lock that every data request waits on, so stay out of the first load. */
+const SYNC_DELAY_MS = 4000
 
 function deviceTimeZone() {
   try {
@@ -21,39 +25,41 @@ function deviceTimeZone() {
 export function AccountLocaleSync() {
   const { user } = useAuth()
   const { i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const locale = i18n.language?.startsWith('ar') ? 'ar' : 'en'
+  const userId = user?.id ?? null
+  const metadataLocale = user?.user_metadata?.locale as string | undefined
   const synced = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       synced.current = null
       return
     }
     const timeZone = deviceTimeZone()
-    const key = `${user.id}|${locale}|${timeZone ?? ''}`
+    const key = `${userId}|${locale}|${timeZone ?? ''}`
     if (synced.current === key) return
-    synced.current = key
 
-    let cancelled = false
-    void (async () => {
-      try {
-        // Auth emails (verification, password reset) read the language from user metadata.
-        if (user.user_metadata?.locale !== locale) {
-          await supabase.auth.updateUser({ data: { locale } })
+    const timer = window.setTimeout(() => {
+      synced.current = key
+      void (async () => {
+        try {
+          // Auth emails (verification, password reset) read the language from user metadata.
+          if (metadataLocale !== locale) {
+            await supabase.auth.updateUser({ data: { locale } })
+          }
+          const settings = await fetchSettings()
+          if (settings.locale === locale && (settings.time_zone ?? null) === timeZone) return
+          await updateSettings({ locale, time_zone: timeZone })
+          void queryClient.invalidateQueries({ queryKey: settingsKeys.me() })
+        } catch {
+          // Emails fall back to English and UTC; try again on the next change.
+          if (synced.current === key) synced.current = null
         }
-        const settings = await getSettings()
-        if (cancelled) return
-        if (settings.locale === locale && (settings.time_zone ?? null) === timeZone) return
-        await updateSettings({ locale, time_zone: timeZone })
-      } catch {
-        // Emails fall back to English and UTC; try again on the next change.
-        synced.current = null
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [user, locale])
+      })()
+    }, SYNC_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [userId, locale, metadataLocale, queryClient])
 
   return null
 }

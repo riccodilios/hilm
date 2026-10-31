@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { getSettings } from '@/features/settings/api'
+import { fetchSettings } from '@/features/settings/api'
 import { getThemeWriteGeneration, useTheme, type ThemeMode } from '@/hooks/useTheme'
 
 /**
@@ -23,7 +23,7 @@ export function ThemeAccountSync() {
     const generationAtStart = getThemeWriteGeneration()
     void (async () => {
       try {
-        const settings = await getSettings()
+        const settings = await fetchSettings()
         if (cancelled) return
         // User changed theme while settings were loading — keep their choice.
         if (getThemeWriteGeneration() !== generationAtStart) {

@@ -181,11 +181,8 @@
 # Domain split (mirrors src/lib/domains.ts): hilm.tech = public site, app.hilm.tech = the product.
 # Query strings (e.g. auth codes) are forwarded. Public-page rules for every host are generated
 # into dist/_redirects by scripts/prerender-public.mjs (applied before these rules).
-[[redirects]]
-  from = "https://app.hilm.tech/"
-  to = "https://app.hilm.tech/login"
-  status = 302
-  force = true
+# app.hilm.tech/ serves the app shell, which routes in the browser (sign in, or straight to the
+# workspace for a signed-in user) without an extra server redirect.
 
 # Retired Netlify subdomain: /api keeps working (rules above); everything else moves to the app.
 [[redirects]]

@@ -1,4 +1,5 @@
 export {
+  fetchSettings,
   getSettings,
   settingsKeys,
   updateSettings,

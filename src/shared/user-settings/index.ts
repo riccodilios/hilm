@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
+import { queryClient } from '@/lib/query/client'
 import type { Tables } from '@/types/database'
 import type { ReminderType } from '@/shared/reminders'
 
@@ -21,6 +22,15 @@ export async function getSettings() {
     .single()
   if (error) throw error
   return data as Omit<Tables<'user_settings'>, 'openrouter_api_key_encrypted'>
+}
+
+/**
+ * Up-to-date settings through the shared query cache: always fetched, but callers that ask at the
+ * same time (startup redirect, theme and locale sync) share one request, and the result seeds the
+ * settings query the app shell reads.
+ */
+export function fetchSettings() {
+  return queryClient.fetchQuery({ queryKey: settingsKeys.me(), queryFn: getSettings, staleTime: 0 })
 }
 
 export async function updateSettings(patch: {

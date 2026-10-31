@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authErrorMessage, useAuth } from '@/features/auth/AuthProvider'
-import { PostAuthRedirect } from '@/features/auth/PostAuthRedirect'
+import { PostAuthPending, PostAuthRedirect } from '@/features/auth/PostAuthRedirect'
 import { resolvePostAuthDestination } from '@/features/auth/startup'
 import { mapAuthError, normalizeEmail } from '@/lib/auth'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
@@ -30,7 +30,8 @@ export function LoginPage() {
     return () => window.clearTimeout(id)
   }, [cooldown])
 
-  if (!loading && user) return <PostAuthRedirect />
+  if (loading) return <PostAuthPending />
+  if (user) return <PostAuthRedirect />
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
