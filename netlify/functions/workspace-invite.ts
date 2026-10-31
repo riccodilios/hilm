@@ -1,6 +1,6 @@
 /** Email invitations to a workspace (owners/admins only). */
 import type { Config } from '@netlify/functions'
-import pg from 'pg'
+import { databaseUrl, withDb } from './_shared/db.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { InviteError, sendWorkspaceInvites } from './_shared/email/invites.ts'
 import { logEmail } from './_shared/email/log.ts'
@@ -14,23 +14,20 @@ export default async (request: Request) => {
   const body = (await request.json().catch(() => null)) as { workspaceId?: unknown; emails?: unknown; locale?: unknown } | null
   if (!body) return jsonResponse(400, { error: 'invalid_body' })
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return jsonResponse(500, { error: 'server_not_configured' })
+  if (!databaseUrl()) return jsonResponse(500, { error: 'server_not_configured' })
   const config = loadEmailConfig()
-  const client = new pg.Client({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } })
   try {
-    await client.connect()
-    const results = await sendWorkspaceInvites(
-      { userId: user.id, userEmail: user.email, workspaceId: body.workspaceId, emails: body.emails, locale: body.locale },
-      { db: client, service: createEmailService(config), config, log: logEmail },
+    const results = await withDb((client) =>
+      sendWorkspaceInvites(
+        { userId: user.id, userEmail: user.email, workspaceId: body.workspaceId, emails: body.emails, locale: body.locale },
+        { db: client, service: createEmailService(config), config, log: logEmail },
+      ),
     )
     return jsonResponse(200, { ok: true, results })
   } catch (error) {
     if (error instanceof InviteError) return jsonResponse(error.status, { error: error.code })
     logEmail('email.invites', { outcome: 'failed', code: 'internal_error' })
     return jsonResponse(500, { error: 'invite_failed' })
-  } finally {
-    await client.end().catch(() => undefined)
   }
 }
 

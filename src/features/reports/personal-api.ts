@@ -3,7 +3,7 @@ import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
 import type { ReportSnapshot } from '@/shared/reports/types'
 import type { Json } from '@/types/database'
-import { type StoredReportRow } from '@/shared/reports/storage'
+import { REPORT_HISTORY_PAGE, type StoredReportRow } from '@/shared/reports/storage'
 
 export type { StoredReportRow } from '@/shared/reports/storage'
 export { rowToSnapshot } from '@/shared/reports/storage'
@@ -116,14 +116,19 @@ export async function savePersonalReport(snapshot: ReportSnapshot) {
   return data
 }
 
-export async function listPersonalReports() {
+export { REPORT_HISTORY_PAGE }
+
+/** Newest saved reports; one extra row tells the page whether older ones exist. */
+export async function listPersonalReports(limit = REPORT_HISTORY_PAGE) {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('ai_reports')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(30)
+    .order('id', { ascending: false })
+    .limit(limit + 1)
   if (error) throw error
-  return (data ?? []) as StoredReportRow[]
+  const rows = (data ?? []) as StoredReportRow[]
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit }
 }

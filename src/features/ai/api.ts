@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
 import { coerceActionsList } from '@/features/ai/registry'
 import { parseAiActions } from '@/types/ai-actions'
@@ -110,15 +111,13 @@ export async function getAiUsageSummary() {
 }
 
 export async function listConversations(workspaceId?: string | null) {
-  let query = supabase.from('ai_conversations').select('*').order('updated_at', { ascending: false })
-  if (workspaceId) {
-    query = query.eq('workspace_id', workspaceId)
-  } else {
-    query = query.is('workspace_id', null)
-  }
-  const { data, error } = await query
-  if (error) throw error
-  return data as AiConversation[]
+  const rows = await fetchAllByKeyset<AiConversation>((afterId, size) => {
+    let query = supabase.from('ai_conversations').select('*').order('id').limit(size)
+    if (afterId) query = query.gt('id', afterId)
+    query = workspaceId ? query.eq('workspace_id', workspaceId) : query.is('workspace_id', null)
+    return query as unknown as PromiseLike<{ data: AiConversation[] | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'updated_at')
 }
 
 export async function createConversation(input: {
@@ -161,13 +160,19 @@ export async function deleteConversation(id: string) {
 }
 
 export async function listMessages(conversationId: string) {
-  const { data, error } = await supabase
-    .from('ai_messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at')
-  if (error) throw error
-  return data as AiMessage[]
+  const rows = await fetchAllByKeyset<AiMessage>((afterId, size) => {
+    let query = supabase.from('ai_messages').select('*').eq('conversation_id', conversationId).order('id').limit(size)
+    if (afterId) query = query.gt('id', afterId)
+    return query as unknown as PromiseLike<{ data: AiMessage[] | null; error: unknown }>
+  })
+  // Oldest first. A prompt and its reply are inserted together with one timestamp: prompt first.
+  const roleRank = (role: string) => (role === 'user' ? 0 : 1)
+  return rows.sort(
+    (a, b) =>
+      a.created_at.localeCompare(b.created_at) ||
+      roleRank(a.role) - roleRank(b.role) ||
+      a.id.localeCompare(b.id),
+  )
 }
 
 function parseActions(value: unknown, workspaceId?: string): AiAction[] {

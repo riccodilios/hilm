@@ -320,6 +320,8 @@ Return ONLY valid JSON with this shape:
       body: JSON.stringify({
         model: activeModel,
         stream: false,
+        // Provider-reported cost; the pricing table is only the fallback estimate.
+        usage: { include: true },
         temperature: 0.4,
         max_tokens: runtime.maxTokens.daily_log,
         response_format: { type: 'json_object' },
@@ -373,6 +375,7 @@ Return ONLY valid JSON with this shape:
           model: activeModel,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
+          costUsd: usage.costUsd,
         })
       }
       return json({ error: 'AI returned an unreadable daily log' }, 502)
@@ -397,6 +400,7 @@ Return ONLY valid JSON with this shape:
           model: activeModel,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
+          costUsd: usage.costUsd,
         })
       }
       return json({ error: 'AI returned an empty daily log' }, 502)
@@ -428,6 +432,7 @@ Return ONLY valid JSON with this shape:
           model: activeModel,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
+          costUsd: usage.costUsd,
         })
       }
       return json({ error: saveError.message }, 400)
@@ -447,6 +452,7 @@ Return ONLY valid JSON with this shape:
         status: 'completed',
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
+        costUsd: usage.costUsd,
         model: activeModel,
       })
     }

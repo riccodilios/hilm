@@ -24,6 +24,7 @@
     "check:architecture": "npm run check:boundaries && npm run check:extraction",
     "smoke:production": "node scripts/smoke-production.mjs",
     "test": "vitest run",
+    "test:security": "vitest run --config vitest.security.config.ts",
     "test:meeting-accuracy": "node scripts/run-meeting-accuracy.mjs",
     "bench:meeting-ai": "node scripts/run-meeting-benchmark.mjs"
   },

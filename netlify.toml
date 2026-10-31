@@ -158,20 +158,33 @@
   to = "/.netlify/functions/delete-account"
   status = 200
 
+# Per-IP flood protection in front of the per-user AI quotas enforced in the database.
 [[redirects]]
   from = "/api/ai-chat"
   to = "/.netlify/functions/ai-chat"
   status = 200
+  [redirects.rate_limit]
+    window_limit = 30
+    window_size = 60
+    aggregate_by = ["ip", "domain"]
 
 [[redirects]]
   from = "/api/ai-daily-log"
   to = "/.netlify/functions/ai-daily-log"
   status = 200
+  [redirects.rate_limit]
+    window_limit = 10
+    window_size = 60
+    aggregate_by = ["ip", "domain"]
 
 [[redirects]]
   from = "/api/meeting-process"
   to = "/.netlify/functions/meeting-process"
   status = 200
+  [redirects.rate_limit]
+    window_limit = 300
+    window_size = 60
+    aggregate_by = ["ip", "domain"]
 
 [[redirects]]
   from = "/api/meeting-stt-webhook"

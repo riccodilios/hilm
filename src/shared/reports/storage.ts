@@ -1,6 +1,9 @@
 import type { ReportSnapshot } from '@/shared/reports/types'
 import type { Json } from '@/types/database'
 
+/** Saved reports shown per page in report history. */
+export const REPORT_HISTORY_PAGE = 30
+
 export type StoredReportRow = {
   id: string
   report_type: string

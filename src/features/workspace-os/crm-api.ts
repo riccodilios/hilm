@@ -39,9 +39,6 @@ export async function upsertCrmIntegration(
   },
 ) {
   const userId = await requireUserId()
-  const credentials_encrypted = input.credentialsStub
-    ? btoa(input.credentialsStub)
-    : null
 
   const { data: existing } = await supabase
     .from('workspace_crm_integrations')
@@ -54,47 +51,63 @@ export async function upsertCrmIntegration(
     status: 'configured',
     display_name: input.displayName ?? null,
     sync_settings: (input.syncSettings ?? {}) as Json,
-    credentials_encrypted,
   }
 
-  if (existing?.id) {
+  let integrationId = existing?.id as string | undefined
+  if (integrationId) {
+    const { error } = await supabase.from('workspace_crm_integrations').update(patch).eq('id', integrationId)
+    if (error) throw error
+  } else {
     const { data, error } = await supabase
       .from('workspace_crm_integrations')
-      .update(patch)
-      .eq('id', existing.id)
-      .select('*')
+      .insert({
+        workspace_id: workspaceId,
+        provider: input.provider,
+        status: 'configured',
+        display_name: input.displayName ?? null,
+        sync_settings: (input.syncSettings ?? {}) as Json,
+        created_by: userId,
+      } as never)
+      .select('id')
       .single()
     if (error) throw error
-    return data as CrmIntegration
+    integrationId = (data as { id: string }).id
+  }
+
+  // Credentials go straight into Supabase Vault; the browser never reads them back.
+  if (input.credentialsStub) {
+    const { error } = await supabase.rpc('crm_set_credentials', {
+      p_integration_id: integrationId,
+      p_credentials: input.credentialsStub,
+    })
+    if (error) throw error
   }
 
   const { data, error } = await supabase
     .from('workspace_crm_integrations')
-    .insert({
-      workspace_id: workspaceId,
-      provider: input.provider,
-      status: 'configured',
-      display_name: input.displayName ?? null,
-      sync_settings: (input.syncSettings ?? {}) as Json,
-      credentials_encrypted,
-      created_by: userId,
-    } as never)
     .select('*')
+    .eq('id', integrationId)
     .single()
   if (error) throw error
   return data as CrmIntegration
 }
 
 export async function disconnectCrmIntegration(workspaceId: string, provider: CrmProvider) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('workspace_crm_integrations')
-    .update({
-      status: 'disconnected',
-      credentials_encrypted: null,
-    })
+    .update({ status: 'disconnected' })
     .eq('workspace_id', workspaceId)
     .eq('provider', provider)
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (data?.id) {
+    const { error: clearError } = await supabase.rpc('crm_set_credentials', {
+      p_integration_id: data.id,
+      p_credentials: null,
+    })
+    if (clearError) throw clearError
+  }
 }
 
 export function providerLabel(provider: CrmProvider): string {

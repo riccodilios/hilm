@@ -1,7 +1,9 @@
 import type { Config } from '@netlify/functions'
-import pg from 'pg'
+import type pg from 'pg'
 import webpush from 'web-push'
 import { authorizeCronRequest } from './_shared/cron-auth'
+import { acquireDb, databaseUrl } from './_shared/db.ts'
+import { claimDueReminders, type Queryable } from './_shared/reminder-claims.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { drainOutbox } from './_shared/email/outbox.ts'
 import { createEmailService } from './_shared/email/service.ts'
@@ -59,7 +61,7 @@ function json(data: unknown, status = 200) {
   })
 }
 
-async function loadSecrets(client: pg.Client) {
+async function loadSecrets(client: Queryable) {
   const { rows } = await client.query<{ key: string; value: string }>(
     `select key, value from private.server_secrets
      where key in ('VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT','APP_URL','CRON_SECRET')`,
@@ -68,20 +70,15 @@ async function loadSecrets(client: pg.Client) {
 }
 
 export default async (request: Request) => {
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return json({ error: 'DATABASE_URL is not configured on Netlify' }, 500)
+  if (!databaseUrl()) return json({ error: 'DATABASE_URL is not configured on Netlify' }, 500)
 
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-
+  let client: pg.PoolClient | null = null
   let pushed = 0
   let processed = 0
   let emailQueued = 0
 
   try {
-    await client.connect()
+    client = await acquireDb()
     const secrets = await loadSecrets(client)
 
     const cronSecret = process.env.CRON_SECRET || secrets.CRON_SECRET
@@ -106,6 +103,7 @@ export default async (request: Request) => {
     webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
 
     const windowEnd = new Date(Date.now() + 60_000).toISOString()
+    const claimedIds = await claimDueReminders(client, windowEnd)
     const { rows } = await client.query<ReminderRow>(
       `
       select
@@ -123,12 +121,10 @@ export default async (request: Request) => {
       left join public.user_settings s on s.user_id = r.user_id
       left join public.project_notification_prefs pref
         on pref.user_id = r.user_id and pref.project_id = r.project_id
-      where r.notification_sent = false
-        and r.remind_at <= $1::timestamptz
+      where r.id = any($1::uuid[])
       order by r.remind_at asc
-      limit 100
       `,
-      [windowEnd],
+      [claimedIds],
     )
 
     for (const row of rows) {
@@ -280,9 +276,10 @@ export default async (request: Request) => {
 
     return json({ ok: true, processed, pushed, emailQueued, emailed, workspaceReminders })
   } catch (error) {
+    console.error(JSON.stringify({ scope: 'reminders', event: 'reminders.run', outcome: 'failed', code: (error as { code?: string })?.code ?? 'unknown' }))
     return json({ error: error instanceof Error ? error.message : 'Reminder job failed' }, 500)
   } finally {
-    await client.end().catch(() => undefined)
+    client?.release()
   }
 }
 

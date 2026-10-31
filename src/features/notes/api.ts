@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import type { Inserts, Tables } from '@/types/database'
 
 export const notesKeys = {
@@ -10,11 +11,13 @@ export const notesKeys = {
 }
 
 export async function listNotes(projectId?: string) {
-  let q = supabase.from('notes').select('*').order('updated_at', { ascending: false })
-  if (projectId) q = q.eq('project_id', projectId)
-  const { data, error } = await q
-  if (error) throw error
-  return data as Tables<'notes'>[]
+  const rows = await fetchAllByKeyset<Tables<'notes'>>((afterId, size) => {
+    let q = supabase.from('notes').select('*').order('id').limit(size)
+    if (afterId) q = q.gt('id', afterId)
+    if (projectId) q = q.eq('project_id', projectId)
+    return q as unknown as PromiseLike<{ data: Tables<'notes'>[] | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'updated_at')
 }
 
 export async function getNote(id: string) {

@@ -966,7 +966,7 @@ export type Database = {
         {
           id: string
           workspace_id: string
-          created_by: string
+          created_by: string | null
           name: string
           description: string | null
           icon: string | null
@@ -1016,7 +1016,7 @@ export type Database = {
           id: string
           workspace_id: string
           project_id: string
-          created_by: string
+          created_by: string | null
           assignee_id: string | null
           department_id: string | null
           team_id: string | null
@@ -1250,7 +1250,7 @@ export type Database = {
           filename: string
           byte_size: number | null
           version: number
-          uploaded_by: string
+          uploaded_by: string | null
           created_at: string
         },
         {
@@ -1560,7 +1560,7 @@ export type Database = {
         {
           id: string
           workspace_id: string
-          created_by: string
+          created_by: string | null
           report_type: string
           title: string
           content_html: string
@@ -1685,6 +1685,25 @@ export type Database = {
           display_name_override: string | null
           last_active_at: string | null
         }[]
+      }
+      list_workspace_member_profiles: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          user_id: string
+          department_id: string | null
+          skills: string[]
+          availability: Json
+          display_name_override: string | null
+          avatar_url: string | null
+        }[]
+      }
+      workspace_can_write_page: {
+        Args: { p_ws: string; p_page: string }
+        Returns: boolean
+      }
+      crm_set_credentials: {
+        Args: { p_integration_id: string; p_credentials: string | null }
+        Returns: undefined
       }
     }
     Enums: {

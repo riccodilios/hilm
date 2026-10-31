@@ -1,7 +1,8 @@
 import type { Config } from '@netlify/functions'
 import { createClient } from '@supabase/supabase-js'
-import pg from 'pg'
+import type pg from 'pg'
 import webpush from 'web-push'
+import { acquireDb, databaseUrl, withDb } from './_shared/db.ts'
 
 function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
@@ -32,24 +33,16 @@ async function loadSecrets() {
   }
   if (fromEnv.VAPID_PUBLIC_KEY && fromEnv.VAPID_PRIVATE_KEY) return fromEnv
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return fromEnv
+  if (!databaseUrl()) return fromEnv
 
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-  try {
-    await client.connect()
-    const { rows } = await client.query<{ key: string; value: string }>(
+  const { rows } = await withDb((client) =>
+    client.query<{ key: string; value: string }>(
       `select key, value from private.server_secrets
        where key in ('VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT')`,
-    )
-    const mapped = Object.fromEntries(rows.map((r) => [r.key, r.value]))
-    return { ...fromEnv, ...mapped }
-  } finally {
-    await client.end().catch(() => undefined)
-  }
+    ),
+  )
+  const mapped = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  return { ...fromEnv, ...mapped }
 }
 
 export default async (request: Request) => {
@@ -92,16 +85,11 @@ export default async (request: Request) => {
     secrets.VAPID_PRIVATE_KEY,
   )
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return respond({ error: 'DATABASE_URL missing' }, 500)
+  if (!databaseUrl()) return respond({ error: 'DATABASE_URL missing' }, 500)
 
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-
+  let client: pg.PoolClient | null = null
   try {
-    await client.connect()
+    client = await acquireDb()
 
     const { rows: subs } = await client.query<{
       id: string
@@ -164,10 +152,11 @@ export default async (request: Request) => {
   } catch (error) {
     return respond({ error: error instanceof Error ? error.message : 'Test failed' }, 500)
   } finally {
-    await client.end().catch(() => undefined)
+    client?.release()
   }
 }
 
 export const config: Config = {
-  // no schedule — on-demand only
+  path: '/api/notify-test',
+  rateLimit: { windowLimit: 5, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }

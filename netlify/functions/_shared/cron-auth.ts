@@ -5,20 +5,24 @@ export function extractCronSecret(request: Request) {
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     ''
-  if (header.trim()) return header.trim()
-  try {
-    return new URL(request.url).searchParams.get('cron_secret')?.trim() || ''
-  } catch {
-    return ''
-  }
+  return header.trim()
+}
+
+function timingSafeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
 }
 
 /**
- * Authorize reminder/cron HTTP jobs.
- * - Always requires CRON_SECRET to be configured (fail closed).
- * - Accepts matching secret via header/query.
- * - Netlify native schedule (`x-netlify-event: schedule`) is allowed only when
- *   the call has no browser Origin/Referer (raises the bar vs open bypass).
+ * Authorize scheduled jobs.
+ * - CRON_SECRET must be configured (fail closed); a matching secret in a header is accepted.
+ *   Query-string secrets are not accepted (they end up in logs).
+ * - `x-netlify-event: schedule` is accepted only because the functions using this guard are
+ *   scheduled-only: Netlify answers 403 to any external request for a scheduled function, so the
+ *   header cannot be forged from outside (covered by tests/security). Never give such a function a
+ *   public `path`.
  */
 export function authorizeCronRequest(
   request: Request,
@@ -29,13 +33,10 @@ export function authorizeCronRequest(
   }
 
   const provided = extractCronSecret(request)
-  if (provided && provided === cronSecret) return { ok: true }
+  if (provided && timingSafeEqual(provided, cronSecret.trim())) return { ok: true }
 
-  const isNetlifySchedule = request.headers.get('x-netlify-event') === 'schedule'
-  if (isNetlifySchedule) {
-    const origin = request.headers.get('origin')
-    const referer = request.headers.get('referer')
-    if (origin || referer) {
+  if (request.headers.get('x-netlify-event') === 'schedule') {
+    if (request.headers.get('origin') || request.headers.get('referer')) {
       return { ok: false, status: 401, error: 'Unauthorized' }
     }
     return { ok: true }

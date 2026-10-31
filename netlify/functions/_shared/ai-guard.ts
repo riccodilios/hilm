@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import pg from 'pg'
+import { databaseUrl, withDb } from './db.ts'
 
 export type AiRequestKind = 'chat' | 'daily_log' | 'meeting_transcribe' | 'meeting_analyze' | 'meeting_translate'
 
@@ -106,22 +106,12 @@ export async function loadOpenRouterKey() {
   const fromEnv = process.env.OPENROUTER_API_KEY?.trim()
   if (fromEnv) return fromEnv
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return null
+  if (!databaseUrl()) return null
 
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-  try {
-    await client.connect()
-    const { rows } = await client.query<{ value: string }>(
-      `select value from private.server_secrets where key = 'OPENROUTER_API_KEY' limit 1`,
-    )
-    return rows[0]?.value?.trim() || null
-  } finally {
-    await client.end().catch(() => undefined)
-  }
+  const { rows } = await withDb((client) =>
+    client.query<{ value: string }>(`select value from private.server_secrets where key = 'OPENROUTER_API_KEY' limit 1`),
+  )
+  return rows[0]?.value?.trim() || null
 }
 
 export async function beginAiRequest(
@@ -155,8 +145,13 @@ export async function beginAiRequest(
   return (data ?? { ok: false, code: 'guard_error', message: 'Empty guard response' }) as AiGuardResult
 }
 
+/**
+ * Records the outcome of an AI call. Runs on the server's database connection
+ * (private.complete_ai_request): browsers cannot complete or rewrite usage events.
+ * The Supabase client argument is kept for call-site compatibility.
+ */
 export async function completeAiRequest(
-  client: SupabaseClient,
+  _client: SupabaseClient | null,
   input: {
     eventId: string
     status: 'completed' | 'failed'
@@ -172,22 +167,46 @@ export async function completeAiRequest(
     costUsd?: number | null
   },
 ) {
-  const { error } = await client.rpc('complete_ai_request', {
-    p_event_id: input.eventId,
-    p_status: input.status,
-    p_input_tokens: input.inputTokens ?? 0,
-    p_output_tokens: input.outputTokens ?? 0,
-    p_model: input.model ?? null,
-    p_error_code: input.errorCode ?? null,
-    p_error_message: input.errorMessage ?? null,
-    p_user_id: input.userId ?? null,
-    p_cached_tokens: Math.max(0, Math.round(input.cachedTokens ?? 0)),
-    p_audio_tokens: Math.max(0, Math.round(input.audioTokens ?? 0)),
-    p_audio_ms: Math.max(0, Math.round(input.audioMs ?? 0)),
-    p_cost_usd: typeof input.costUsd === 'number' && Number.isFinite(input.costUsd) ? input.costUsd : null,
-  })
-  if (error) {
-    console.error('complete_ai_request failed', error.message)
+  if (!databaseUrl()) {
+    // No server database connection (unit tests, local tooling): the injected client records it.
+    const { error } = await (_client?.rpc('complete_ai_request', {
+      p_event_id: input.eventId,
+      p_status: input.status,
+      p_input_tokens: input.inputTokens ?? 0,
+      p_output_tokens: input.outputTokens ?? 0,
+      p_model: input.model ?? null,
+      p_error_code: input.errorCode ?? null,
+      p_error_message: input.errorMessage ?? null,
+      p_user_id: input.userId ?? null,
+      p_cached_tokens: Math.max(0, Math.round(input.cachedTokens ?? 0)),
+      p_audio_tokens: Math.max(0, Math.round(input.audioTokens ?? 0)),
+      p_audio_ms: Math.max(0, Math.round(input.audioMs ?? 0)),
+      p_cost_usd: typeof input.costUsd === 'number' && Number.isFinite(input.costUsd) ? input.costUsd : null,
+    }) ?? Promise.resolve({ error: null }))
+    if (error) console.error('complete_ai_request failed', error.message)
+    return
+  }
+  try {
+    await withDb((db) =>
+      db.query(
+        `select private.complete_ai_request($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          input.eventId,
+          input.status,
+          Math.max(0, Math.round(input.inputTokens ?? 0)),
+          Math.max(0, Math.round(input.outputTokens ?? 0)),
+          input.model ?? null,
+          input.errorCode ?? null,
+          input.errorMessage?.slice(0, 500) ?? null,
+          Math.max(0, Math.round(input.cachedTokens ?? 0)),
+          Math.max(0, Math.round(input.audioTokens ?? 0)),
+          Math.max(0, Math.round(input.audioMs ?? 0)),
+          typeof input.costUsd === 'number' && Number.isFinite(input.costUsd) ? input.costUsd : null,
+        ],
+      ),
+    )
+  } catch (error) {
+    console.error(JSON.stringify({ msg: 'complete_ai_request failed', code: (error as { code?: string })?.code ?? 'unknown' }))
   }
 }
 

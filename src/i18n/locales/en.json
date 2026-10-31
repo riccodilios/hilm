@@ -1433,7 +1433,8 @@
       "intakePace": "Intake is outpacing completion | protect focus time or reduce new commitments.",
       "breakDown": "Break large open items into smaller deliverables to restore momentum.",
       "maintain": "Maintain current cadence and schedule a mid-period checkpoint on high-priority projects."
-    }
+    },
+    "showOlder": "Show older reports"
   },
   "labels": {
     "all": "All",

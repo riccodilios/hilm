@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import { taskDueDateKey, todayLocalISO } from '@/lib/dates'
 import {
   computeProjectHealth,
@@ -18,13 +19,12 @@ export const projectsKeys = {
 }
 
 export async function listProjects() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .neq('status', 'archived')
-    .order('updated_at', { ascending: false })
-  if (error) throw error
-  return data as Tables<'projects'>[]
+  const rows = await fetchAllByKeyset<Tables<'projects'>>((afterId, size) => {
+    let query = supabase.from('projects').select('*').neq('status', 'archived').order('id').limit(size)
+    if (afterId) query = query.gt('id', afterId)
+    return query as unknown as PromiseLike<{ data: Tables<'projects'>[] | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'updated_at')
 }
 
 export async function listArchivedProjects() {

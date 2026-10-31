@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { getAppUrl } from '@/lib/env'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import type {
   CreateMeetingInput,
   Meeting,
@@ -159,16 +160,18 @@ function scopeColumns(scope: MeetingScope) {
 
 export async function listMeetings(scope: MeetingScope): Promise<Meeting[]> {
   const tables = meetingTables(scope.os)
-  let query = db
-    .from(tables.meetings)
-    .select(`*, ${tables.actions}(count)`)
-    .eq('project_id', scope.projectId)
-    .order('created_at', { ascending: false })
-    .limit(500)
-  if (scope.os === 'workspace' && scope.workspaceId) query = query.eq('workspace_id', scope.workspaceId)
-  const { data, error } = await query
-  if (error) throw error
-  return ((data ?? []) as Row[]).map((row) => mapMeeting(row, scope.os))
+  const rows = await fetchAllByKeyset<Row & { id: string }>((afterId, size) => {
+    let query = db
+      .from(tables.meetings)
+      .select(`*, ${tables.actions}(count)`)
+      .eq('project_id', scope.projectId)
+      .order('id')
+      .limit(size)
+    if (afterId) query = query.gt('id', afterId)
+    if (scope.os === 'workspace' && scope.workspaceId) query = query.eq('workspace_id', scope.workspaceId)
+    return query as unknown as PromiseLike<{ data: Array<Row & { id: string }> | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'created_at').map((row) => mapMeeting(row, scope.os))
 }
 
 const TRANSCRIPT_PAGE = 1000

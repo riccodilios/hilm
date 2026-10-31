@@ -424,6 +424,8 @@ ${contextPack}`
         model: activeModel,
         stream: true,
         stream_options: { include_usage: true },
+        // Provider-reported cost; the pricing table is only the fallback estimate.
+        usage: { include: true },
         max_tokens: activeWorkspaceId ? runtime.maxTokens.chatWorkspace : runtime.maxTokens.chatPersonal,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -536,6 +538,8 @@ ${contextPack}`
               status: 'completed',
               inputTokens: usage.inputTokens,
               outputTokens: usage.outputTokens,
+              cachedTokens: usage.cachedTokens,
+              costUsd: usage.costUsd,
               model: activeModel,
             })
           }

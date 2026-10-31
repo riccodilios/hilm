@@ -14,6 +14,8 @@ import {
   parseWorkspaceTaskRef,
 } from '@/features/workspace-os/lib/task-refs'
 import { refreshWorkspaceProjectCompletion } from '@/features/workspace-os/lib/project-health'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
+import { removeStorageObjects } from '@/lib/storage-cleanup'
 
 export type WorkspaceWithMembership = Workspace & {
   my_role: WorkspaceRole
@@ -160,6 +162,8 @@ export async function joinWorkspaceByInvite(code: string) {
     p_code: code,
   })
   if (error) throw error
+  // An unknown code returns no workspace (the attempt is still counted toward the hourly limit).
+  if (!data || !(data as Workspace).id) throw new Error('Invalid invite code')
   return data as Workspace
 }
 
@@ -376,13 +380,12 @@ export async function transferOwnership(workspaceId: string, newOwnerId: string)
 }
 
 export async function listWorkspaceProjects(workspaceId: string) {
-  const { data, error } = await supabase
-    .from('workspace_projects')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .order('updated_at', { ascending: false })
-  if (error) throw error
-  return data as WorkspaceProject[]
+  const rows = await fetchAllByKeyset<WorkspaceProject>((afterId, size) => {
+    let query = supabase.from('workspace_projects').select('*').eq('workspace_id', workspaceId).order('id').limit(size)
+    if (afterId) query = query.gt('id', afterId)
+    return query as unknown as PromiseLike<{ data: WorkspaceProject[] | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'updated_at')
 }
 
 export async function getWorkspaceProject(workspaceId: string, projectId: string) {
@@ -447,7 +450,38 @@ export async function updateWorkspaceProject(
   return data as WorkspaceProject
 }
 
+async function assertCanWritePage(workspaceId: string, page: 'tasks' | 'projects') {
+  const { data, error } = await supabase.rpc('workspace_can_write_page', { p_ws: workspaceId, p_page: page })
+  if (error) throw error
+  if (data !== true) throw new Error('You do not have permission to do that in this workspace')
+}
+
 export async function deleteWorkspaceProject(workspaceId: string, projectId: string) {
+  // Check permission before touching files, so a refused delete never loses them.
+  await assertCanWritePage(workspaceId, 'projects')
+  // The project's tasks and meetings cascade in the database; their files live in Storage.
+  const [{ data: taskRows }, { data: meetingRows }] = await Promise.all([
+    supabase.from('workspace_tasks').select('id').eq('workspace_id', workspaceId).eq('project_id', projectId),
+    supabase.from('workspace_meetings').select('id').eq('workspace_id', workspaceId).eq('project_id', projectId),
+  ])
+  const taskIds = (taskRows ?? []).map((row) => row.id)
+  const meetingIds = (meetingRows ?? []).map((row) => row.id)
+  const [{ data: files }, { data: audio }] = await Promise.all([
+    taskIds.length
+      ? supabase
+          .from('workspace_attachments')
+          .select('storage_path')
+          .eq('workspace_id', workspaceId)
+          .eq('entity_type', 'task')
+          .in('entity_id', taskIds)
+      : Promise.resolve({ data: [] as Array<{ storage_path: string }> }),
+    meetingIds.length
+      ? supabase.from('workspace_meeting_audio_segments').select('storage_path').in('meeting_id', meetingIds)
+      : Promise.resolve({ data: [] as Array<{ storage_path: string }> }),
+  ])
+  await removeStorageObjects('attachments', (files ?? []).map((file) => file.storage_path))
+  await removeStorageObjects('meeting-audio', (audio ?? []).map((part) => part.storage_path))
+
   const { error } = await supabase
     .from('workspace_projects')
     .delete()
@@ -464,12 +498,12 @@ export async function deleteWorkspaceProject(workspaceId: string, projectId: str
 }
 
 export async function listWorkspaceTasks(workspaceId: string) {
-  const [{ data, error }, projects, members, departments, teams] = await Promise.all([
-    supabase
-      .from('workspace_tasks')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .order('updated_at', { ascending: false }),
+  const [taskRows, projects, members, departments, teams] = await Promise.all([
+    fetchAllByKeyset<Tables<'workspace_tasks'>>((afterId, size) => {
+      let query = supabase.from('workspace_tasks').select('*').eq('workspace_id', workspaceId).order('id').limit(size)
+      if (afterId) query = query.gt('id', afterId)
+      return query as unknown as PromiseLike<{ data: Tables<'workspace_tasks'>[] | null; error: unknown }>
+    }),
     listWorkspaceProjects(workspaceId),
     listWorkspaceMembers(workspaceId),
     supabase
@@ -483,13 +517,12 @@ export async function listWorkspaceTasks(workspaceId: string) {
       .eq('workspace_id', workspaceId)
       .then((r) => r.data ?? []),
   ])
-  if (error) throw error
   const projectMap = new Map(projects.map((project) => [project.id, project]))
   const memberMap = new Map(members.map((member) => [member.user_id, member]))
   const deptMap = new Map(departments.map((d) => [d.id, d]))
   const teamMap = new Map(teams.map((t) => [t.id, t]))
 
-  return (data ?? []).map((task) => {
+  return sortByTimestampDesc(taskRows, 'updated_at').map((task) => {
     const project = projectMap.get(task.project_id)
     const member = task.assignee_id ? memberMap.get(task.assignee_id) : null
     const team = task.team_id ? teamMap.get(task.team_id) : null
@@ -877,11 +910,20 @@ export async function updateWorkspaceTask(
   if (nextProjectId && nextProjectId !== before.project_id) {
     await maybeRefreshWorkspaceProject(workspaceId, nextProjectId)
   }
-  return getWorkspaceTask(workspaceId, taskId)
+  // Handing a task to someone can move it out of the editor's view; the update still succeeded.
+  return getWorkspaceTask(workspaceId, taskId).catch(() => ({ ...before, ...next }) as WorkspaceTask)
 }
 
 export async function deleteWorkspaceTask(workspaceId: string, taskId: string) {
   const before = await getWorkspaceTask(workspaceId, taskId).catch(() => null)
+  await assertCanWritePage(workspaceId, 'tasks')
+  const { data: files } = await supabase
+    .from('workspace_attachments')
+    .select('storage_path')
+    .eq('workspace_id', workspaceId)
+    .eq('entity_type', 'task')
+    .eq('entity_id', taskId)
+  await removeStorageObjects('attachments', (files ?? []).map((file) => file.storage_path))
   const { error } = await supabase
     .from('workspace_tasks')
     .delete()
@@ -952,13 +994,18 @@ export async function getWorkspaceMemberSettings(workspaceId: string) {
   return (data as WorkspaceMemberSettings | null) ?? null
 }
 
+/** What any member may know about colleagues: department, skills, availability, display overrides. */
+export type WorkspaceMemberProfile = Pick<
+  WorkspaceMemberSettings,
+  'user_id' | 'department_id' | 'skills' | 'availability' | 'display_name_override' | 'avatar_url'
+>
+
 export async function listAllMemberSettings(workspaceId: string) {
-  const { data, error } = await supabase
-    .from('workspace_member_settings')
-    .select('*')
-    .eq('workspace_id', workspaceId)
+  const { data, error } = await supabase.rpc('list_workspace_member_profiles', {
+    p_workspace_id: workspaceId,
+  })
   if (error) throw error
-  return (data ?? []) as WorkspaceMemberSettings[]
+  return (data ?? []) as WorkspaceMemberProfile[]
 }
 
 export async function upsertWorkspaceMemberSettings(

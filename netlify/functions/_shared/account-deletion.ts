@@ -53,21 +53,27 @@ async function sendAccountDeletedNotice(userId: string, account: DeletedAccount 
   }
 }
 
+/** Workspaces the user owns that still have other members (deletion is refused while any exist). */
+export async function ownedSharedWorkspaces(client: Client, userId: string) {
+  const shared = await client.query<{ id: string; name: string }>(
+    `select w.id, w.name
+     from public.workspaces w
+     where w.owner_id = $1
+       and exists (select 1 from public.workspace_members m where m.workspace_id = w.id and m.user_id <> $1)
+     order by w.name
+     limit 5`,
+    [userId],
+  )
+  return shared.rows
+}
+
 export async function deleteUserAccount(client: Client, userId: string): Promise<DeletionResult> {
   await client.query('begin')
   try {
-    const shared = await client.query<{ id: string; name: string }>(
-      `select w.id, w.name
-       from public.workspaces w
-       where w.owner_id = $1
-         and exists (select 1 from public.workspace_members m where m.workspace_id = w.id and m.user_id <> $1)
-       order by w.name
-       limit 5`,
-      [userId],
-    )
-    if (shared.rows.length) {
+    const shared = await ownedSharedWorkspaces(client, userId)
+    if (shared.length) {
       await client.query('rollback')
-      return { ok: false, code: 'owned_shared_workspaces', workspaces: shared.rows }
+      return { ok: false, code: 'owned_shared_workspaces', workspaces: shared }
     }
 
     // Sole-owned workspaces cascade to projects/tasks/members.

@@ -298,6 +298,15 @@ export function AccountsPage() {
       toast.error(errorText(e))
     },
   })
+  const setTier = useMutation({
+    mutationFn: ({ id, tier }: { id: string; tier: string }) =>
+      adminApi(`users/${id}/tier`, { method: 'POST', body: { tier } }),
+    onSuccess: async () => {
+      toast.success('AI plan updated')
+      await qc.invalidateQueries({ queryKey: ['admin'] })
+    },
+    onError: (e) => toast.error(errorText(e)),
+  })
 
   return (
     <div className="space-y-5">
@@ -318,7 +327,7 @@ export function AccountsPage() {
       {q.data ? (
         <Panel>
           <Table
-            head={['Account', 'Joined', 'Last sign-in', 'Status', 'AI 30d', 'Workspaces', '']}
+            head={['Account', 'Joined', 'Last sign-in', 'Status', 'AI plan', 'AI 30d', 'Workspaces', '']}
             rows={q.data.users.map((u) => [
               <div key="a">
                 <p className="font-medium">{u.email}</p>
@@ -327,6 +336,20 @@ export function AccountsPage() {
               when(u.created_at),
               when(u.last_sign_in_at),
               u.is_admin ? 'Admin' : u.locked ? <span className="text-red-400">Locked</span> : u.confirmed ? 'Active' : 'Unconfirmed',
+              <select
+                key="t"
+                aria-label={`AI plan for ${u.email}`}
+                value={u.tier ?? 'free'}
+                disabled={setTier.isPending}
+                onChange={(e) => setTier.mutate({ id: u.id, tier: e.target.value })}
+                className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
+              >
+                {['free', 'pro', 'team'].map((tier) => (
+                  <option key={tier} value={tier}>
+                    {tier}
+                  </option>
+                ))}
+              </select>,
               usd(u.ai_cost_30d),
               `${u.owned_workspaces} owned · ${u.memberships} member`,
               u.is_admin ? null : (

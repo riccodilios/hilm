@@ -6,7 +6,8 @@ import type { MissionProjectInsight } from '@/shared/mission-control/types'
 export function workspaceTaskAsMission(task: WorkspaceTask): TaskWithProject {
   return {
     id: task.id,
-    user_id: task.created_by,
+    // A deleted creator leaves created_by empty; Mission Control only uses this as an owner hint.
+    user_id: task.created_by ?? task.assignee_id ?? '',
     project_id: task.project_id,
     title: task.title,
     description: task.description,

@@ -4,6 +4,8 @@ import { requireUserId } from '@/lib/supabase/activity'
 import type { Inserts, Tables, Updates } from '@/types/database'
 import type { Priority, TaskStatus } from '@/types/domain'
 import { refreshProjectCompletion } from '@/features/projects/api'
+import { fetchAllByKeyset } from '@/lib/supabase/paginate'
+import { removeStorageObjects } from '@/lib/storage-cleanup'
 import {
   combineDueAt,
   computeRemindAt,
@@ -44,23 +46,31 @@ export async function listTasks(opts?: {
   dueBefore?: string
   dueAfter?: string
 }) {
-  let q = supabase
-    .from('tasks')
-    .select(taskListSelect)
-    .not('project_id', 'is', null)
-    .neq('status', 'archived')
-    .order('position')
-    .order('due_at', { ascending: true })
-  if (opts?.projectId) q = q.eq('project_id', opts.projectId)
-  if (opts?.status) {
-    if (Array.isArray(opts.status)) q = q.in('status', opts.status)
-    else q = q.eq('status', opts.status)
-  }
-  if (opts?.dueBefore) q = q.lte('due_at', opts.dueBefore)
-  if (opts?.dueAfter) q = q.gte('due_at', opts.dueAfter)
-  const { data, error } = await q
-  if (error) throw error
-  return data as TaskWithProject[]
+  const rows = await fetchAllByKeyset<TaskWithProject>((afterId, size) => {
+    let q = supabase
+      .from('tasks')
+      .select(taskListSelect)
+      .not('project_id', 'is', null)
+      .neq('status', 'archived')
+      .order('id')
+      .limit(size)
+    if (afterId) q = q.gt('id', afterId)
+    if (opts?.projectId) q = q.eq('project_id', opts.projectId)
+    if (opts?.status) {
+      if (Array.isArray(opts.status)) q = q.in('status', opts.status)
+      else q = q.eq('status', opts.status)
+    }
+    if (opts?.dueBefore) q = q.lte('due_at', opts.dueBefore)
+    if (opts?.dueAfter) q = q.gte('due_at', opts.dueAfter)
+    return q as unknown as PromiseLike<{ data: TaskWithProject[] | null; error: unknown }>
+  })
+  // Same order as before: position, then due date (no date last), then id for stability.
+  return rows.sort(
+    (a, b) =>
+      Number(a.position) - Number(b.position) ||
+      (a.due_at ?? '\uffff').localeCompare(b.due_at ?? '\uffff') ||
+      a.id.localeCompare(b.id),
+  )
 }
 
 export async function getTask(id: string) {
@@ -364,6 +374,13 @@ export async function archiveTask(id: string) {
 export async function deleteTask(id: string) {
   const userId = await requireUserId()
   const current = await getTask(id)
+  // Files first: the database removes the attachment rows with the task, Storage keeps bytes.
+  const { data: files } = await supabase
+    .from('attachments')
+    .select('storage_path')
+    .eq('entity_type', 'task')
+    .eq('entity_id', id)
+  await removeStorageObjects('attachments', (files ?? []).map((file) => file.storage_path))
   const { error } = await supabase.from('tasks').delete().eq('id', id)
   if (error) throw error
   await recordActivity({

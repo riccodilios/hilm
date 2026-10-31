@@ -4,7 +4,8 @@
  */
 import type { Config } from '@netlify/functions'
 import { getStore } from '@netlify/blobs'
-import pg from 'pg'
+import type pg from 'pg'
+import { acquireDb, databaseUrl } from './_shared/db.ts'
 import { EMAIL_ASSET_STORE } from './_shared/email/images.ts'
 import { handleAdminRequest } from './_shared/admin/router.ts'
 import { adminJson } from './_shared/admin/guard.ts'
@@ -16,12 +17,11 @@ export default async (request: Request) => {
   const adminHost = process.env.ADMIN_HOST?.trim().toLowerCase() || null
   if (!adminHost || new URL(request.url).host.toLowerCase() !== adminHost) return adminJson(404, { error: 'not_found' })
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return adminJson(500, { error: 'server_not_configured' })
-  const client = new pg.Client({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } })
+  if (!databaseUrl()) return adminJson(500, { error: 'server_not_configured' })
   const emailConfig = loadEmailConfig()
+  let client: pg.PoolClient | null = null
   try {
-    await client.connect()
+    client = await acquireDb()
     return await handleAdminRequest(request, {
       adminHost,
       db: client,
@@ -42,7 +42,7 @@ export default async (request: Request) => {
     console.error(JSON.stringify({ scope: 'admin', event: 'admin.request', outcome: 'failed' }))
     return adminJson(500, { error: 'internal_error' })
   } finally {
-    await client.end().catch(() => undefined)
+    client?.release()
   }
 }
 

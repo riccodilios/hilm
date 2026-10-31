@@ -20,6 +20,7 @@ import {
   listUsers,
   overview,
   removeNetwork,
+  setAiTier,
   setLocked,
   updateAiControls,
 } from './data.ts'
@@ -61,7 +62,7 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   const path = url.pathname.replace(/^\/api\/admin\/?/, '').replace(/\/+$/, '')
   const method = request.method
   const sensitive =
-    (method === 'POST' && /^(users\/[^/]+\/(lock|unlock|terminate)|ai\/controls|security\/networks\/remove)$/.test(path)) ||
+    (method === 'POST' && /^(users\/[^/]+\/(lock|unlock|terminate|tier)|ai\/controls|security\/networks\/remove)$/.test(path)) ||
     false
   const unknownNetworkOk = path === 'session' || path === 'network/request' || path === 'network/confirm'
 
@@ -162,6 +163,20 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
     const removed = await removeNetwork(deps.db, prefix)
     await log('network_removed', prefix)
     return adminJson(removed ? 200 : 404, removed ? { ok: true } : { error: 'not_found' })
+  }
+
+  // AI quota tier: only here (trusted server path); users cannot change their own tier.
+  const tierAction = path.match(/^users\/([^/]+)\/tier$/)
+  if (tierAction && method === 'POST') {
+    const userId = tierAction[1]!
+    if (!isUuid(userId)) return adminJson(400, { error: 'invalid_user' })
+    const input = (await body(request)) as { tier?: unknown } | null
+    const tier = typeof input?.tier === 'string' ? input.tier.trim() : ''
+    if (!/^[a-z0-9_-]{1,32}$/.test(tier)) return adminJson(400, { error: 'invalid_tier' })
+    const changed = await setAiTier(deps.db, userId, tier)
+    if (changed !== 'ok') return adminJson(changed === 'unknown_user' ? 404 : 400, { error: changed })
+    await log('user_ai_tier_set', userId, { tier })
+    return adminJson(200, { ok: true })
   }
 
   const userAction = path.match(/^users\/([^/]+)\/(lock|unlock|terminate)$/)

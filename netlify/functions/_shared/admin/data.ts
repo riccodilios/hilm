@@ -149,6 +149,19 @@ export async function listUsers(db: Db, q: string, page: number) {
   return { users: rows.slice(0, 50), hasMore: rows.length > 50 }
 }
 
+/** Changes a user's AI quota tier through private.set_ai_tier (the only path that may). */
+export async function setAiTier(db: Db, userId: string, tier: string): Promise<'ok' | 'unknown_tier' | 'unknown_user'> {
+  try {
+    await db.query(`select private.set_ai_tier($1, $2)`, [userId, tier])
+    return 'ok'
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message.includes('unknown_tier')) return 'unknown_tier'
+    if (message.includes('unknown_user')) return 'unknown_user'
+    throw error
+  }
+}
+
 export async function setLocked(db: Db, userId: string, locked: boolean) {
   const { rowCount } = await db.query(
     `update auth.users set banned_until = $2, updated_at = now()

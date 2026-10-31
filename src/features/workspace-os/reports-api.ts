@@ -119,13 +119,16 @@ export async function saveWorkspaceReport(workspaceId: string, snapshot: ReportS
   return data
 }
 
-export async function listWorkspaceReports(workspaceId: string) {
+/** Newest saved reports the reader may open; one extra row tells the page whether older ones exist. */
+export async function listWorkspaceReports(workspaceId: string, limit = 30) {
   const { data, error } = await supabase
     .from('workspace_ai_reports')
     .select('*')
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false })
-    .limit(30)
+    .order('id', { ascending: false })
+    .limit(limit + 1)
   if (error) throw error
-  return (data ?? []) as StoredReportRow[]
+  const rows = (data ?? []) as StoredReportRow[]
+  return { rows: rows.slice(0, limit), hasMore: rows.length > limit }
 }

@@ -1,7 +1,14 @@
 import type { Config } from '@netlify/functions'
 import { createClient } from '@supabase/supabase-js'
-import pg from 'pg'
-import { deleteUserAccount } from './_shared/account-deletion.ts'
+import type pg from 'pg'
+import { deleteUserAccount, ownedSharedWorkspaces } from './_shared/account-deletion.ts'
+import {
+  listPersonalObjects,
+  markObjectsRemoved,
+  removeObjectsAsUser,
+  type RemovedObject,
+} from './_shared/account-storage.ts'
+import { acquireDb, databaseUrl } from './_shared/db.ts'
 
 function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
@@ -61,18 +68,36 @@ export default async (request: Request) => {
     return respond({ error: 'Confirmation required', code: 'confirm_required' }, 400)
   }
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) return respond({ error: 'DATABASE_URL missing' }, 500)
+  if (!databaseUrl()) return respond({ error: 'DATABASE_URL missing' }, 500)
 
-  const client = new pg.Client({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-  })
-
+  let client: pg.PoolClient | null = null
   try {
-    await client.connect()
+    client = await acquireDb()
+    const blocking = await ownedSharedWorkspaces(client, user.id)
+    if (blocking.length) {
+      return respond(
+        {
+          error:
+            'Transfer or delete workspaces you own that still have other members before deleting your account.',
+          code: 'owned_shared_workspaces',
+          workspaces: blocking,
+        },
+        409,
+      )
+    }
+    // Personal files go first, while the user's token is still valid for the Storage API.
+    let removed: RemovedObject[] = []
+    try {
+      const objects = await listPersonalObjects(client, user.id)
+      removed = await removeObjectsAsUser({ supabaseUrl, anonKey, token, objects })
+    } catch {
+      // Anything not removed here stays recorded in private.storage_object_deletions.
+    }
     const result = await deleteUserAccount(client, user.id)
-    if (result.ok) return respond({ ok: true })
+    if (result.ok) {
+      await markObjectsRemoved(client, removed).catch(() => undefined)
+      return respond({ ok: true })
+    }
     if (result.code === 'owned_shared_workspaces') {
       return respond(
         {
@@ -89,10 +114,11 @@ export default async (request: Request) => {
     const message = error instanceof Error ? error.message : 'Could not delete account'
     return respond({ error: message }, 500)
   } finally {
-    await client.end().catch(() => undefined)
+    client?.release()
   }
 }
 
 export const config: Config = {
   path: '/api/delete-account',
+  rateLimit: { windowLimit: 5, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }

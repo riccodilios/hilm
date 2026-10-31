@@ -3,15 +3,16 @@
  * the endpoint https://app.hilm.tech/api/resend-webhook and set RESEND_WEBHOOK_SECRET.
  */
 import type { Config } from '@netlify/functions'
-import pg from 'pg'
+import type pg from 'pg'
 import { Resend } from 'resend'
+import { acquireDb } from './_shared/db.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { logEmail } from './_shared/email/log.ts'
 import { handleResendWebhook, type WebhookEvent, type WebhookStore } from './_shared/email/webhook.ts'
 
 export default async (request: Request) => {
   const config = loadEmailConfig()
-  let client: pg.Client | null = null
+  let client: pg.PoolClient | null = null
 
   const verify =
     config.webhookSecret && config.apiKey
@@ -24,10 +25,7 @@ export default async (request: Request) => {
       : null
 
   const store = async (): Promise<WebhookStore> => {
-    const databaseUrl = process.env.DATABASE_URL
-    if (!databaseUrl) throw new Error('DATABASE_URL is not configured')
-    client = new pg.Client({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false } })
-    await client.connect()
+    client = await acquireDb()
     const db = client
     return {
       async recordDelivery(id, type, emailId) {
@@ -59,8 +57,8 @@ export default async (request: Request) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } finally {
-    const open = client as pg.Client | null
-    if (open) await open.end().catch(() => undefined)
+    const open = client as pg.PoolClient | null
+    open?.release()
   }
 }
 

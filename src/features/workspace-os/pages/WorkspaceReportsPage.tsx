@@ -18,8 +18,10 @@ import {
   rowToSnapshot,
   saveWorkspaceReport,
 } from '@/features/workspace-os/reports-api'
+import { REPORT_HISTORY_PAGE } from '@/shared/reports/storage'
 import { ReportStudio } from '@/shared/reports/components/ReportStudio'
 import type { ReportSnapshot } from '@/shared/reports/types'
+import { Button } from '@/components/ui/button'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { cn } from '@/lib/utils'
 
@@ -56,9 +58,11 @@ export function WorkspaceReportsPage() {
     queryKey: orgKeys.teams(workspaceId),
     queryFn: () => listTeams(workspaceId),
   })
+  const [historyLimit, setHistoryLimit] = useState(REPORT_HISTORY_PAGE)
   const saved = useQuery({
-    queryKey: workspaceReportsKeys.list(workspaceId),
-    queryFn: () => listWorkspaceReports(workspaceId),
+    queryKey: [...workspaceReportsKeys.list(workspaceId), historyLimit],
+    queryFn: () => listWorkspaceReports(workspaceId, historyLimit),
+    placeholderData: (previous) => previous,
   })
 
   const generatedBy =
@@ -174,13 +178,13 @@ export function WorkspaceReportsPage() {
         />
       )}
 
-      {(saved.data ?? []).length ? (
+      {(saved.data?.rows ?? []).length ? (
         <section className="mt-10">
           <h2 className="mb-3 text-sm font-medium">
             {t('workspace.reportsRecent', { defaultValue: 'Report history' })}
           </h2>
           <div className="space-y-2">
-            {(saved.data ?? []).map((row) => {
+            {(saved.data?.rows ?? []).map((row) => {
               const snap = rowToSnapshot(row)
               return (
                 <button
@@ -219,6 +223,18 @@ export function WorkspaceReportsPage() {
               )
             })}
           </div>
+          {saved.data?.hasMore ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-3"
+              disabled={saved.isFetching}
+              onClick={() => setHistoryLimit((limit) => limit + REPORT_HISTORY_PAGE)}
+            >
+              {t('reports.showOlder', { defaultValue: 'Show older reports' })}
+            </Button>
+          ) : null}
         </section>
       ) : null}
     </div>
