@@ -116,6 +116,8 @@ function inspectPage(html, page, label) {
       check(known, `${label}: internal link to unknown page ${href}`)
     } else if (u.origin === SITE.appOrigin) {
       check(['/login', '/signup'].includes(u.pathname), `${label}: public page links into a private app route ${href}`)
+    } else if (href === SITE.instagram.url) {
+      // Official social profile (also Organization.sameAs).
     } else {
       check(false, `${label}: unexpected external link ${href}`)
     }

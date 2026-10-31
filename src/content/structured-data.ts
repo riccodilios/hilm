@@ -64,6 +64,14 @@ function organization(): JsonLd {
     url: `${SITE.origin}/`,
     logo: { '@type': 'ImageObject', url: `${SITE.origin}${SITE.logoPath}`, width: 512, height: 512 },
     disambiguatingDescription: DISAMBIGUATION.en,
+    email: SITE.contactEmail,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      email: SITE.contactEmail,
+      availableLanguage: ['English', 'Arabic'],
+    },
+    sameAs: [SITE.instagram.url],
   }
 }
 

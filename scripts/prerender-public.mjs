@@ -114,7 +114,7 @@ function footer(locale) {
   const ui = PUBLIC_UI[locale]
   return `<footer>
   <p>${esc(BRAND[locale])} | ${esc(ui.footerTagline)}</p>
-  <ul>${PRODUCT_PAGE_IDS.map((page) => `<li>${pageLink(page, locale, ui.nav[page])}</li>`).join('')}<li>${pageLink('privacy', locale, ui.privacy)}</li><li>${link(`mailto:${SITE.contactEmail}`, ui.contact)}</li></ul>
+  <ul>${PRODUCT_PAGE_IDS.map((page) => `<li>${pageLink(page, locale, ui.nav[page])}</li>`).join('')}<li>${pageLink('privacy', locale, ui.privacy)}</li><li>${esc(ui.contact)}: ${link(`mailto:${SITE.contactEmail}`, SITE.contactEmail)}</li><li>${link(SITE.instagram.url, `Instagram ${SITE.instagram.handle}`, ' rel="me noopener"')}</li></ul>
 </footer>`
 }
 
@@ -230,6 +230,8 @@ function llms() {
 
 - Official website: ${SITE.origin}/
 - Web app (sign in / sign up): ${SITE.appOrigin}/
+- Contact: ${SITE.contactEmail}
+- Instagram: ${SITE.instagram.handle} (${SITE.instagram.url})
 - Also written: ${SITE.alternateNames.join(', ')}
 - Category: personal and team productivity; project and task management; AI meeting notes
 - Languages: English and Arabic (right-to-left)

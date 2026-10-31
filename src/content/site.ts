@@ -17,8 +17,9 @@ export const SITE = {
   appOrigin: 'https://app.hilm.tech',
   logoPath: '/pwa-512.png',
   ogImage: { en: '/og-image.png', ar: '/og-image-ar.png', width: 1200, height: 630 },
-  /** Shown on the site today; confirm before adding to structured data or llms.txt. */
-  contactEmail: 'hello@hilm.app',
+  /** Business mailbox (Amelu); also the Reply-To of Hilm's emails. */
+  contactEmail: 'info@hilm.tech',
+  instagram: { handle: '@hilm.tech', url: 'https://www.instagram.com/hilm.tech/' },
 } as const
 
 export type PublicPageId = 'home' | 'personal-os' | 'workspace-os' | 'meetings' | 'features' | 'privacy'
@@ -159,6 +160,8 @@ export type PublicUi = {
   otherLanguage: string
   privacy: string
   contact: string
+  instagram: string
+  rights: string
   footerTagline: string
   faqTitle: string
   relatedTitle: string
@@ -178,6 +181,8 @@ export const PUBLIC_UI: Record<PublicLocale, PublicUi> = {
     otherLanguage: 'العربية',
     privacy: 'Privacy',
     contact: 'Contact',
+    instagram: 'Hilm on Instagram',
+    rights: 'All rights reserved.',
     footerTagline: 'Your Personal and Workspace Operating System.',
     faqTitle: 'Frequently asked questions',
     relatedTitle: 'Keep exploring',
@@ -195,6 +200,8 @@ export const PUBLIC_UI: Record<PublicLocale, PublicUi> = {
     otherLanguage: 'English',
     privacy: 'الخصوصية',
     contact: 'تواصل معنا',
+    instagram: 'حلم على إنستغرام',
+    rights: 'جميع الحقوق محفوظة.',
     footerTagline: 'نظام تشغيلك الشخصي ونظام تشغيل فريقك.',
     faqTitle: 'أسئلة شائعة',
     relatedTitle: 'تابع الاستكشاف',
