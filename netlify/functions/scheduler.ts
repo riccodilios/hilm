@@ -21,7 +21,7 @@ import { loadEmailConfig } from './_shared/email/config.ts'
 import { EMAIL_ASSET_STORE } from './_shared/email/images.ts'
 import { createEmailService } from './_shared/email/service.ts'
 import { opsAlertEmail } from './_shared/email/templates.ts'
-import { drainEmail, loadReminderSecrets, runTaskReminders } from './_shared/jobs/reminders.ts'
+import { drainEmail, dueWork, loadReminderSecrets, runTaskReminders, runWorkspaceReminders } from './_shared/jobs/reminders.ts'
 import { evaluateAlerts, type AlertNotice } from './_shared/ops/alerts.ts'
 import { pruneSnapshots, runMetricsCollection } from './_shared/ops/collector.ts'
 import { instrumented } from './_shared/ops/instrument.ts'
@@ -95,23 +95,36 @@ async function handler(request: Request) {
   let failure: unknown
   try {
     client = await acquireDb()
+    const due = await dueWork(client)
 
-    try {
-      report.reminders = await runTaskReminders(client, await loadReminderSecrets(client))
-    } catch (error) {
-      report.reminders = { error: error instanceof Error ? error.message.slice(0, 120) : 'failed' }
+    if (due.personal) {
+      try {
+        report.reminders = await runTaskReminders(client, await loadReminderSecrets(client))
+      } catch (error) {
+        report.reminders = { error: error instanceof Error ? error.message.slice(0, 120) : 'failed' }
+      }
+    }
+    if (due.workspace) {
+      try {
+        report.workspaceReminders = await runWorkspaceReminders(client)
+      } catch {
+        report.workspaceReminders = { error: 'failed' }
+      }
     }
 
-    try {
-      report.email = await drainEmail(client, Math.min(8_000, Math.max(0, remaining() - 14_000)))
-    } catch {
-      report.email = { error: 'dispatch_failed' }
+    // Reminders above may have queued email for this minute.
+    if (due.email || due.personal || due.workspace) {
+      try {
+        report.email = await drainEmail(client, Math.min(8_000, Math.max(0, remaining() - 14_000)))
+      } catch {
+        report.email = { error: 'dispatch_failed' }
+      }
     }
 
     // At most one periodic job per invocation keeps every run well under the 30 s limit; a job
     // that is due but skipped here is picked up the next minute.
     let periodicRan = false
-    if (remaining() > 12_000 && (await claimJob(client, 'lifecycle'))) {
+    if (due.jobs.includes('lifecycle') && remaining() > 12_000 && (await claimJob(client, 'lifecycle'))) {
       periodicRan = true
       try {
         const lifecycle = await runStorageLifecycle(client, storageProviders(), {
@@ -128,8 +141,8 @@ async function handler(request: Request) {
       }
     }
 
-    if (!periodicRan && remaining() > 12_000 && (await claimJob(client, 'metrics'))) {
-      const daily = await claimJob(client, 'daily')
+    if (!periodicRan && due.jobs.includes('metrics') && remaining() > 12_000 && (await claimJob(client, 'metrics'))) {
+      const daily = due.jobs.includes('daily') && (await claimJob(client, 'daily'))
       try {
         const collected = await runMetricsCollection(client, {
           env: process.env,

@@ -58,16 +58,31 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    if (ids.ws) {
-      const { data } = await db.query(`select name from storage.objects where bucket_id = 'attachments' and name like $1`, [`workspace/${ids.ws}/%`]).then((r) => ({ data: r.rows }))
-      if (data.length) await clients.owner?.storage.from('attachments').remove(data.map((row: { name: string }) => row.name))
-      await db.query(`delete from public.workspaces where id = $1`, [ids.ws])
+    // Every object this run created (including rejected uploads nobody can read) is removed through
+    // the storage worker account, then its registry rows are closed.
+    const prefixes = [`workspace/${ids.ws}/%`, ...Object.values(u).map((id) => `${id}/%`)]
+    const leftovers = (await db.query(`select bucket_id, name from storage.objects where name like any($1::text[])`, [prefixes])).rows as Array<{ bucket_id: string; name: string }>
+    const config = workerAuthConfig(env)
+    if (leftovers.length && config) {
+      resetStorageWorkerToken()
+      const worker = createSupabaseStorageProvider(config)
+      for (const bucket of new Set(leftovers.map((o) => o.bucket_id))) {
+        await worker.deleteObjects(bucket, leftovers.filter((o) => o.bucket_id === bucket).map((o) => o.name))
+      }
     }
+    if (ids.ws) await db.query(`delete from public.workspaces where id = $1`, [ids.ws])
     await db.query(`delete from auth.users where id = any($1::uuid[])`, [Object.values(u)])
-    await db.query(`delete from private.storage_object_deletions where object_name like $1 or object_name like any($2::text[])`, [
-      `workspace/${ids.ws}/%`,
-      Object.values(u).map((id) => `${id}/%`),
-    ])
+    await db.query(
+      `update public.storage_files f set status = 'deleted', deleted_at = now()
+       where f.status <> 'deleted' and f.object_key like any($1::text[])
+         and not exists (select 1 from storage.objects o where o.bucket_id = f.bucket and o.name = f.object_key)`,
+      [prefixes],
+    )
+    await db.query(
+      `delete from private.storage_object_deletions d where d.object_name like any($1::text[])
+         and not exists (select 1 from storage.objects o where o.bucket_id = d.bucket_id and o.name = d.object_name)`,
+      [prefixes],
+    )
   } finally {
     for (const client of Object.values(clients)) await client.removeAllChannels().catch(() => undefined)
     await db.end().catch(() => undefined)

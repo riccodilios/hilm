@@ -206,14 +206,37 @@ export async function runTaskReminders(client: pg.PoolClient, secrets: Record<st
     )
   }
 
-  let workspaceReminders = { due: 0, queued: 0 }
-  try {
-    workspaceReminders = await processWorkspaceTaskReminders(client, windowEnd)
-  } catch {
-    // Workspace reminders are independent of personal ones; retried next minute.
-  }
+  return { processed, pushed, emailQueued }
+}
 
-  return { processed, pushed, emailQueued, workspaceReminders }
+/** Workspace task reminders due in the next minute (in-app notification + email outbox). */
+export async function runWorkspaceReminders(client: pg.PoolClient) {
+  return processWorkspaceTaskReminders(client, new Date(Date.now() + 60_000).toISOString())
+}
+
+export type DueWork = { personal: boolean; workspace: boolean; email: boolean; jobs: string[] }
+
+/**
+ * One round trip that tells the scheduler what is due, so an idle minute costs a single query
+ * instead of one per job (the database is far from the function region).
+ */
+export async function dueWork(client: pg.PoolClient): Promise<DueWork> {
+  const { rows } = await client.query<DueWork>(
+    `select
+       exists (select 1 from public.task_reminders r
+               where r.notification_sent = false and r.remind_at <= now() + interval '60 seconds'
+                 and (r.claimed_at is null or r.claimed_at < now() - interval '300 seconds')) as personal,
+       exists (select 1 from public.workspace_tasks t
+               where t.reminder_at is not null and t.reminder_sent_at is null
+                 and t.reminder_at <= now() + interval '60 seconds') as workspace,
+       exists (select 1 from private.email_outbox o
+               where (o.status = 'pending' and o.send_after <= now())
+                  or (o.status = 'sending' and o.locked_at < now() - interval '10 minutes')) as email,
+       array(select s.collector from private.ops_collector_state s
+             where s.last_attempt_at is null
+                or s.last_attempt_at <= now() - make_interval(mins => s.interval_minutes) + interval '20 seconds') as jobs`,
+  )
+  return rows[0] ?? { personal: true, workspace: true, email: true, jobs: [] }
 }
 
 /** Sends queued transactional email within a time budget. */
