@@ -9,8 +9,9 @@ import { acquireDb } from './_shared/db.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { logEmail } from './_shared/email/log.ts'
 import { handleResendWebhook, type WebhookEvent, type WebhookStore } from './_shared/email/webhook.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const config = loadEmailConfig()
   let client: pg.PoolClient | null = null
 
@@ -66,3 +67,5 @@ export const config: Config = {
   path: '/api/resend-webhook',
   rateLimit: { windowLimit: 120, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('resend-webhook', handler)

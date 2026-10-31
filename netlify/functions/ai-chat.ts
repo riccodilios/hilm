@@ -29,6 +29,7 @@ import {
   buildAiTimeContextPrompt,
   resolveAiClock,
 } from './_shared/ai-time-context'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -48,7 +49,7 @@ function sse(payload: Record<string, unknown>) {
   return `data: ${JSON.stringify(payload)}\n\n`
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const json = (data: unknown, status = 200) => aiJson(data, status, request)
   const cors = () => aiCorsHeaders(request)
 
@@ -625,3 +626,5 @@ ${contextPack}`
     return json({ error: error instanceof Error ? error.message : 'AI request failed' }, 400)
   }
 }
+
+export default instrumented('ai-chat', handler)

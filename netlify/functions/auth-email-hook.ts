@@ -9,8 +9,9 @@ import { loadEmailConfig } from './_shared/email/config.ts'
 import { logEmail } from './_shared/email/log.ts'
 import { createEmailService } from './_shared/email/service.ts'
 import { supabaseUrlFromEnv } from './_shared/request-user.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const config = loadEmailConfig()
   const secret = config.authHookSecret
   const verify =
@@ -38,3 +39,5 @@ export default async (request: Request) => {
 export const config: Config = {
   path: '/api/auth-email-hook',
 }
+
+export default instrumented('auth-email-hook', handler)

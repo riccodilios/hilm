@@ -16,6 +16,7 @@ import { aiKeys, getAiUsageSummary, type AiUsageSummary } from '@/features/ai/ap
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { RetentionSettings } from '@/components/storage/RetentionSettings'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -539,6 +540,16 @@ export function SettingsPage({
                 </div>
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('retention.title')}</CardTitle>
+            <CardDescription>{t('retention.personalDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RetentionSettings />
           </CardContent>
         </Card>
 

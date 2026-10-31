@@ -81,7 +81,7 @@ Run `npm run check:boundaries` locally before merging isolation changes.
 
 **Storage paths (bucket `attachments`):** `{userId}/tasks/{taskId}/…`, `{userId}/projects/…` — see `0001_init.sql`, `0003_tasks_projects_reminders.sql`.
 
-**Serverless (personal-only):** `send-task-reminders`, `ai-daily-log`.
+**Serverless (personal-only):** `ai-daily-log`. Reminders run inside the shared `scheduler` function.
 
 ---
 
@@ -202,7 +202,7 @@ RLS policies are per-table; extraction does not require weakening RLS.
 |----------|------|
 | `ai-chat` | Dual (personal + workspace actions) |
 | `delete-account` | Dual (cleans both OS data) |
-| `send-task-reminders` | Personal only |
+| `scheduler` (reminders, email, storage lifecycle, monitoring) | Shared |
 | `ai-daily-log` | Personal only |
 
 ---
@@ -226,7 +226,7 @@ When creating a standalone Workspace product repo:
 ### Delete (from company repo)
 
 1. Personal feature folders: `tasks/`, `projects/`, `home/`, `notes/`, `ideas/`, `daily-log/`, `search/`, personal mission page, `reports/PersonalReportsPage.tsx`, `ai/registry/personal.ts`, `ai/PersonalAiPage.tsx`
-2. Personal cron functions: `send-task-reminders`, `ai-daily-log`
+2. Personal functions: `ai-daily-log` (reminders run in the shared `scheduler`)
 3. Personal-only lib: `features/activity/record.ts`
 
 ### Replace

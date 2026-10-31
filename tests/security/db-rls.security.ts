@@ -22,7 +22,7 @@ import {
   uid,
 } from './helpers'
 
-const MIGRATIONS = ['0043_workspace_isolation.sql', '0044_ai_cost_security.sql', '0045_integrity_and_deletion.sql']
+const MIGRATIONS = (env.SECURITY_MIGRATIONS ?? '0046_storage_lifecycle.sql').split(',').filter(Boolean)
 
 const u = {
   owner: uid(),
@@ -43,6 +43,41 @@ async function one(sql: string, params: unknown[] = []) {
   const { rows } = await client.query(sql, params)
   return rows[0] as Record<string, unknown>
 }
+
+type Json = Record<string, unknown>
+
+/** The browser upload flow: begin (server decides the key), store the object, complete (verified). */
+async function uploadAs(
+  user: string,
+  entityType: 'task' | 'workspace_task',
+  entityId: string,
+  filename: string,
+  opts: { size?: number; storedSize?: number; mime?: string; complete?: boolean } = {},
+) {
+  const size = opts.size ?? 1000
+  const mime = opts.mime ?? 'application/pdf'
+  const begun = (await asUser(client, user, `select public.storage_begin_upload('task_attachment', $1, $2, $3, $4, $5) as r`, [entityType, entityId, filename, mime, size])).rows[0].r as Json
+  if (!begun.ok) return { begun, done: null as Json | null }
+  await asUser(
+    client,
+    user,
+    `insert into storage.objects (bucket_id, name, owner_id, metadata) values ('attachments', $1, $2, jsonb_build_object('size', $3::bigint, 'mimetype', $4::text))`,
+    [begun.object_key, user, opts.storedSize ?? size, mime],
+  )
+  if (opts.complete === false) return { begun, done: null as Json | null }
+  const done = (await asUser(client, user, `select public.storage_complete_upload($1) as r`, [begun.file_id])).rows[0].r as Json
+  return { begun, done }
+}
+
+async function lifecycleStep(mode: 'dry_run' | 'quarantine' | 'enforce') {
+  await client.query(`update private.storage_lifecycle_settings set mode = $1, lease_until = null`, [mode])
+  const begin = (await client.query(`select private.storage_lifecycle_begin('test') as r`)).rows[0].r as Json
+  const stats = (await client.query(`select private.storage_lifecycle_step($1) as s`, [begin.run_id])).rows[0].s as Json
+  await client.query(`select private.storage_lifecycle_finish($1, $2, 'completed', $3::jsonb)`, [begin.run_id, begin.lease_owner, JSON.stringify(stats)])
+  return { runId: String(begin.run_id), stats }
+}
+
+const fileRow = async (id: string) => one(`select * from public.storage_files where id = $1`, [id])
 
 beforeAll(async () => {
   client = newClient()
@@ -118,9 +153,9 @@ beforeAll(async () => {
   await asUser(client, u.owner, `select public.crm_set_credentials($1, 'api-key-123')`, [ids.crm])
 
   // Files: memberHR's attachment on the HR task.
-  ids.hrObject = `workspace/${ids.wsA}/tasks/${ids.tHr}/1_hr.pdf`
-  await asUser(client, u.memberHR, `insert into public.workspace_attachments (workspace_id, entity_type, entity_id, storage_path, filename, uploaded_by) values ($1, 'task', $2, $3, 'hr.pdf', $4)`, [ids.wsA, ids.tHr, ids.hrObject, u.memberHR])
-  await asUser(client, u.memberHR, `insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [ids.hrObject, u.memberHR])
+  const hr = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'hr.pdf')
+  ids.hrObject = String(hr.begun.object_key)
+  ids.hrFile = String(hr.begun.file_id)
 }, 240_000)
 
 afterAll(async () => {
@@ -251,10 +286,12 @@ describe('role and permission corrections', () => {
 
   it('members cannot attach to tasks they cannot see, nor remove others’ files', async () => {
     expect(await refusedAs(client, u.memberTech, `insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [`workspace/${ids.wsA}/tasks/${ids.tHr}/1_x.pdf`, u.memberTech])).toBeTruthy()
-    const own = await attempt(client, u.memberTech, () =>
-      client.query(`insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [`workspace/${ids.wsA}/tasks/${ids.tTech}/1_ok.pdf`, u.memberTech]),
-    )
-    expect(own.ok).toBe(true)
+    // Without a server-issued upload slot even their own task refuses the object.
+    expect(await refusedAs(client, u.memberTech, `insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [`workspace/${ids.wsA}/tasks/${ids.tTech}/1_ok.pdf`, u.memberTech])).toBeTruthy()
+    const own = await uploadAs(u.memberTech, 'workspace_task', ids.tTech, 'ok.pdf')
+    expect(own.done?.ok).toBe(true)
+    const hidden = await uploadAs(u.memberTech, 'workspace_task', ids.tHr, 'peek.pdf')
+    expect(hidden.begun.code).toBe('not_found')
     const removeOthers = await asUser(client, u.memberTech, `delete from storage.objects where name = $1`, [ids.hrObject])
     expect(removeOthers.rowCount).toBe(0)
     expect(await refusedAs(client, u.memberTech, `insert into public.workspace_attachments (workspace_id, entity_type, entity_id, storage_path, filename, uploaded_by) values ($1, 'task', $2, 'x', 'x', $3)`, [ids.wsA, ids.tHr, u.memberTech])).toBeTruthy()
@@ -360,8 +397,9 @@ describe('data integrity and deletion', () => {
   })
 
   it('deleting a task removes its attachment rows and records the file for Storage', async () => {
-    const path = `${u.solo}/tasks/${ids.soloTask}/1_doc.pdf`
-    await asUser(client, u.solo, `insert into public.attachments (user_id, entity_type, entity_id, storage_path, filename) values ($1, 'task', $2, $3, 'doc.pdf')`, [u.solo, ids.soloTask, path])
+    const upload = await uploadAs(u.solo, 'task', ids.soloTask, 'doc.pdf')
+    expect(upload.done?.ok).toBe(true)
+    const path = String(upload.begun.object_key)
     await asUser(client, u.solo, `delete from public.tasks where id = $1`, [ids.soloTask])
     const rows = await client.query(`select count(*)::int as n from public.attachments where entity_id = $1`, [ids.soloTask])
     expect(rows.rows[0].n).toBe(0)
@@ -373,14 +411,14 @@ describe('data integrity and deletion', () => {
     // memberTech created a task and uploaded a file in the shared workspace.
     const created = await asUser(client, u.memberTech, `insert into public.workspace_tasks (workspace_id, project_id, created_by, title, assignee_id) values ($1, $2, $3, 'by tech', $3) returning id`, [ids.wsA, ids.pTech, u.memberTech])
     const createdId = created.rows[0].id
-    await asUser(client, u.memberTech, `insert into public.workspace_attachments (workspace_id, entity_type, entity_id, storage_path, filename, uploaded_by) values ($1, 'task', $2, 'p', 'f', $3)`, [ids.wsA, ids.tTech, u.memberTech])
+    expect((await uploadAs(u.memberTech, 'workspace_task', ids.tTech, 'f.pdf')).done?.ok).toBe(true)
     const meeting = await asUser(client, u.memberTech, `insert into public.workspace_meetings (workspace_id, project_id, created_by, title) values ($1, $2, $3, 'tech meeting') returning id`, [ids.wsA, ids.pTech, u.memberTech])
 
     const result = await deleteUserAccount(nestedTransactionClient(client) as never, u.memberTech)
     expect(result.ok).toBe(true)
     expect((await client.query(`select count(*)::int as n from auth.users where id = $1`, [u.memberTech])).rows[0].n).toBe(0)
     expect((await client.query(`select count(*)::int as n from public.workspace_tasks where id = $1`, [createdId])).rows[0].n).toBe(1)
-    expect((await client.query(`select count(*)::int as n from public.workspace_attachments where entity_id = $1 and uploaded_by is null`, [ids.tTech])).rows[0].n).toBe(1)
+    expect((await client.query(`select count(*)::int as n from public.workspace_attachments where entity_id = $1 and uploaded_by is null`, [ids.tTech])).rows[0].n).toBeGreaterThanOrEqual(1)
     expect((await client.query(`select count(*)::int as n from public.workspace_meetings where id = $1`, [meeting.rows[0].id])).rows[0].n).toBe(1)
     expect((await client.query(`select assignee_id from public.workspace_tasks where id = $1`, [ids.tTech])).rows[0].assignee_id).toBeNull()
   })
@@ -396,5 +434,275 @@ describe('data integrity and deletion', () => {
     const project = await asUser(client, u.headHR, `insert into public.projects (user_id, name) values ($1, 'Keep') returning id`, [u.headHR])
     await asUser(client, u.headHR, `insert into public.tasks (user_id, project_id, title) values ($1, $2, 't')`, [u.headHR, project.rows[0].id])
     expect(await refusedAs(client, u.headHR, `delete from public.projects where id = $1`, [project.rows[0].id])).toBeTruthy()
+  })
+})
+
+describe('storage registry, uploads and lifecycle', () => {
+  const objectSeen = async (user: string, key: string) =>
+    Number((await asUser(client, user, `select count(*)::int as n from storage.objects where bucket_id = 'attachments' and name = $1`, [key])).rows[0].n)
+  const queueRow = async (key: string) => one(`select * from private.storage_object_deletions where object_name = $1`, [key])
+  const record = async (id: unknown, ok: boolean, error: string | null = null) =>
+    String((await one(`select private.storage_record_deletion($1, null, $2, $3) as r`, [id, ok, error])).r)
+
+  it('registry rows are visible only to people who may see the file, and are read-only', async () => {
+    expect(await idsAs(client, u.memberHR, `select id from public.storage_files where id = $1`, [ids.hrFile])).toEqual([ids.hrFile])
+    expect(await idsAs(client, u.headHR, `select id from public.storage_files where id = $1`, [ids.hrFile])).toEqual([ids.hrFile])
+    expect(await idsAs(client, u.outsider, `select id from public.storage_files where id = $1`, [ids.hrFile])).toEqual([])
+    expect(await refusedAs(client, u.memberHR, `update public.storage_files set legal_hold = true where id = $1`, [ids.hrFile])).toBeTruthy()
+    expect(await refusedAs(client, u.memberHR, `insert into public.storage_files (bucket, object_key, category, scope, status) values ('attachments', 'x', 'task_attachment', 'personal', 'active')`)).toBeTruthy()
+    expect(await refusedAs(client, u.memberHR, `insert into public.workspace_attachments (workspace_id, entity_type, entity_id, storage_path, filename) values ($1, 'task', $2, 'x', 'x')`, [ids.wsA, ids.tHr])).toBeTruthy()
+    expect(await refusedAs(client, u.memberHR, `update public.workspace_attachments set storage_path = 'elsewhere' where storage_path = $1`, [ids.hrObject])).toBeTruthy()
+  })
+
+  it('uploads are authorized and limited on the server', async () => {
+    expect((await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'big.pdf', { size: 16 * 1024 * 1024 })).begun.code).toBe('too_large')
+    expect((await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'x.svg', { mime: 'image/svg+xml' })).begun.code).toBe('blocked_type')
+    expect((await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'page.html', { mime: 'application/octet-stream' })).begun.code).toBe('blocked_type')
+    expect((await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'empty.pdf', { size: 0 })).begun.code).toBe('empty_file')
+    expect((await uploadAs(u.outsider, 'workspace_task', ids.tHr, 'x.pdf')).begun.code).toBe('not_found')
+    expect((await uploadAs(u.viewer, 'workspace_task', ids.tOwner, 'x.pdf')).begun.code).toBe('not_found')
+    expect((await uploadAs(u.outsider, 'task', ids.tHr, 'x.pdf')).begun.code).toBe('not_found')
+    const begun = (await uploadAs(u.memberHR, 'workspace_task', ids.tHr, '../../etc/passwd', { complete: false })).begun
+    expect(String(begun.object_key)).toMatch(new RegExp(`^workspace/${ids.wsA}/tasks/${ids.tHr}/\\d+_[A-Za-z0-9_.-]+$`))
+    expect(String(begun.object_key)).not.toContain('/../')
+  })
+
+  it('an object that does not match the declared upload is rejected and queued for removal', async () => {
+    const r = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'lie.pdf', { size: 1000, storedSize: 5000 })
+    expect(r.done?.ok).toBe(false)
+    expect(r.done?.reason).toBe('size_mismatch')
+    expect((await fileRow(String(r.begun.file_id))).status).toBe('failed')
+    expect((await queueRow(String(r.begun.object_key))).status).toBe('pending')
+    expect((await one(`select count(*)::int as n from public.workspace_attachments where storage_path = $1`, [r.begun.object_key])).n).toBe(0)
+  })
+
+  it('pending uploads are unreadable, completed objects cannot be overwritten, cancelled uploads are cleaned up', async () => {
+    const r = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'draft.pdf', { complete: false })
+    const key = String(r.begun.object_key)
+    expect(await objectSeen(u.memberHR, key)).toBe(0)
+    expect(await refusedAs(client, u.memberHR, `insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [key, u.memberHR])).toBeTruthy()
+    const done = (await asUser(client, u.memberHR, `select public.storage_complete_upload($1) as r`, [r.begun.file_id])).rows[0].r as Json
+    expect(done.ok).toBe(true)
+    expect(await objectSeen(u.memberHR, key)).toBe(1)
+    const overwrite = await asUser(client, u.memberHR, `update storage.objects set metadata = '{}'::jsonb where bucket_id = 'attachments' and name = $1`, [key])
+    expect(overwrite.rowCount).toBe(0)
+    const again = (await asUser(client, u.memberHR, `select public.storage_complete_upload($1) as r`, [r.begun.file_id])).rows[0].r as Json
+    expect(again.duplicate).toBe(true)
+
+    const c = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'cancel.pdf', { complete: false })
+    const cancelled = (await asUser(client, u.memberHR, `select public.storage_cancel_upload($1) as r`, [c.begun.file_id])).rows[0].r as Json
+    expect(cancelled.ok).toBe(true)
+    expect((await fileRow(String(c.begun.file_id))).status).toBe('abandoned')
+    expect((await queueRow(String(c.begun.object_key))).reason).toBe('cancelled_upload')
+    const foreign = (await asUser(client, u.headHR, `select public.storage_cancel_upload($1) as r`, [r.begun.file_id])).rows[0].r as Json
+    expect(foreign.ok).toBe(false)
+  })
+
+  it('workspace quotas count uploads in flight', async () => {
+    const used = Number((await one(
+      `select coalesce(sum(bytes_active + bytes_pending), 0) as b from public.storage_usage where scope_type = 'workspace' and scope_id = $1 and category = 'task_attachment'`,
+      [ids.wsA],
+    )).b)
+    await client.query(`insert into public.storage_quota_overrides (scope_type, scope_id, max_bytes) values ('workspace', $1, $2)`, [ids.wsA, used + 1500])
+    const first = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'q1.pdf', { complete: false })
+    expect(first.begun.ok).toBe(true)
+    const second = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'q2.pdf')
+    expect(second.begun.code).toBe('quota_exceeded')
+    await client.query(`delete from public.storage_quota_overrides where scope_id = $1`, [ids.wsA])
+  })
+
+  it('retention follows the platform default, workspace settings and platform overrides; extensions never shorten', async () => {
+    const before = await fileRow(ids.hrFile)
+    expect(before.retention_policy).toBe('platform:90d')
+    expect(await refusedAs(client, u.memberHR, `select public.storage_set_workspace_retention($1, 30)`, [ids.wsA])).toBeTruthy()
+    expect(((await asUser(client, u.owner, `select public.storage_set_workspace_retention($1, 3) as r`, [ids.wsA])).rows[0].r as Json).code).toBe('out_of_range')
+    expect(((await asUser(client, u.owner, `select public.storage_set_workspace_retention($1, 30) as r`, [ids.wsA])).rows[0].r as Json).ok).toBe(true)
+    const shorter = await fileRow(ids.hrFile)
+    expect(Date.parse(String(shorter.expires_at))).toBeLessThan(Date.parse(String(before.expires_at)))
+
+    await client.query(`update public.storage_retention_policies set retention_days = 365, set_by = 'platform_admin' where scope_type = 'workspace' and scope_id = $1`, [ids.wsA])
+    expect(((await asUser(client, u.owner, `select public.storage_set_workspace_retention($1, 30) as r`, [ids.wsA])).rows[0].r as Json).code).toBe('managed_by_platform')
+    const info = (await asUser(client, u.owner, `select public.storage_retention_info($1) as r`, [ids.wsA])).rows[0].r as Json
+    expect(info.managed_by_platform).toBe(true)
+    expect(info.can_extend).toBe(true)
+
+    expect(await refusedAs(client, u.memberHR, `select public.storage_extend_file($1, 400)`, [ids.hrFile])).toBeTruthy()
+    const extended = (await asUser(client, u.owner, `select public.storage_extend_file($1, 400) as r`, [ids.hrFile])).rows[0].r as Json
+    expect(extended.ok).toBe(true)
+    const after = await fileRow(ids.hrFile)
+    await asUser(client, u.owner, `select public.storage_extend_file($1, 1)`, [ids.hrFile])
+    expect((await fileRow(ids.hrFile)).retain_until).toEqual(after.retain_until)
+    await client.query(`delete from public.storage_retention_policies where scope_type = 'workspace' and scope_id = $1`, [ids.wsA])
+  })
+
+  it('legal holds stop expiry and block workspace deletion', async () => {
+    await client.query(`update public.storage_files set legal_hold = true where id = $1`, [ids.hrFile])
+    const held = await fileRow(ids.hrFile)
+    expect(held.expires_at).toBeNull()
+    expect(held.retention_policy).toBe('legal_hold')
+    await client.query(`update public.storage_files set legal_hold = false where id = $1`, [ids.hrFile])
+    await client.query(`insert into public.storage_retention_policies (scope_type, scope_id, category, retention_days, legal_hold, set_by) values ('workspace', $1, 'task_attachment', null, true, 'platform_admin')`, [ids.wsB])
+    expect(await refusedAs(client, u.outsider, `delete from public.workspaces where id = $1`, [ids.wsB])).toBeTruthy()
+    await client.query(`delete from public.storage_retention_policies where scope_type = 'workspace' and scope_id = $1`, [ids.wsB])
+  })
+
+  it('expired attachments: two warnings, quarantine without access, purge, retried and confirmed deletion', async () => {
+    const up = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'old.pdf')
+    const id = String(up.begun.file_id)
+    const key = String(up.begun.object_key)
+    await client.query(`update public.storage_files set activated_at = now() - interval '200 days' where id = $1`, [id])
+    expect(Date.parse(String((await fileRow(id)).expires_at))).toBeLessThan(Date.now())
+
+    await lifecycleStep('dry_run')
+    expect((await fileRow(id)).warned_7d_at).toBeNull()
+
+    await lifecycleStep('quarantine')
+    let row = await fileRow(id)
+    expect(row.status).toBe('active')
+    expect(row.warned_7d_at).not.toBeNull()
+    const notices = await one(
+      `select count(*)::int as n from public.notifications where user_id = $1 and type = 'storage.file_expiring' and metadata ->> 'file_id' = $2`,
+      [u.memberHR, id],
+    )
+    expect(notices.n).toBe(1)
+
+    await lifecycleStep('quarantine')
+    expect((await fileRow(id)).warned_1d_at).toBeNull()
+    await client.query(`update public.storage_files set warned_7d_at = now() - interval '7 days' where id = $1`, [id])
+    await lifecycleStep('quarantine')
+    row = await fileRow(id)
+    expect(row.warned_1d_at).not.toBeNull()
+    expect(row.status).toBe('active')
+
+    await client.query(`update public.storage_files set warned_1d_at = now() - interval '25 hours' where id = $1`, [id])
+    await lifecycleStep('quarantine')
+    row = await fileRow(id)
+    expect(row.status).toBe('quarantined')
+    const purgeIn = await one(`select extract(epoch from purge_after - now()) / 86400 as d from public.storage_files where id = $1`, [id])
+    expect(Number(purgeIn.d)).toBeGreaterThanOrEqual(13.9)
+    expect(await objectSeen(u.memberHR, key)).toBe(0)
+    expect(await objectSeen(u.owner, key)).toBe(0)
+
+    await lifecycleStep('quarantine')
+    expect((await fileRow(id)).status).toBe('quarantined')
+
+    await client.query(`update public.storage_files set purge_after = now() - interval '1 minute' where id = $1`, [id])
+    await lifecycleStep('enforce')
+    expect((await fileRow(id)).status).toBe('deleting')
+    expect((await one(`select count(*)::int as n from public.workspace_attachments where storage_path = $1`, [key])).n).toBe(0)
+    const queued = await queueRow(key)
+    expect(queued.status).toBe('pending')
+
+    const claimed = (await client.query(`select id from private.storage_claim_deletions(5000, 1099511627776)`)).rows.map((r) => String(r.id))
+    expect(claimed).toContain(String(queued.id))
+    expect(await record(queued.id, false, 'provider_down')).toBe('retry')
+    const retried = await queueRow(key)
+    expect(retried.attempts).toBe(1)
+    // now() is the (long-running) test transaction's start time, so compare on the database clock.
+    const delay = await one(`select extract(epoch from next_attempt_at - now()) as s from private.storage_object_deletions where id = $1`, [queued.id])
+    expect(Number(delay.s)).toBeGreaterThanOrEqual(5 * 60)
+
+    // The provider reporting success is not enough while the object still exists.
+    expect(await record(queued.id, true)).toBe('retry')
+    await client.query(`delete from storage.objects where bucket_id = 'attachments' and name = $1`, [key])
+    expect(await record(queued.id, true)).toBe('deleted')
+    expect((await fileRow(id)).status).toBe('deleted')
+    expect((await queueRow(key)).status).toBe('done')
+    const audit = await one(`select count(*)::int as n from private.storage_lifecycle_events where file_id = $1 and action in ('expiry_warning_7d', 'expiry_warning_1d', 'quarantined', 'purge_requested', 'deleted')`, [id])
+    expect(audit.n).toBeGreaterThanOrEqual(5)
+    expect(await refusedAs(client, u.owner, `select count(*) from private.storage_lifecycle_events`)).toBeTruthy()
+    expect(await refusedAs(client, u.owner, `update private.storage_lifecycle_events set action = 'x'`)).toBeTruthy()
+  })
+
+  it('deletions that keep failing end in a terminal failed state', async () => {
+    const up = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'stuck.pdf')
+    const key = String(up.begun.object_key)
+    await client.query(`delete from public.workspace_attachments where storage_path = $1`, [key])
+    const queued = await queueRow(key)
+    const max = Number((await one(`select max_delete_attempts as m from private.storage_lifecycle_settings`)).m)
+    await client.query(`update private.storage_object_deletions set attempts = $2 where id = $1`, [queued.id, max - 1])
+    expect(await record(queued.id, false, 'still_failing')).toBe('failed')
+    expect((await queueRow(key)).status).toBe('failed')
+    expect((await fileRow(String(up.begun.file_id))).status).toBe('failed')
+  })
+
+  it('orphans and missing objects are inventoried, never treated as deleted, and late registrations are adopted', async () => {
+    const project = String((await one(`insert into public.projects (user_id, name) values ($1, 'Storage tests') returning id`, [u.headHR])).id)
+    const meeting = String((await one(`insert into public.meetings (user_id, project_id, title) values ($1, $2, 'late') returning id`, [u.headHR, project])).id)
+    const orphanKey = `${u.headHR}/meetings/${meeting}/0.wav`
+    await client.query(
+      `insert into storage.objects (bucket_id, name, owner_id, metadata, created_at) values ('meeting-audio', $1, $2, '{"size": 100, "mimetype": "audio/wav"}'::jsonb, now() - interval '2 days')`,
+      [orphanKey, u.headHR],
+    )
+    const missingKey = `workspace/${ids.wsA}/tasks/${ids.tHr}/missing.pdf`
+    const missing = await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'missing.pdf')
+    await client.query(`delete from storage.objects where bucket_id = 'attachments' and name = $1`, [missing.begun.object_key])
+    await client.query(`update public.storage_files set activated_at = now() - interval '2 hours' where id = $1`, [missing.begun.file_id])
+
+    const { stats } = await lifecycleStep('dry_run')
+    expect(Number(stats.orphans_detected)).toBeGreaterThanOrEqual(1)
+    const orphan = await one(`select * from public.storage_files where object_key = $1 and status <> 'deleted'`, [orphanKey])
+    expect(orphan.status).toBe('orphaned')
+    expect((await fileRow(String(missing.begun.file_id))).status).toBe('missing')
+    expect(missingKey).toBeTruthy()
+
+    await client.query(`insert into public.meeting_audio_segments (user_id, meeting_id, idx, storage_path) values ($1, $2, 0, $3)`, [u.headHR, meeting, orphanKey])
+    const adopted = await one(`select * from public.storage_files where object_key = $1 and status <> 'deleted'`, [orphanKey])
+    expect(adopted.id).toBe(orphan.id)
+    expect(adopted.status).toBe('active')
+    expect(adopted.purge_after).toBeNull()
+  })
+
+  it('meeting audio is removed only after a verified transcription, and transcripts stay', async () => {
+    const project = String((await one(`insert into public.projects (user_id, name) values ($1, 'Audio tests') returning id`, [u.headHR])).id)
+    const makeMeeting = async (label: string, opts: { status: string; stt: string | null; segment: string }) => {
+      const meeting = String((await one(`insert into public.meetings (user_id, project_id, title) values ($1, $2, $3) returning id`, [u.headHR, project, label])).id)
+      const key = `${u.headHR}/meetings/${meeting}/0.wav`
+      await client.query(`insert into storage.objects (bucket_id, name, owner_id, metadata) values ('meeting-audio', $1, $2, '{"size": 2048, "mimetype": "audio/wav"}'::jsonb)`, [key, u.headHR])
+      await client.query(`insert into public.meeting_audio_segments (user_id, meeting_id, idx, storage_path, status) values ($1, $2, 0, $3, $4)`, [u.headHR, meeting, key, opts.segment])
+      await client.query(`insert into public.meeting_transcript_segments (user_id, meeting_id, ordinal, start_ms, end_ms, text) values ($1, $2, 0, 0, 1000, 'hello team')`, [u.headHR, meeting])
+      await client.query(`update public.meetings set status = $2, stt_state = $3, analyzed_at = now() where id = $1`, [meeting, opts.status, opts.stt])
+      return { meeting, key }
+    }
+    const done = await makeMeeting('done', { status: 'ready', stt: 'completed', segment: 'transcribed' })
+    const failed = await makeMeeting('failed', { status: 'failed', stt: 'failed', segment: 'failed' })
+    const running = await makeMeeting('running', { status: 'ready', stt: 'soniox_processing', segment: 'transcribed' })
+    const partial = await makeMeeting('partial', { status: 'ready', stt: 'completed', segment: 'transcribing' })
+
+    const transcribed = async (meeting: string) =>
+      Boolean((await one(`select private.storage_meeting_transcribed('personal', $1) as ok`, [meeting])).ok)
+    expect(await transcribed(done.meeting)).toBe(true)
+    expect(await transcribed(failed.meeting)).toBe(false)
+    expect(await transcribed(running.meeting)).toBe(false)
+    expect(await transcribed(partial.meeting)).toBe(false)
+
+    await lifecycleStep('enforce')
+    const status = async (key: string) => String((await one(`select status from public.storage_files where object_key = $1 and status <> 'deleted'`, [key]))?.status ?? 'deleted')
+    expect(await status(done.key)).toBe('deleting')
+    expect(await status(failed.key)).toBe('active')
+    expect(await status(running.key)).toBe('active')
+    expect(await status(partial.key)).toBe('active')
+    const queued = await queueRow(done.key)
+    expect(queued.reason).toBe('transcribed')
+
+    await client.query(`delete from storage.objects where bucket_id = 'meeting-audio' and name = $1`, [done.key])
+    expect(await record(queued.id, true)).toBe('deleted')
+    const segment = await one(`select audio_deleted_at from public.meeting_audio_segments where meeting_id = $1`, [done.meeting])
+    expect(segment.audio_deleted_at).not.toBeNull()
+    expect((await one(`select count(*)::int as n from public.meeting_transcript_segments where meeting_id = $1`, [done.meeting])).n).toBe(1)
+    expect((await one(`select status from public.meetings where id = $1`, [done.meeting])).status).toBe('ready')
+  })
+
+  it('only the storage worker account may read and delete any object; nobody else gains access', async () => {
+    const worker = uid()
+    await createAuthUser(client, worker, testEmail('worker'))
+    const key = String((await uploadAs(u.memberHR, 'workspace_task', ids.tHr, 'w.pdf')).begun.object_key)
+    expect(Number((await asUser(client, worker, `select count(*)::int as n from storage.objects where name = $1`, [key])).rows[0].n)).toBe(0)
+    await client.query(`insert into private.server_secrets (key, value) values ('STORAGE_WORKER_USER_ID', $1) on conflict (key) do update set value = excluded.value`, [worker])
+    expect(Number((await asUser(client, worker, `select count(*)::int as n from storage.objects where name = $1`, [key])).rows[0].n)).toBe(1)
+    expect(await refusedAs(client, worker, `insert into storage.objects (bucket_id, name, owner_id) values ('attachments', $1, $2)`, [`${worker}/x`, worker])).toBeTruthy()
+    expect(await idsAs(client, worker, `select id from public.storage_files where object_key = $1`, [key])).toEqual([])
+    const removed = await asUser(client, worker, `delete from storage.objects where bucket_id = 'attachments' and name = $1`, [key])
+    expect(removed.rowCount).toBe(1)
   })
 })

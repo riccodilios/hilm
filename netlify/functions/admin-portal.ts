@@ -12,8 +12,13 @@ import { adminJson } from './_shared/admin/guard.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { createEmailService } from './_shared/email/service.ts'
 import { requestUser } from './_shared/request-user.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
+import { loadOpenRouterKey } from './_shared/ai-guard.ts'
+import { runMetricsCollection } from './_shared/ops/collector.ts'
+import { storageProviders } from './_shared/storage/index.ts'
+import { runStorageLifecycle } from './_shared/storage/lifecycle.ts'
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const adminHost = process.env.ADMIN_HOST?.trim().toLowerCase() || null
   if (!adminHost || new URL(request.url).host.toLowerCase() !== adminHost) return adminJson(404, { error: 'not_found' })
 
@@ -37,6 +42,19 @@ export default async (request: Request) => {
           })
         },
       },
+      infra: {
+        collect: async () => {
+          const result = await runMetricsCollection(client!, { env: process.env, openRouterKey: loadOpenRouterKey })
+          await client!.query(
+            `update private.ops_collector_state set last_attempt_at = now(),
+               last_success_at = case when $1::text is null then now() else last_success_at end, last_error = $1
+             where collector = 'metrics'`,
+            [result.errors.length ? result.errors.join('; ').slice(0, 500) : null],
+          )
+          return result
+        },
+        runLifecycle: () => runStorageLifecycle(client!, storageProviders(), { trigger: 'admin', budgetMs: 6_000 }),
+      },
     })
   } catch {
     console.error(JSON.stringify({ scope: 'admin', event: 'admin.request', outcome: 'failed' }))
@@ -50,3 +68,5 @@ export const config: Config = {
   path: '/api/admin/*',
   rateLimit: { windowLimit: 120, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('admin-portal', handler)

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { Bold, Heading1, Heading2, ImagePlus, Link2, X } from 'lucide-react'
 import { AdminApiError, adminApi, uploadEmailImage, usd, when } from '@/admin/client'
 
-const errorText = (e: unknown) => {
+export const errorText = (e: unknown) => {
   if (!(e instanceof AdminApiError)) return 'Request failed'
   if (e.code === 'cooldown') return 'A product email was just sent. Wait a minute before sending another.'
   return e.code.replaceAll('_', ' ')
@@ -31,7 +31,7 @@ export function Panel({ title, action, children, className }: { title?: string; 
   )
 }
 
-function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
     <div className="rounded-2xl border border-border-subtle bg-surface/60 p-4">
       <p className="text-xs text-muted">{label}</p>
@@ -41,7 +41,7 @@ function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: 
   )
 }
 
-function Bars({ data, value, label }: { data: Array<Record<string, unknown>>; value: string; label: (row: Record<string, unknown>) => string }) {
+export function Bars({ data, value, label }: { data: Array<Record<string, unknown>>; value: string; label: (row: Record<string, unknown>) => string }) {
   const max = Math.max(1e-9, ...data.map((d) => Number(d[value] ?? 0)))
   return (
     <div className="flex h-36 items-end gap-[3px]">
@@ -57,13 +57,13 @@ function Bars({ data, value, label }: { data: Array<Record<string, unknown>>; va
   )
 }
 
-function Loading({ q }: { q: { isLoading: boolean; error: unknown } }) {
+export function Loading({ q }: { q: { isLoading: boolean; error: unknown } }) {
   if (q.isLoading) return <p className="text-sm text-muted">Loading…</p>
   if (q.error) return <p className="text-sm text-red-400">{errorText(q.error)}</p>
   return null
 }
 
-function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
+export function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">

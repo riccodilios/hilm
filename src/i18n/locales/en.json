@@ -604,7 +604,7 @@
   "privacy": {
     "title": "Privacy",
     "description": "Hilm is designed so your operating system stays yours.",
-    "p1": "Account data, projects, meetings and AI conversation history are stored in Hilm’s database with row-level security, so each account and workspace can read only its own records. Meeting audio is kept in private storage. AI and transcription requests use Hilm’s server-side keys, which are never sent to your browser.",
+    "p1": "Account data, projects, meetings and AI conversation history are stored in Hilm’s database with row-level security, so each account and workspace can read only its own records. Meeting audio is kept in private storage only until its transcript is complete, then deleted; transcripts are kept. Task attachments are kept for 90 days by default (adjustable in Settings), with notices before deletion. AI and transcription requests use Hilm’s server-side keys, which are never sent to your browser.",
     "p2": "Offline caches live on your device via IndexedDB and the service worker. You can request export of your data from Settings as that surface ships.",
     "p3": "Contact {{email}} for privacy questions."
   },
@@ -1206,7 +1206,36 @@
     "upload": "Upload",
     "empty": "No files yet",
     "download": "Download",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retention": {
+      "notice": "Files are kept for {{days}} days after upload. Owners are notified 7 days and 1 day before, then files are held for {{quarantine}} days before permanent deletion.",
+      "keep": "Files here are kept until you remove them."
+    },
+    "lifecycle": {
+      "keptUntil": "Kept until {{date}}",
+      "expiresIn_one": "Expires in {{count}} day",
+      "expiresIn_other": "Expires in {{count}} days",
+      "quarantined": "Expired · deleted permanently on {{date}} unless kept",
+      "quarantinedNoDate": "Expired · awaiting permanent deletion",
+      "keptIndefinitely": "Kept until removed",
+      "held": "On legal hold · will not be deleted",
+      "keepLonger": "Keep longer",
+      "extended": "This file will be kept longer."
+    },
+    "errors": {
+      "generic": "The file could not be uploaded. Please try again.",
+      "too_large": "This file is too large. The limit is {{size}}.",
+      "empty_file": "This file is empty.",
+      "blocked_type": "This file type is not allowed for security reasons.",
+      "quota_exceeded": "Storage is full for this space. Remove older files or ask an admin for more space.",
+      "too_many_pending": "Too many uploads in progress. Wait a moment and try again.",
+      "not_found": "You cannot add files to this task.",
+      "object_missing": "The upload did not finish. Please try again.",
+      "size_mismatch": "The uploaded file did not match. Please try again.",
+      "rejected": "The file was rejected. Please try again.",
+      "out_of_range": "That period is not allowed.",
+      "forbidden": "You do not have permission to do that."
+    }
   },
   "reports": {
     "title": "Reports",
@@ -1732,7 +1761,8 @@
       "pending": "The transcript will appear as audio is processed.",
       "playFrom": "Play from {{time}}",
       "jumpTo": "Jump to {{time}}",
-      "unknownSpeaker": "Speaker"
+      "unknownSpeaker": "Speaker",
+      "audioRemoved": "The recording was deleted after transcription. The transcript is kept."
     },
     "speakers": {
       "button": "Speakers",
@@ -1810,5 +1840,18 @@
       "save": "Save details",
       "skip": "Skip for now"
     }
+  },
+  "retention": {
+    "title": "File retention",
+    "personalDesc": "How long your personal task attachments are kept.",
+    "current": "Attachments are kept for {{days}} days after upload. You are notified 7 days and 1 day before expiry, then files are held for {{quarantine}} days (not accessible) before permanent deletion.",
+    "currentKeep": "Attachments are kept until they are removed.",
+    "audio": "Meeting recordings are deleted automatically once the transcript is complete. Transcripts, summaries and action items are kept.",
+    "legalHold": "A legal hold is active: nothing here will be deleted.",
+    "managedByPlatform": "Retention for this workspace is managed by Hilm support.",
+    "daysLabel": "Keep attachments for (days)",
+    "range": "Between {{min}} and {{max}} days. Individual files can be kept longer from the task.",
+    "outOfRange": "Choose between {{min}} and {{max}} days.",
+    "saved": "Retention updated"
   }
 }

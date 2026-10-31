@@ -13,6 +13,7 @@ import {
   tokensFromOpenRouterUsage,
 } from './_shared/ai-guard'
 import { resolveAllowedAiModel } from './_shared/ai-limits'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 function extractJsonObject(text: string): Record<string, unknown> | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
@@ -60,7 +61,7 @@ function bucketEntity(entityType: string | null | undefined): EntityBucket {
   return 'other'
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const json = (data: unknown, status = 200) => aiJson(data, status, request)
 
   if (request.method === 'OPTIONS') {
@@ -475,3 +476,5 @@ Return ONLY valid JSON with this shape:
     return json({ error: error instanceof Error ? error.message : 'Daily log generation failed' }, 400)
   }
 }
+
+export default instrumented('ai-daily-log', handler)

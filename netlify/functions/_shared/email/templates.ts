@@ -290,6 +290,32 @@ export function accountDeletedEmail(d: AccountDeletedData): RenderedEmail {
   )
 }
 
+// ── Infrastructure alerts (platform admins only) ────────────────────────────
+
+export type OpsAlertData = {
+  adminBaseUrl: string
+  alerts: Array<{ level: 'warning' | 'critical' | 'resolved'; message: string }>
+}
+
+export function opsAlertEmail(d: OpsAlertData): RenderedEmail {
+  const worst = d.alerts.some((a) => a.level === 'critical') ? 'critical' : d.alerts.some((a) => a.level === 'warning') ? 'warning' : 'resolved'
+  const label = { critical: 'Critical', warning: 'Warning', resolved: 'Resolved' } as const
+  const subject =
+    d.alerts.length === 1
+      ? `[Hilm ${label[worst]}] ${d.alerts[0].message}`
+      : `[Hilm ${label[worst]}] ${d.alerts.length} infrastructure alerts`
+  return build('ops-alert', 'security', subject, {
+    locale: 'en',
+    preheader: d.alerts.map((a) => a.message).join(' · '),
+    eyebrow: 'Infrastructure',
+    heading: worst === 'resolved' ? 'Alerts resolved' : 'Infrastructure needs attention',
+    paragraphs: ['Hilm monitoring detected the following. Nothing has been changed or purchased automatically.'],
+    items: d.alerts.map((a) => ({ title: singleLine(a.message, 200), meta: label[a.level] })),
+    action: { label: 'Open the admin console', url: `${d.adminBaseUrl.replace(/\/$/, '')}/infrastructure` },
+    footer: { reason: 'Sent to Hilm platform administrators when a monitoring threshold is crossed or recovers.' },
+  })
+}
+
 // ── Configuration test (manual procedure only) ──────────────────────────────
 
 export function deliveryTestEmail(d: { locale: EmailLocale; appBaseUrl: string; category: EmailCategory }): RenderedEmail {

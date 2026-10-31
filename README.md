@@ -28,7 +28,7 @@ APP_URL=https://app.hilm.tech
 2. After deploy, enable **Settings → Push notifications** (Add to Home Screen recommended).
 
 3. Reminder worker runs every minute via:
-   - Netlify scheduled function `send-task-reminders`
+   - Netlify scheduled function `scheduler` (reminders, email outbox, storage lifecycle, monitoring; see docs/storage-lifecycle.md)
    - Supabase `pg_cron` → HTTP POST to that function (backup)
 
 Email (Resend) is optional: push and in-app reminders work without it. With `RESEND_API_KEY` set, reminder, workspace assignment/mention and account-deleted emails are sent from `@hilm.tech` via Resend — see [docs/email.md](docs/email.md).

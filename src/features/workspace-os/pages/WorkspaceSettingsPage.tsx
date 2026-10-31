@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page'
+import { RetentionSettings } from '@/components/storage/RetentionSettings'
 
 export function WorkspaceSettingsPage() {
   const { t } = useTranslation()
@@ -126,6 +127,11 @@ export function WorkspaceSettingsPage() {
         ) : (
           <p className="text-sm text-muted">{t('workspace.readOnlySettings')}</p>
         )}
+      </div>
+
+      <div className="mt-8 max-w-lg space-y-3 rounded-2xl border border-border-subtle bg-surface/40 p-4">
+        <h2 className="text-sm font-medium">{t('retention.title')}</h2>
+        <RetentionSettings workspaceId={workspaceId} />
       </div>
 
       {canDelete ? (

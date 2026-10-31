@@ -11,6 +11,7 @@ import {
 } from './_shared/meeting-engine'
 import { geminiRouteFor, resolveSonioxKey, sonioxOwnsMeeting } from './_shared/meeting-stt'
 import { translateMeeting } from './_shared/meeting-translator'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 const osSchema = z.enum(['personal', 'workspace'])
 const localeFields = {
@@ -68,7 +69,7 @@ async function meetingMaxRetries(client: SupabaseClient) {
   return Number.isFinite(value) ? value : 3
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const json = (data: unknown, status = 200) => aiJson(data, status, request)
   if (request.method === 'OPTIONS') return new Response('ok', { headers: aiCorsHeaders(request) })
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -139,3 +140,5 @@ export default async (request: Request) => {
     return json({ error: 'Meeting processing failed' }, 500)
   }
 }
+
+export default instrumented('meeting-process', handler)

@@ -30,7 +30,6 @@
     "src/features/reports/PersonalReportsPage.tsx",
     "src/features/ai/registry/personal.ts",
     "src/features/ai/PersonalAiPage.tsx",
-    "netlify/functions/send-task-reminders",
     "netlify/functions/ai-daily-log"
   ],
   "documentedBridges": [

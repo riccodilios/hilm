@@ -25,6 +25,31 @@ import {
   updateAiControls,
 } from './data.ts'
 import { adminJson, audit, authorizeAdmin, type AdminContext, type GuardDeps } from './guard.ts'
+import {
+  extendFile,
+  extendSchema,
+  forecastView,
+  holdSchema,
+  infraOverview,
+  limitSchema,
+  MANUAL_METRICS,
+  manualMetricSchema,
+  metricHistory,
+  operationsView,
+  quotaSchema,
+  recordManualMetric,
+  retentionSchema,
+  ruleSchema,
+  searchFiles,
+  setFileHold,
+  setQuota,
+  setRetentionPolicy,
+  settingsSchema,
+  storageView,
+  updateAlertRule,
+  updateLifecycleSettings,
+  updateLimit,
+} from './infra.ts'
 
 type Db = Pick<pg.Client, 'query'>
 
@@ -35,6 +60,11 @@ export type AdminDeps = GuardDeps & {
   assets?: { put(key: string, bytes: Uint8Array, contentType: string): Promise<void> }
   /** Delete an account (injected so tests do not need a real transaction). */
   deleteAccount?: (db: Db, userId: string) => ReturnType<typeof deleteUserAccount>
+  /** Infrastructure jobs the console can start on demand (same code as the scheduler). */
+  infra?: {
+    collect(): Promise<unknown>
+    runLifecycle(): Promise<unknown>
+  }
 }
 
 const APPROVAL_MINUTES = 15
@@ -62,7 +92,10 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   const path = url.pathname.replace(/^\/api\/admin\/?/, '').replace(/\/+$/, '')
   const method = request.method
   const sensitive =
-    (method === 'POST' && /^(users\/[^/]+\/(lock|unlock|terminate|tier)|ai\/controls|security\/networks\/remove)$/.test(path)) ||
+    (method === 'POST' &&
+      /^(users\/[^/]+\/(lock|unlock|terminate|tier)|ai\/controls|security\/networks\/remove|infra\/(lifecycle\/settings|retention|files\/hold|files\/extend|quota))$/.test(
+        path,
+      )) ||
     false
   const unknownNetworkOk = path === 'session' || path === 'network/request' || path === 'network/confirm'
 
@@ -202,6 +235,9 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
     return adminJson(409, result.code === 'owned_shared_workspaces' ? { error: result.code, workspaces: result.workspaces } : { error: result.code })
   }
 
+  // ── Infrastructure, storage and retention ───────────────────────────────
+  if (path.startsWith('infra/')) return handleInfra(path.slice(6), method, request, url, deps, ctx, log)
+
   // ── Product emails ──────────────────────────────────────────────────────
   if (path === 'assets' && method === 'POST') {
     if (!deps.assets) return adminJson(503, { error: 'storage_not_configured' })
@@ -253,5 +289,105 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
     }
   }
 
+  return adminJson(404, { error: 'not_found' })
+}
+
+async function handleInfra(
+  path: string,
+  method: string,
+  request: Request,
+  url: URL,
+  deps: AdminDeps,
+  ctx: AdminContext,
+  log: (action: string, target?: string | null, details?: Record<string, unknown>) => Promise<void>,
+): Promise<Response> {
+  if (method === 'GET') {
+    if (path === 'overview') return adminJson(200, await infraOverview(deps.db))
+    if (path === 'storage') return adminJson(200, await storageView(deps.db))
+    if (path === 'operations') return adminJson(200, await operationsView(deps.db))
+    if (path === 'forecast') return adminJson(200, await forecastView(deps.db))
+    if (path === 'manual-metrics') return adminJson(200, { metrics: MANUAL_METRICS })
+    if (path === 'history') {
+      const metric = url.searchParams.get('metric') ?? ''
+      if (!/^[a-z0-9_.]{3,80}$/.test(metric)) return adminJson(400, { error: 'invalid_metric' })
+      return adminJson(200, { metric, points: await metricHistory(deps.db, metric, Number(url.searchParams.get('days') ?? 30)) })
+    }
+    if (path === 'files') return adminJson(200, { files: await searchFiles(deps.db, url.searchParams.get('q') ?? '') })
+    return adminJson(404, { error: 'not_found' })
+  }
+  if (method !== 'POST') return adminJson(405, { error: 'method_not_allowed' })
+
+  const input = await body(request)
+  if (input === null) return adminJson(400, { error: 'invalid_request' })
+
+  if (path === 'collect') {
+    if (!deps.infra) return adminJson(503, { error: 'not_configured' })
+    const result = await deps.infra.collect()
+    await log('infra_collect_now')
+    return adminJson(200, { ok: true, result })
+  }
+  if (path === 'lifecycle/run') {
+    if (!deps.infra) return adminJson(503, { error: 'not_configured' })
+    const result = await deps.infra.runLifecycle()
+    await log('storage_lifecycle_run_now', null, { result: result as Record<string, unknown> })
+    return adminJson(200, { ok: true, result })
+  }
+  if (path === 'lifecycle/settings') {
+    const parsed = settingsSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    await updateLifecycleSettings(deps.db, ctx.userId, parsed.data)
+    await log('storage_settings_updated', 'lifecycle', parsed.data)
+    return adminJson(200, { ok: true })
+  }
+  if (path === 'retention') {
+    const parsed = retentionSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const result = await setRetentionPolicy(deps.db, ctx.userId, parsed.data)
+    if (result !== 'ok') return adminJson(400, { error: result })
+    await log('storage_retention_set', parsed.data.scope_id ?? 'platform', parsed.data)
+    return adminJson(200, { ok: true })
+  }
+  if (path === 'files/hold') {
+    const parsed = holdSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const ok = await setFileHold(deps.db, ctx.userId, parsed.data)
+    await log(parsed.data.legal_hold ? 'storage_legal_hold_set' : 'storage_legal_hold_released', parsed.data.file_id, { reason: parsed.data.reason })
+    return adminJson(ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' })
+  }
+  if (path === 'files/extend') {
+    const parsed = extendSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const result = await extendFile(deps.db, ctx.userId, parsed.data)
+    await log('storage_retention_extended', parsed.data.file_id, { days: parsed.data.days, reason: parsed.data.reason })
+    return adminJson(result ? 200 : 404, result ? { ok: true, ...result } : { error: 'not_found' })
+  }
+  if (path === 'quota') {
+    const parsed = quotaSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    await setQuota(deps.db, ctx.userId, parsed.data)
+    await log('storage_quota_set', parsed.data.scope_id, parsed.data)
+    return adminJson(200, { ok: true })
+  }
+  if (path === 'limits') {
+    const parsed = limitSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const ok = await updateLimit(deps.db, parsed.data)
+    await log('infra_limit_updated', parsed.data.key, parsed.data)
+    return adminJson(ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' })
+  }
+  if (path === 'manual-metric') {
+    const parsed = manualMetricSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const ok = await recordManualMetric(deps.db, ctx.userId, parsed.data)
+    await log('infra_manual_metric', parsed.data.metric, { value: parsed.data.value })
+    return adminJson(ok ? 200 : 400, ok ? { ok: true } : { error: 'unknown_metric' })
+  }
+  if (path === 'alert-rules') {
+    const parsed = ruleSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const ok = await updateAlertRule(deps.db, parsed.data)
+    await log('infra_alert_rule_updated', parsed.data.key, parsed.data)
+    return adminJson(ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' })
+  }
   return adminJson(404, { error: 'not_found' })
 }

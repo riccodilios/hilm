@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { AdminAuth, ReauthDialog } from '@/admin/AdminAuth'
 import { setReauthHandler } from '@/admin/client'
 import { AccountsPage, AiPage, AuditPage, EmailsPage, OverviewPage, SecurityPage } from '@/admin/pages'
+import { InfrastructurePage } from '@/admin/infra'
 import '@/styles/globals.css'
 
 const IDLE_LIMIT_MS = 15 * 60 * 1000
@@ -15,6 +16,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false,
 
 const NAV = [
   ['/', 'Overview'],
+  ['/infrastructure', 'Infrastructure'],
   ['/ai', 'AI costs'],
   ['/accounts', 'Accounts'],
   ['/emails', 'Product emails'],
@@ -79,6 +81,7 @@ function Shell({ email, network, signOut }: { email: string | null; network: str
       <main className="mx-auto max-w-7xl px-5 py-6">
         <Routes>
           <Route path="/" element={<OverviewPage />} />
+          <Route path="/infrastructure" element={<InfrastructurePage />} />
           <Route path="/ai" element={<AiPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/emails" element={<EmailsPage />} />

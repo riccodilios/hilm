@@ -6,6 +6,7 @@
 import type { Config } from '@netlify/functions'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/
 const bodySchema = z.object({ token: z.string().max(200) })
@@ -46,7 +47,7 @@ export function appHrefFor(link: z.infer<typeof linkSchema>) {
     : `/personal/projects/${link.project_id}/meetings/${link.meeting_id}`
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' })
   const body = bodySchema.safeParse(await request.json().catch(() => null))
   // Malformed, unknown, revoked and deleted links all look the same to the caller.
@@ -89,3 +90,5 @@ export const config: Config = {
   // 256-bit tokens cannot be guessed; this only caps scraping and abuse per client.
   rateLimit: { windowLimit: 60, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('meeting-share', handler)

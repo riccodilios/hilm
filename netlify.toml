@@ -14,6 +14,10 @@
   # Large workspace batch plans need headroom beyond the default; reliability still comes from create_many + parse recovery.
   timeout = 26
 
+[functions."admin-portal"]
+  # "Collect metrics now" and "Run lifecycle now" call provider APIs and the storage worker.
+  timeout = 26
+
 [functions."meeting-process"]
   # One audio part (~90s) is transcribed per invocation. Needs headroom for OpenRouter STT latency.
   # Keep under Netlify's 60s synchronous limit; gateway STT timeout is slightly lower.
@@ -264,7 +268,7 @@
   status = 301
   force = true
 
-# Reminder job is intentionally not publicly aliased — invoke /.netlify/functions/send-task-reminders with CRON_SECRET
+# Scheduled jobs (reminders, email, storage lifecycle, monitoring) run in the scheduler function; it has no public path.
 [[redirects]]
   from = "/*"
   to = "/index.html"

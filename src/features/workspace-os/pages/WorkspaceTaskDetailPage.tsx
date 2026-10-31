@@ -18,6 +18,7 @@ import {
   removeWorkspaceTaskAttachment,
   uploadWorkspaceTaskAttachment,
 } from '@/features/workspace-os/attachments-api'
+import { getRetentionInfo, keepFileLonger } from '@/lib/storage/uploads'
 import {
   TaskAssignmentFields,
   type TaskAssignmentValue,
@@ -76,6 +77,11 @@ export function WorkspaceTaskDetailPage() {
     queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
     queryFn: () => listWorkspaceTaskAttachments(workspaceId, resolvedTaskId),
     enabled: Boolean(task.data?.id),
+  })
+  const retention = useQuery({
+    queryKey: ['storage-retention', 'workspace', workspaceId],
+    queryFn: () => getRetentionInfo(workspaceId),
+    staleTime: 10 * 60_000,
   })
   const assignmentHistory = useQuery({
     queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'assignment-events'],
@@ -348,6 +354,19 @@ export function WorkspaceTaskDetailPage() {
           downloadWorkspaceTaskAttachment(
             item as Awaited<ReturnType<typeof listWorkspaceTaskAttachments>>[number],
           )
+        }
+        retention={
+          retention.data ? { days: retention.data.retention_days, quarantineDays: retention.data.quarantine_days } : null
+        }
+        onKeepLonger={
+          retention.data?.can_extend
+            ? async (item) => {
+                await keepFileLonger(item.file_id!, retention.data?.retention_days ?? 90)
+                await qc.invalidateQueries({
+                  queryKey: [...workspaceKeys.task(workspaceId, resolvedTaskId), 'attachments'],
+                })
+              }
+            : undefined
         }
       />
       <WorkspaceTaskComments

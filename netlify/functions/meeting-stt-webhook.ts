@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { SONIOX_WEBHOOK_HEADER } from './_shared/meeting-soniox'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 const querySchema = z.object({
   os: z.enum(['personal', 'workspace']),
@@ -30,7 +31,7 @@ function supabaseEnv() {
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' })
 
   const token = request.headers.get(SONIOX_WEBHOOK_HEADER)?.trim() ?? ''
@@ -66,3 +67,5 @@ export default async (request: Request) => {
     return reply(500, { error: 'Webhook processing failed' })
   }
 }
+
+export default instrumented('meeting-stt-webhook', handler)

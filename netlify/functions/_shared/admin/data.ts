@@ -4,6 +4,8 @@ import type pg from 'pg'
 type Db = Pick<pg.Client, 'query'>
 
 const COST = 'coalesce(e.provider_cost_usd, e.estimated_cost_usd)'
+/** Excludes internal service accounts (the storage worker) from people counts and lists. */
+const NOT_SERVICE = `coalesce(raw_app_meta_data ->> 'hilm_service', '') = ''`
 const num = (v: unknown) => Number(v ?? 0)
 
 export async function overview(db: Db) {
@@ -14,7 +16,7 @@ export async function overview(db: Db) {
            count(*) filter (where created_at > now() - interval '30 days')::int as new_30d,
            count(*) filter (where last_sign_in_at > now() - interval '7 days')::int as signed_in_7d,
            count(*) filter (where banned_until is not null and banned_until > now())::int as locked
-    from auth.users where deleted_at is null`)
+    from auth.users where deleted_at is null and ${NOT_SERVICE}`)
   const content = await db.query(`
     select (select count(*)::int from public.workspaces) as workspaces,
            (select count(*)::int from public.projects) as personal_projects,
@@ -36,7 +38,7 @@ export async function overview(db: Db) {
   const daily = await db.query(`
     with days as (select generate_series(current_date - 29, current_date, interval '1 day')::date as day),
     signups as (select created_at::date as day, count(*)::int as n from auth.users
-                where created_at > current_date - 30 group by 1),
+                where created_at > current_date - 30 and ${NOT_SERVICE} group by 1),
     active as (
       select day, count(distinct uid)::int as n from (
         select created_at::date as day, user_id as uid from public.activity_events where created_at > current_date - 30
@@ -50,7 +52,7 @@ export async function overview(db: Db) {
     order by d.day`)
   const recent = await db.query(`
     select u.id, u.email, u.created_at, u.last_sign_in_at, (u.email_confirmed_at is not null) as confirmed
-    from auth.users u where u.deleted_at is null order by u.created_at desc limit 8`)
+    from auth.users u where u.deleted_at is null and ${NOT_SERVICE} order by u.created_at desc limit 8`)
   return {
     users: users.rows[0],
     content: content.rows[0],
@@ -140,7 +142,7 @@ export async function listUsers(db: Db, q: string, page: number) {
             exists (select 1 from private.admin_users a where a.user_id = u.id) as is_admin
      from auth.users u
      left join public.profiles p on p.id = u.id
-     where u.deleted_at is null
+     where u.deleted_at is null and coalesce(u.raw_app_meta_data ->> 'hilm_service', '') = ''
        and ($1 = '' or lower(u.email) like '%' || $1 || '%' or lower(coalesce(p.display_name, '')) like '%' || $1 || '%')
      order by u.created_at desc
      limit 51 offset $2`,

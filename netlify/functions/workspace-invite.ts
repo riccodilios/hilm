@@ -6,8 +6,9 @@ import { InviteError, sendWorkspaceInvites } from './_shared/email/invites.ts'
 import { logEmail } from './_shared/email/log.ts'
 import { createEmailService } from './_shared/email/service.ts'
 import { jsonResponse, requestUser } from './_shared/request-user.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   if (request.method !== 'POST') return jsonResponse(405, { error: 'method_not_allowed' })
   const user = await requestUser(request)
   if (!user) return jsonResponse(401, { error: 'unauthorized' })
@@ -35,3 +36,5 @@ export const config: Config = {
   path: '/api/workspace-invite',
   rateLimit: { windowLimit: 10, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('workspace-invite', handler)

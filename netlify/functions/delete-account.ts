@@ -9,6 +9,7 @@ import {
   type RemovedObject,
 } from './_shared/account-storage.ts'
 import { acquireDb, databaseUrl } from './_shared/db.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
@@ -33,7 +34,7 @@ function json(data: unknown, status = 200, request?: Request) {
   return new Response(JSON.stringify(data), { status, headers })
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const respond = (data: unknown, status = 200) => json(data, status, request)
 
   if (request.method === 'OPTIONS') {
@@ -122,3 +123,5 @@ export const config: Config = {
   path: '/api/delete-account',
   rateLimit: { windowLimit: 5, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('delete-account', handler)

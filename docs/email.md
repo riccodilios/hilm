@@ -33,7 +33,7 @@ signed in, the code is remembered through sign-up/onboarding so they land on the
 ```
 reminder job (personal + workspace) ──┐
 DB triggers: assigned / mention / ────┤
-  task update / comment               ├─► private.email_outbox ─► email-dispatch (every minute)
+  task update / comment               ├─► private.email_outbox ─► scheduler (every minute)
 admin console broadcast ──────────────┘        (one row per event)      │ re-checks live data + prefs
                                                                          │ renders template (EN/AR)
 delete-account ─────────────────────────────────────────────────────────►│ Resend SDK + idempotency key
@@ -75,7 +75,7 @@ are server-only: never prefix them with `VITE_` or `NEXT_PUBLIC_`.
 | `EMAIL_TEST_RECIPIENT` | Do not set | — | Your own address, for the manual test |
 | `CRON_SECRET`, `DATABASE_URL` | Already set | — | — |
 
-`email-dispatch` is a scheduled function, so Netlify runs it only on the published production deploy.
+The outbox is drained by the `scheduler` function (every minute); Netlify runs scheduled functions only on the published production deploy.
 
 ## Deployment order
 

@@ -4,8 +4,9 @@ import { withDb } from './_shared/db.ts'
 import { loadEmailConfig } from './_shared/email/config.ts'
 import { logEmail } from './_shared/email/log.ts'
 import { handleUnsubscribe } from './_shared/email/unsubscribe-page.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const config = loadEmailConfig()
   return handleUnsubscribe(request, {
     secret: config.unsubscribeSecret,
@@ -22,3 +23,5 @@ export const config: Config = {
   path: '/api/email-unsubscribe',
   rateLimit: { windowLimit: 30, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('email-unsubscribe', handler)

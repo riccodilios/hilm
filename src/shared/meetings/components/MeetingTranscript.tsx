@@ -53,6 +53,8 @@ export function MeetingTranscript({
   canPlay: boolean
 }) {
   const { t } = useTranslation()
+  const audioRemoved = detail.audio.length > 0 && detail.audio.every((part) => part.audioDeletedAt)
+  const playable = canPlay && !audioRemoved
   const [query, setQuery] = useState('')
   const [speakerFilter, setSpeakerFilter] = useState<string>('all')
   const [playing, setPlaying] = useState<{ segmentId: string; loading: boolean } | null>(null)
@@ -97,7 +99,7 @@ export function MeetingTranscript({
     const part = [...detail.audio]
       .sort((a, b) => a.idx - b.idx)
       .find((candidate) => startMs >= candidate.offsetMs && startMs < candidate.offsetMs + candidate.durationMs + 500)
-    if (!part) return
+    if (!part || part.audioDeletedAt) return
     setPlaying({ segmentId, loading: true })
     try {
       let url = urlCache.current.get(part.storagePath)
@@ -157,6 +159,7 @@ export function MeetingTranscript({
       {trimmed ? (
         <p className="text-xs text-muted">{t('meetings.transcript.matches', { count: segments.length })}</p>
       ) : null}
+      {audioRemoved ? <p className="text-xs text-muted">{t('meetings.transcript.audioRemoved')}</p> : null}
 
       <audio ref={audioRef} preload="none" className="hidden" onEnded={() => setPlaying(null)} onPause={() => setPlaying((prev) => (prev?.loading ? prev : null))} />
 
@@ -172,12 +175,12 @@ export function MeetingTranscript({
             >
               <button
                 type="button"
-                disabled={!canPlay}
+                disabled={!playable}
                 onClick={() => void play(segment.id, segment.startMs)}
                 className="flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] tabular-nums text-muted hover:bg-surface-2 hover:text-foreground disabled:pointer-events-none"
                 aria-label={t('meetings.transcript.playFrom', { time: formatClock(segment.startMs) })}
               >
-                {canPlay ? (
+                {playable ? (
                   isPlaying && playing?.loading ? (
                     <Loader2 className="size-3 animate-spin" />
                   ) : isPlaying ? (

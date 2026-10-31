@@ -59,6 +59,17 @@ type MeetingSpeakerRow = {
   ordinal: number
   created_at: string
 }
+export type StorageFileStatus =
+  | 'pending'
+  | 'active'
+  | 'quarantined'
+  | 'deleting'
+  | 'deleted'
+  | 'abandoned'
+  | 'orphaned'
+  | 'missing'
+  | 'failed'
+
 type MeetingAudioRow = {
   id: string
   meeting_id: string
@@ -73,6 +84,9 @@ type MeetingAudioRow = {
   content_hash: string | null
   error: string | null
   transcribed_at: string | null
+  file_id: string | null
+  /** Set when the recording was deleted after a verified transcription. */
+  audio_deleted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -884,6 +898,7 @@ export type Database = {
           byte_size: number | null
           version: number
           created_at: string
+          file_id: string | null
         },
         {
           id?: string
@@ -1239,6 +1254,35 @@ export type Database = {
         },
         { label_id?: string }
       >
+      storage_files: Table<
+        {
+          id: string
+          provider: string
+          bucket: string
+          object_key: string
+          category: 'task_attachment' | 'meeting_audio' | 'email_asset' | 'other'
+          scope: 'personal' | 'workspace' | 'platform'
+          original_filename: string | null
+          mime_type: string | null
+          size_bytes: number
+          owner_user_id: string | null
+          workspace_id: string | null
+          entity_type: string | null
+          entity_id: string | null
+          status: StorageFileStatus
+          created_at: string
+          activated_at: string | null
+          retention_policy: string | null
+          retain_until: string | null
+          expires_at: string | null
+          legal_hold: boolean
+          quarantined_at: string | null
+          purge_after: string | null
+          deleted_at: string | null
+        },
+        Record<string, never>,
+        Record<string, never>
+      >
       workspace_attachments: Table<
         {
           id: string
@@ -1252,6 +1296,7 @@ export type Database = {
           version: number
           uploaded_by: string | null
           created_at: string
+          file_id: string | null
         },
         {
           id?: string
@@ -1704,6 +1749,42 @@ export type Database = {
       crm_set_credentials: {
         Args: { p_integration_id: string; p_credentials: string | null }
         Returns: undefined
+      }
+      storage_begin_upload: {
+        Args: {
+          p_category: string
+          p_entity_type: string
+          p_entity_id: string
+          p_filename: string
+          p_mime: string | null
+          p_size: number
+          p_sha256?: string | null
+        }
+        Returns: Json
+      }
+      storage_complete_upload: {
+        Args: { p_file_id: string }
+        Returns: Json
+      }
+      storage_cancel_upload: {
+        Args: { p_file_id: string }
+        Returns: Json
+      }
+      storage_retention_info: {
+        Args: { p_workspace_id?: string | null }
+        Returns: Json
+      }
+      storage_set_workspace_retention: {
+        Args: { p_workspace_id: string; p_retention_days: number }
+        Returns: Json
+      }
+      storage_set_my_retention: {
+        Args: { p_retention_days: number }
+        Returns: Json
+      }
+      storage_extend_file: {
+        Args: { p_file_id: string; p_days: number }
+        Returns: Json
       }
     }
     Enums: {

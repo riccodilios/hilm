@@ -1,9 +1,8 @@
-import { assertSafeAttachment, sanitizeAttachmentFilename } from '@/lib/safe-attachment'
 import { supabase } from '@/lib/supabase/client'
-import { requireUserId } from '@/lib/supabase/activity'
+import { fileLifecycles, uploadAttachmentFile, type FileLifecycle } from '@/lib/storage/uploads'
 import type { Tables } from '@/types/database'
 
-export type WorkspaceAttachment = Tables<'workspace_attachments'> & { url?: string | null }
+export type WorkspaceAttachment = Tables<'workspace_attachments'> & { url?: string | null; lifecycle?: FileLifecycle | null }
 
 const SIGNED_URL_TTL_SEC = 15 * 60
 
@@ -17,47 +16,21 @@ export async function listWorkspaceTaskAttachments(workspaceId: string, taskId: 
     .order('created_at', { ascending: false })
   if (error) throw error
   const rows = (data ?? []) as Tables<'workspace_attachments'>[]
+  const lifecycles = await fileLifecycles(rows.map((row) => row.file_id))
   return Promise.all(
     rows.map(async (row) => {
-      const { data: signed } = await supabase.storage
-        .from('attachments')
-        .createSignedUrl(row.storage_path, SIGNED_URL_TTL_SEC)
-      return { ...row, url: signed?.signedUrl ?? null } as WorkspaceAttachment
+      const lifecycle = row.file_id ? (lifecycles.get(row.file_id) ?? null) : null
+      const readable = !lifecycle || lifecycle.status === 'active'
+      const { data: signed } = readable
+        ? await supabase.storage.from('attachments').createSignedUrl(row.storage_path, SIGNED_URL_TTL_SEC)
+        : { data: null }
+      return { ...row, url: signed?.signedUrl ?? null, lifecycle } as WorkspaceAttachment
     }),
   )
 }
 
-export async function uploadWorkspaceTaskAttachment(
-  workspaceId: string,
-  taskId: string,
-  file: File,
-) {
-  assertSafeAttachment(file)
-  const userId = await requireUserId()
-  const safeName = sanitizeAttachmentFilename(file.name)
-  const storage_path = `workspace/${workspaceId}/tasks/${taskId}/${Date.now()}_${safeName}`
-  const { error: upError } = await supabase.storage.from('attachments').upload(storage_path, file, {
-    contentType: file.type || undefined,
-    upsert: false,
-  })
-  if (upError) throw upError
-  const { data, error } = await supabase
-    .from('workspace_attachments')
-    .insert({
-      workspace_id: workspaceId,
-      entity_type: 'task',
-      entity_id: taskId,
-      storage_path,
-      mime: file.type || null,
-      filename: file.name,
-      byte_size: file.size,
-      version: 1,
-      uploaded_by: userId,
-    } as never)
-    .select('*')
-    .single()
-  if (error) throw error
-  return data as Tables<'workspace_attachments'>
+export async function uploadWorkspaceTaskAttachment(_workspaceId: string, taskId: string, file: File) {
+  return uploadAttachmentFile({ entityType: 'workspace_task', entityId: taskId }, file)
 }
 
 export async function removeWorkspaceTaskAttachment(id: string) {

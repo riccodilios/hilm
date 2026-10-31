@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import type pg from 'pg'
 import webpush from 'web-push'
 import { acquireDb, databaseUrl, withDb } from './_shared/db.ts'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 function json(data: unknown, status = 200, request?: Request) {
   const origin = request?.headers.get('origin') || ''
@@ -45,7 +46,7 @@ async function loadSecrets() {
   return { ...fromEnv, ...mapped }
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   const respond = (data: unknown, status = 200) => json(data, status, request)
 
   if (request.method === 'OPTIONS') {
@@ -160,3 +161,5 @@ export const config: Config = {
   path: '/api/notify-test',
   rateLimit: { windowLimit: 5, windowSize: 60, aggregateBy: ['ip', 'domain'] },
 }
+
+export default instrumented('notify-test', handler)

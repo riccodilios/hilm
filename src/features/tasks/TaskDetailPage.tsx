@@ -34,6 +34,7 @@ import {
   removeTaskAttachment,
   uploadTaskAttachment,
 } from '@/features/tasks/attachments-api'
+import { getRetentionInfo, keepFileLonger } from '@/lib/storage/uploads'
 import { EmptyState, Skeleton } from '@/components/ui/page'
 import { REMINDER_OPTIONS, type ReminderType } from '@/features/tasks/reminders'
 import {
@@ -71,6 +72,11 @@ export function TaskDetailPage() {
     queryKey: [...tasksKeys.detail(id ?? ''), 'attachments'],
     queryFn: () => listTaskAttachments(id!),
     enabled: Boolean(id),
+  })
+  const retention = useQuery({
+    queryKey: ['storage-retention', 'personal'],
+    queryFn: () => getRetentionInfo(null),
+    staleTime: 10 * 60_000,
   })
 
   useEffect(() => {
@@ -283,6 +289,15 @@ export function TaskDetailPage() {
               onDownload={(item) =>
                 downloadTaskAttachment(item as Awaited<ReturnType<typeof listTaskAttachments>>[number])
               }
+              retention={
+                retention.data
+                  ? { days: retention.data.retention_days, quarantineDays: retention.data.quarantine_days }
+                  : null
+              }
+              onKeepLonger={async (item) => {
+                await keepFileLonger(item.file_id!, retention.data?.retention_days ?? 90)
+                await qc.invalidateQueries({ queryKey: [...tasksKeys.detail(id!), 'attachments'] })
+              }}
             />
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2 sm:col-span-3">

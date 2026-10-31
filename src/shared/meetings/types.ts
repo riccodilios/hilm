@@ -97,6 +97,8 @@ export type MeetingAudioPart = {
   durationMs: number
   status: MeetingAudioStatus
   error: string | null
+  /** The recording was deleted after a verified transcription; the transcript is kept. */
+  audioDeletedAt: string | null
 }
 
 export type LinkedTask = {

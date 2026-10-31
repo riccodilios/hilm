@@ -147,6 +147,7 @@ function mapAudio(row: Row): MeetingAudioPart {
     durationMs: num(row.duration_ms),
     status: (str(row.status) ?? 'uploaded') as MeetingAudioPart['status'],
     error: str(row.error),
+    audioDeletedAt: str(row.audio_deleted_at),
   }
 }
 
@@ -222,7 +223,7 @@ export async function getMeetingDetail(os: MeetingOs, meetingId: string): Promis
     db.from(tables.actions).select('*').eq('meeting_id', meetingId).order('ordinal'),
     db
       .from(tables.audio)
-      .select('id, idx, storage_path, offset_ms, duration_ms, status, error')
+      .select('id, idx, storage_path, offset_ms, duration_ms, status, error, audio_deleted_at')
       .eq('meeting_id', meetingId)
       .order('idx'),
   ])

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { loadOpenRouterKey } from './_shared/ai-guard'
 import { loadMeeting, type EngineContext } from './_shared/meeting-engine'
 import { resolveSonioxKey, submitSonioxJob } from './_shared/meeting-stt'
+import { instrumented } from './_shared/ops/instrument.ts'
 
 const bodySchema = z.object({
   os: z.enum(['personal', 'workspace']),
@@ -24,7 +25,7 @@ function supabaseEnv() {
   return { url, anonKey }
 }
 
-export default async (request: Request) => {
+async function handler(request: Request) {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
   try {
     const parsed = bodySchema.safeParse(await request.json().catch(() => null))
@@ -63,3 +64,5 @@ export default async (request: Request) => {
     return new Response('error', { status: 200 })
   }
 }
+
+export default instrumented('meeting-stt-background', handler)
