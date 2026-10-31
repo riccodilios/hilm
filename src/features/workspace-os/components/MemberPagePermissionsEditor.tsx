@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -6,10 +6,11 @@ import {
   workspaceKeys,
   type WorkspaceMember,
 } from '@/features/workspace-os/api'
+import { listDepartments, listTeams, orgKeys } from '@/features/workspace-os/org-api'
 import {
-  DEFAULT_MEMBER_PAGE_PERMISSIONS,
   PAGE_LABELS,
   WORKSPACE_PAGES,
+  defaultPagePermissions,
   normalizePagePermissions,
   type MemberPagePermissions,
   type WorkspacePageKey,
@@ -33,11 +34,27 @@ export function MemberPagePermissionsEditor({
 }) {
   const qc = useQueryClient()
   const pages = editablePagesForRole(member.role)
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<MemberPagePermissions>(() => ({
-    ...DEFAULT_MEMBER_PAGE_PERMISSIONS,
+  const isViewer = member.role === 'viewer'
+  const departments = useQuery({
+    queryKey: orgKeys.departments(workspaceId),
+    queryFn: () => listDepartments(workspaceId),
+    enabled: pages.length > 0,
+  })
+  const teams = useQuery({
+    queryKey: orgKeys.teams(workspaceId),
+    queryFn: () => listTeams(workspaceId),
+    enabled: pages.length > 0,
+  })
+  const leadsPeople =
+    (teams.data ?? []).some((team) => team.lead_user_id === member.user_id) ||
+    (departments.data ?? []).some((dept) => dept.head_user_id === member.user_id)
+  const defaults = defaultPagePermissions(member.role, { leadsPeople })
+  const initialDraft = (): MemberPagePermissions => ({
+    ...defaults,
     ...normalizePagePermissions(member.page_permissions),
-  }))
+  })
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<MemberPagePermissions>(initialDraft)
 
   const save = useMutation({
     mutationFn: () => updateMemberPagePermissions(workspaceId, member.user_id, draft),
@@ -53,11 +70,11 @@ export function MemberPagePermissionsEditor({
 
   function setPageAccess(page: WorkspacePageKey, field: 'read' | 'write', value: boolean) {
     setDraft((prev) => {
-      const current = prev[page] ?? DEFAULT_MEMBER_PAGE_PERMISSIONS[page] ?? { read: false, write: false }
+      const current = prev[page] ?? defaults[page] ?? { read: false, write: false }
       const next =
         field === 'read'
-          ? { read: value, write: value ? current.write : false }
-          : { read: current.read, write: value && current.read }
+          ? { read: value, write: value && !isViewer ? current.write : false }
+          : { read: current.read, write: value && current.read && !isViewer }
       return { ...prev, [page]: next }
     })
   }
@@ -70,10 +87,7 @@ export function MemberPagePermissionsEditor({
         variant="ghost"
         disabled={disabled}
         onClick={() => {
-          setDraft({
-            ...DEFAULT_MEMBER_PAGE_PERMISSIONS,
-            ...normalizePagePermissions(member.page_permissions),
-          })
+          setDraft(initialDraft())
           setOpen((value) => !value)
         }}
       >
@@ -82,7 +96,7 @@ export function MemberPagePermissionsEditor({
       {open ? (
         <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-surface/50 p-3">
           {pages.map((page) => {
-            const access = draft[page] ?? DEFAULT_MEMBER_PAGE_PERMISSIONS[page] ?? { read: false, write: false }
+            const access = draft[page] ?? defaults[page] ?? { read: false, write: false }
             return (
               <div
                 key={page}
@@ -101,8 +115,8 @@ export function MemberPagePermissionsEditor({
                   <label className="flex items-center gap-2">
                     Write
                     <Switch
-                      checked={access.write}
-                      disabled={disabled || save.isPending || !access.read}
+                      checked={access.write && !isViewer}
+                      disabled={disabled || save.isPending || !access.read || isViewer}
                       onCheckedChange={(checked) => setPageAccess(page, 'write', checked)}
                     />
                   </label>

@@ -297,7 +297,22 @@
       "forbidden": "Only owners and admins can send invitations.",
       "too_many": "Send up to 10 invitations at a time.",
       "no_emails": "Add at least one email address."
-    }
+    },
+    "positionHead": "Head of {{department}}",
+    "positionLead": "{{team}} lead",
+    "suggestedAssignee": "Suggested",
+    "searchPeople": "Search people",
+    "routeToTeam": "Send to a department or team",
+    "hideRouting": "Hide department and team",
+    "openTasksShort": "{{count}} open",
+    "you": "you",
+    "missionReadOnly": "Mission control is view only for you.",
+    "projectNotesEmpty": "No notes yet. Keep decisions and research for this project here.",
+    "projectNoteUntitled": "Untitled note",
+    "projectNoteTitle": "Title",
+    "projectNoteSaved": "Note saved",
+    "projectNoteDeleted": "Note deleted",
+    "kanbanReadOnly": "You can view this board but not move tasks."
   },
   "auth": {
     "signInTitle": "Sign in",

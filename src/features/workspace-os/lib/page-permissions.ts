@@ -48,12 +48,53 @@ export const DEFAULT_MEMBER_PAGE_PERMISSIONS: MemberPagePermissions = {
   profile: { read: true, write: true },
   activity: { read: true, write: false },
   reports: { read: true, write: true },
-  'mission-control': { read: true, write: true },
-  'team-lead': { read: true, write: true },
+  'mission-control': { read: true, write: false },
+  'team-lead': { read: false, write: false },
+}
+
+/** Viewers read the core pages and never write. */
+export const DEFAULT_VIEWER_PAGE_PERMISSIONS: MemberPagePermissions = {
+  home: { read: true, write: false },
+  projects: { read: true, write: false },
+  tasks: { read: true, write: false },
+  ai: { read: false, write: false },
+  team: { read: true, write: false },
+  org: { read: false, write: false },
+  crm: { read: false, write: false },
+  profile: { read: false, write: false },
+  activity: { read: true, write: false },
+  reports: { read: true, write: false },
+  'mission-control': { read: true, write: false },
+  'team-lead': { read: false, write: false },
+}
+
+export type PageAccessContext = {
+  /** Leads a team or heads a department: the team lead inbox is where their work arrives. */
+  leadsPeople?: boolean
 }
 
 export function hasFullWorkspaceAccess(role: WorkspaceRole | null | undefined) {
   return role === 'owner' || role === 'admin'
+}
+
+export function defaultPageAccess(
+  role: WorkspaceRole | null | undefined,
+  page: WorkspacePageKey,
+  context?: PageAccessContext,
+): PageAccess {
+  if (hasFullWorkspaceAccess(role)) return { read: true, write: true }
+  if (role === 'viewer') return DEFAULT_VIEWER_PAGE_PERMISSIONS[page] ?? { read: false, write: false }
+  if (page === 'team-lead' && context?.leadsPeople) return { read: true, write: true }
+  return DEFAULT_MEMBER_PAGE_PERMISSIONS[page] ?? { read: false, write: false }
+}
+
+export function defaultPagePermissions(
+  role: WorkspaceRole | null | undefined,
+  context?: PageAccessContext,
+): MemberPagePermissions {
+  return Object.fromEntries(
+    WORKSPACE_PAGES.map((page) => [page, defaultPageAccess(role, page, context)]),
+  ) as MemberPagePermissions
 }
 
 export function normalizePagePermissions(raw: unknown): MemberPagePermissions {
@@ -73,29 +114,33 @@ export function resolvePageAccess(
   role: WorkspaceRole | null | undefined,
   page: WorkspacePageKey,
   overrides: MemberPagePermissions | null | undefined,
+  context?: PageAccessContext,
 ): PageAccess {
   if (hasFullWorkspaceAccess(role)) {
     return { read: true, write: true }
   }
   const custom = overrides?.[page]
-  if (custom) return { read: custom.read, write: custom.write && custom.read }
-  const defaults = DEFAULT_MEMBER_PAGE_PERMISSIONS[page]
-  if (defaults) return defaults
-  return { read: false, write: false }
+  const access = custom
+    ? { read: custom.read, write: custom.write && custom.read }
+    : defaultPageAccess(role, page, context)
+  // The database refuses viewer writes; never offer them in the UI either.
+  return role === 'viewer' ? { read: access.read, write: false } : access
 }
 
 export function canReadWorkspacePage(
   role: WorkspaceRole | null | undefined,
   page: WorkspacePageKey,
   overrides?: MemberPagePermissions | null,
+  context?: PageAccessContext,
 ) {
-  return resolvePageAccess(role, page, overrides).read
+  return resolvePageAccess(role, page, overrides, context).read
 }
 
 export function canWriteWorkspacePage(
   role: WorkspaceRole | null | undefined,
   page: WorkspacePageKey,
   overrides?: MemberPagePermissions | null,
+  context?: PageAccessContext,
 ) {
-  return resolvePageAccess(role, page, overrides).write
+  return resolvePageAccess(role, page, overrides, context).write
 }

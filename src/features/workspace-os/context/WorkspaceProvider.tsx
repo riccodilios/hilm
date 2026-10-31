@@ -54,10 +54,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (!query.data) return null
     const role = query.data.my_role
     const pagePermissions = query.data.my_page_permissions
+    const accessContext = { leadsPeople: query.data.my_leads_people }
     const canReadPage = (page: WorkspacePageKey) =>
-      canReadWorkspacePage(role, page, pagePermissions)
+      canReadWorkspacePage(role, page, pagePermissions, accessContext)
     const canWritePage = (page: WorkspacePageKey) =>
-      canWriteWorkspacePage(role, page, pagePermissions)
+      canWriteWorkspacePage(role, page, pagePermissions, accessContext)
 
     return {
       workspaceId,

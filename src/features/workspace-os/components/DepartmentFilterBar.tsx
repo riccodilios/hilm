@@ -17,7 +17,6 @@ export function DepartmentFilterBar({ className }: { className?: string }) {
     selectAllVisible,
     selectHomeOnly,
     homeDepartmentId,
-    canSeeAll,
   } = useOrgVisibility()
 
   const departments = useQuery({
@@ -29,20 +28,8 @@ export function DepartmentFilterBar({ className }: { className?: string }) {
     visibleDepartmentIds.includes(d.id),
   )
 
-  if (!visibleDepts.length) {
-    return (
-      <div
-        className={cn(
-          'rounded-xl border border-border-subtle bg-surface/40 px-3 py-2 text-xs text-muted',
-          className,
-        )}
-      >
-        {canSeeAll ? t('workspace.noDepartmentsYet') : t('workspace.setHomeDepartmentHint')}
-      </div>
-    )
-  }
-
-  if (visibleDepts.length <= 1 && !canSeeAll) return null
+  // Chips only help someone who oversees more than one department.
+  if (visibleDepts.length <= 1) return null
 
   return (
     <div
@@ -81,7 +68,7 @@ export function DepartmentFilterBar({ className }: { className?: string }) {
         )
       })}
       <div className="ms-auto flex gap-1">
-        {homeDepartmentId ? (
+        {homeDepartmentId && visibleDepartmentIds.includes(homeDepartmentId) ? (
           <Button
             type="button"
             size="sm"

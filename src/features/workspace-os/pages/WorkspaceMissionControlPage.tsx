@@ -16,6 +16,7 @@ import {
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import {
   workspaceProjectAsInsight,
   workspaceTaskAsMission,
@@ -42,7 +43,9 @@ export function WorkspaceMissionControlPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { workspaceId } = useWorkspace()
+  const { workspaceId, canWritePage } = useWorkspace()
+  const canEdit = canWritePage('mission-control') && canWritePage('tasks')
+  const { filterTasks, filterProjects } = useOrgVisibility()
   const dateLocale = i18n.language.startsWith('ar') ? ar : enUS
   const base = `/workspace/${workspaceId}`
 
@@ -66,15 +69,24 @@ export function WorkspaceMissionControlPage() {
     queryFn: () => getWorkspaceHome(workspaceId),
   })
 
-  const tasks = useMemo(
-    () => (tasksQuery.data ?? []).map(workspaceTaskAsMission),
-    [tasksQuery.data],
+  const visibleTasks = useMemo(() => filterTasks(tasksQuery.data ?? []), [filterTasks, tasksQuery.data])
+  const tasks = useMemo(() => visibleTasks.map(workspaceTaskAsMission), [visibleTasks])
+  const projects = useMemo(
+    () => filterProjects(projectsQuery.data ?? [], tasksQuery.data ?? []),
+    [filterProjects, projectsQuery.data, tasksQuery.data],
   )
-  const projects = projectsQuery.data ?? []
-  const insights = useMemo(
-    () => (homeQuery.data?.projects ?? projects).map(workspaceProjectAsInsight),
-    [homeQuery.data?.projects, projects],
-  )
+  const insights = useMemo(() => {
+    const visibleIds = new Set(projects.map((project) => project.id))
+    const cards = homeQuery.data?.projects?.filter((project) => visibleIds.has(project.id))
+    return (cards ?? projects).map(workspaceProjectAsInsight)
+  }, [homeQuery.data?.projects, projects])
+
+  function whenEditable<A extends unknown[]>(action: (...args: A) => void) {
+    return (...args: A) => {
+      if (canEdit) action(...args)
+      else toast.message(t('workspace.missionReadOnly'))
+    }
+  }
   const bootstrapping =
     (tasksQuery.isLoading && !tasksQuery.data) ||
     (projectsQuery.isLoading && !projectsQuery.data)
@@ -258,9 +270,11 @@ export function WorkspaceMissionControlPage() {
           <p className="mt-1 text-sm text-muted">{t('workspace.missionDesc')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => quickCreate.mutate()} disabled={quickCreate.isPending}>
-            <Plus className="size-4" /> {t('mission.addBlock')}
-          </Button>
+          {canEdit ? (
+            <Button size="sm" variant="secondary" onClick={() => quickCreate.mutate()} disabled={quickCreate.isPending}>
+              <Plus className="size-4" /> {t('mission.addBlock')}
+            </Button>
+          ) : null}
           <div className="flex rounded-xl border border-border bg-surface/60 p-1">
             {(['month', 'week', 'day'] as CalendarView[]).map((item) => (
               <button
@@ -367,7 +381,9 @@ export function WorkspaceMissionControlPage() {
               setAnchor(parseISO(day))
               setMobilePane('timeline')
             }}
-            onDropTask={(taskId, dayKey) => reschedule.mutate({ taskId, dayKey, hour: 9 })}
+            onDropTask={whenEditable((taskId: string, dayKey: string) =>
+              reschedule.mutate({ taskId, dayKey, hour: 9 }),
+            )}
             onOpenTask={(task) => navigate(`${base}/tasks/${task.id}`)}
           />
         </section>
@@ -384,15 +400,23 @@ export function WorkspaceMissionControlPage() {
             projectFilter={projectFilter}
             onOpenTask={(task) => navigate(`${base}/tasks/${task.id}`)}
             onReschedule={async (taskId, dayKey, hour, durationHours) => {
+              if (!canEdit) {
+                toast.message(t('workspace.missionReadOnly'))
+                return
+              }
               await reschedule.mutateAsync({ taskId, dayKey, hour, durationHours })
             }}
-            onComplete={(taskId) => complete.mutate(taskId)}
-            onEmptySlotClick={(dayKey, hour) => {
-              setSelectedDay(dayKey)
-              void quickCreate.mutateAsync().catch(() => {
-                toast.message(`${dayKey} @ ${hour}`)
-              })
-            }}
+            onComplete={whenEditable((taskId: string) => complete.mutate(taskId))}
+            onEmptySlotClick={
+              canEdit
+                ? (dayKey, hour) => {
+                    setSelectedDay(dayKey)
+                    void quickCreate.mutateAsync().catch(() => {
+                      toast.message(`${dayKey} @ ${hour}`)
+                    })
+                  }
+                : undefined
+            }
           />
         </section>
 
@@ -413,7 +437,7 @@ export function WorkspaceMissionControlPage() {
               setAnchor(parseISO(day))
               setMobilePane('timeline')
             }}
-            onApplyBalance={() => balance.mutate()}
+            onApplyBalance={whenEditable(() => balance.mutate())}
             resolveTaskHref={(taskId) => `${base}/tasks/${taskId}`}
             resolveProjectHref={(projectId) => `${base}/projects/${projectId}`}
           />

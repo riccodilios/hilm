@@ -297,7 +297,22 @@
       "forbidden": "يمكن للمالك والمسؤولين فقط إرسال الدعوات.",
       "too_many": "أرسل حتى 10 دعوات في المرة الواحدة.",
       "no_emails": "أضف عنوان بريد واحداً على الأقل."
-    }
+    },
+    "positionHead": "رئيس {{department}}",
+    "positionLead": "قائد {{team}}",
+    "suggestedAssignee": "مقترح",
+    "searchPeople": "ابحث عن شخص",
+    "routeToTeam": "أرسل إلى قسم أو فريق",
+    "hideRouting": "إخفاء القسم والفريق",
+    "openTasksShort": "{{count}} مفتوحة",
+    "you": "أنت",
+    "missionReadOnly": "مركز القيادة للعرض فقط بالنسبة لك.",
+    "projectNotesEmpty": "لا توجد ملاحظات بعد. احفظ قرارات المشروع وأبحاثه هنا.",
+    "projectNoteUntitled": "ملاحظة بلا عنوان",
+    "projectNoteTitle": "العنوان",
+    "projectNoteSaved": "تم حفظ الملاحظة",
+    "projectNoteDeleted": "تم حذف الملاحظة",
+    "kanbanReadOnly": "يمكنك عرض اللوحة دون نقل المهام."
   },
   "auth": {
     "signInTitle": "تسجيل الدخول",

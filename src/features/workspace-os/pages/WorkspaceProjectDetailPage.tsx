@@ -20,13 +20,14 @@ import {
 } from '@/features/workspace-os/labels-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
-import { memberCanSeeTask } from '@/features/workspace-os/lib/member-visibility'
 import { refreshWorkspaceProjectCompletion } from '@/features/workspace-os/lib/project-health'
+import { WorkspaceProjectKanban } from '@/features/workspace-os/components/project/WorkspaceProjectKanban'
+import { WorkspaceProjectRoadmap } from '@/features/workspace-os/components/project/WorkspaceProjectRoadmap'
+import { WorkspaceProjectNotes } from '@/features/workspace-os/components/project/WorkspaceProjectNotes'
 import { TaskAssigneeLabel } from '@/features/workspace-os/components/TaskAssigneeLabel'
 import { WorkspaceTaskRefBadge } from '@/features/workspace-os/components/WorkspaceTaskRefBadge'
 import { ProjectIcon, ProjectIconPicker } from '@/shared/project-icons'
 import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
-import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -38,14 +39,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PRIORITIES, PROJECT_COLORS, type Priority, type ProjectStatus } from '@/types/domain'
 import { cn } from '@/lib/utils'
 
-const TABS = ['overview', 'tasks', 'meetings', 'settings'] as const
+const TABS = ['overview', 'tasks', 'kanban', 'roadmap', 'notes', 'meetings', 'settings'] as const
 type Tab = (typeof TABS)[number]
 
 export function WorkspaceProjectDetailPage() {
   const { t } = useTranslation()
-  const { user } = useAuth()
   const { projectId = '' } = useParams()
-  const { workspaceId, workspace, canWritePage, role } = useWorkspace()
+  const { workspaceId, workspace, canWritePage } = useWorkspace()
   const canEdit = canWritePage('projects')
   const { filterTasks } = useOrgVisibility()
   const qc = useQueryClient()
@@ -117,10 +117,10 @@ export function WorkspaceProjectDetailPage() {
     })
   }, [project.data])
 
-  const projectTasks = useMemo(() => {
-    const scoped = filterTasks((tasks.data ?? []).filter((task) => task.project_id === projectId))
-    return scoped.filter((task) => memberCanSeeTask(task, user?.id, role))
-  }, [tasks.data, projectId, filterTasks, user?.id, role])
+  const projectTasks = useMemo(
+    () => filterTasks((tasks.data ?? []).filter((task) => task.project_id === projectId)),
+    [tasks.data, projectId, filterTasks],
+  )
 
   const openTasks = projectTasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
   const doneTasks = projectTasks.filter((task) => task.status === 'done')
@@ -203,6 +203,9 @@ export function WorkspaceProjectDetailPage() {
           <TabsList className="mx-auto h-auto min-w-max flex-wrap justify-center">
             <TabsTrigger value="overview">{t('workspace.projectOverview')}</TabsTrigger>
             <TabsTrigger value="tasks">{t('nav.tasks')}</TabsTrigger>
+            <TabsTrigger value="kanban">{t('projects.kanban')}</TabsTrigger>
+            <TabsTrigger value="roadmap">{t('projects.roadmap')}</TabsTrigger>
+            <TabsTrigger value="notes">{t('projects.notes')}</TabsTrigger>
             <TabsTrigger value="meetings">{t('projects.meetings')}</TabsTrigger>
             <TabsTrigger value="settings">{t('workspace.projectSettings')}</TabsTrigger>
           </TabsList>
@@ -300,6 +303,22 @@ export function WorkspaceProjectDetailPage() {
             </Link>
           ))}
           {!projectTasks.length ? <p className="text-sm text-muted">{t('workspace.noTasks')}</p> : null}
+        </TabsContent>
+
+        <TabsContent value="kanban" className="mt-6">
+          <WorkspaceProjectKanban
+            workspaceId={workspaceId}
+            tasks={projectTasks}
+            canEdit={canWritePage('tasks')}
+          />
+        </TabsContent>
+
+        <TabsContent value="roadmap" className="mt-6">
+          <WorkspaceProjectRoadmap workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} />
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-6">
+          <WorkspaceProjectNotes workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} />
         </TabsContent>
 
         <TabsContent value="meetings" className="mt-6">

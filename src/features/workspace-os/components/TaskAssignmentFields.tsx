@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Sparkles } from 'lucide-react'
+import { Check, Search, Sparkles } from 'lucide-react'
+import { useAuth } from '@/features/auth/AuthProvider'
 import {
   listAllMemberSettings,
   listWorkspaceMembers,
@@ -15,16 +16,14 @@ import {
   listTeams,
   orgKeys,
 } from '@/features/workspace-os/org-api'
-import {
-  analyzeAssignmentCandidates,
-  type AssigneeRecommendation,
-  type MemberLoadProfile,
-} from '@/features/workspace-os/load-balancer'
+import { analyzeAssignmentCandidates } from '@/features/workspace-os/load-balancer'
 import {
   memberInitials,
   resolveMemberDisplayName,
 } from '@/features/workspace-os/lib/member-display'
+import { memberPosition } from '@/features/workspace-os/lib/member-positions'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +33,8 @@ export type TaskAssignmentValue = {
   assigneeId: string | null
 }
 
+const SEARCH_THRESHOLD = 6
+
 function labelFor(member: WorkspaceMember) {
   return resolveMemberDisplayName({
     displayNameOverride: member.display_name_override,
@@ -42,35 +43,19 @@ function labelFor(member: WorkspaceMember) {
   })
 }
 
-function CapacityBar({ percent, capacity }: { percent: number; capacity: MemberLoadProfile['capacity'] }) {
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
-      <div
-        className={cn(
-          'h-full rounded-full transition-all',
-          capacity === 'low' && 'bg-success',
-          capacity === 'medium' && 'bg-info',
-          capacity === 'high' && 'bg-warning',
-          capacity === 'overloaded' && 'bg-danger',
-        )}
-        style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
-      />
-    </div>
-  )
-}
-
 function MemberAvatar({ member, name }: { member: WorkspaceMember; name: string }) {
   const url = member.profiles?.avatar_url
   if (url) {
-    return <img src={url} alt="" className="size-8 shrink-0 rounded-lg object-cover" />
+    return <img src={url} alt="" className="size-7 shrink-0 rounded-lg object-cover" />
   }
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-[10px] font-medium text-accent">
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-[10px] font-medium text-accent">
       {memberInitials(name)}
     </span>
   )
 }
 
+/** Pick who does the task: anyone in the workspace (owners, admins and yourself included), with an AI suggestion. */
 export function TaskAssignmentFields({
   workspaceId,
   value,
@@ -90,11 +75,12 @@ export function TaskAssignmentFields({
   dueAt?: string | null
   estimatedHours?: number | null
   className?: string
-  /** When false, only dept/team/member selectors (still fully usable). */
   showAiAssist?: boolean
 }) {
   const { t } = useTranslation()
-  const [manualMode, setManualMode] = useState(false)
+  const { user } = useAuth()
+  const [search, setSearch] = useState('')
+  const [routingOpen, setRoutingOpen] = useState(Boolean(value.departmentId || value.teamId))
 
   const departments = useQuery({
     queryKey: orgKeys.departments(workspaceId),
@@ -111,6 +97,7 @@ export function TaskAssignmentFields({
   const tasks = useQuery({
     queryKey: workspaceKeys.tasks(workspaceId),
     queryFn: () => listWorkspaceTasks(workspaceId),
+    enabled: showAiAssist,
   })
   const allSettings = useQuery({
     queryKey: [...workspaceKeys.all, 'member-settings-all', workspaceId],
@@ -122,6 +109,7 @@ export function TaskAssignmentFields({
     enabled: Boolean(value.teamId),
   })
 
+  const hasOrg = Boolean(departments.data?.length || teams.data?.length)
   const teamsInDept = useMemo(
     () =>
       (teams.data ?? []).filter((team) =>
@@ -130,37 +118,57 @@ export function TaskAssignmentFields({
     [teams.data, value.departmentId],
   )
 
-  const memberOptions = useMemo(() => {
-    const all = members.data ?? []
-    if (value.teamId && teamMembers.data?.length) {
-      const ids = new Set(teamMembers.data.map((m) => m.user_id))
-      return all.filter((m) => ids.has(m.user_id))
+  const homeDepartmentByUser = useMemo(
+    () => new Map((allSettings.data ?? []).map((row) => [row.user_id, row.department_id])),
+    [allSettings.data],
+  )
+
+  const people = useMemo(() => {
+    const list = (members.data ?? []).map((member) => ({
+      member,
+      name: labelFor(member),
+      position: memberPosition(
+        {
+          userId: member.user_id,
+          role: member.role,
+          departments: departments.data ?? [],
+          teams: teams.data ?? [],
+          homeDepartmentId: homeDepartmentByUser.get(member.user_id) ?? null,
+        },
+        t,
+      ),
+      isYou: member.user_id === user?.id,
+    }))
+    return list.sort((a, b) => Number(b.isYou) - Number(a.isYou) || a.name.localeCompare(b.name))
+  }, [members.data, departments.data, teams.data, homeDepartmentByUser, user?.id, t])
+
+  const personById = useMemo(() => new Map(people.map((p) => [p.member.user_id, p])), [people])
+
+  // The suggestion looks at the chosen team (or department) first, else the whole workspace.
+  const candidateIds = useMemo(() => {
+    if (value.teamId && teamMembers.data?.length) return teamMembers.data.map((row) => row.user_id)
+    if (value.departmentId) {
+      const inDept = people
+        .filter((p) => homeDepartmentByUser.get(p.member.user_id) === value.departmentId)
+        .map((p) => p.member.user_id)
+      if (inDept.length) return inDept
     }
-    return all
-  }, [members.data, value.teamId, teamMembers.data])
+    return null
+  }, [value.teamId, value.departmentId, teamMembers.data, people, homeDepartmentByUser])
 
   const insight = useMemo(() => {
-    if (!showAiAssist || !members.data?.length || !tasks.data) {
-      return null
-    }
-    // Wait until department + team chosen for focused analysis (still works with all members).
-    if (!value.departmentId && !value.teamId && memberOptions.length > 12) {
-      return null
-    }
+    if (!showAiAssist || !members.data?.length || !tasks.data) return null
     const settingsByUser = new Map(
       (allSettings.data ?? []).map((row) => [
         row.user_id,
-        {
-          skills: row.skills,
-          availability: (row.availability ?? {}) as Record<string, unknown>,
-        },
+        { skills: row.skills, availability: (row.availability ?? {}) as Record<string, unknown> },
       ]),
     )
     try {
       return analyzeAssignmentCandidates({
         members: members.data,
         tasks: tasks.data,
-        candidateIds: memberOptions.map((m) => m.user_id),
+        candidateIds,
         settingsByUser,
         priority,
         estimatedHours,
@@ -170,247 +178,183 @@ export function TaskAssignmentFields({
     } catch {
       return null
     }
-  }, [
-    showAiAssist,
-    members.data,
-    tasks.data,
-    allSettings.data,
-    memberOptions,
-    value.departmentId,
-    value.teamId,
-    priority,
-    estimatedHours,
-    dueAt,
-    titleHint,
-  ])
+  }, [showAiAssist, members.data, tasks.data, allSettings.data, candidateIds, priority, estimatedHours, dueAt, titleHint])
 
-  const profileByUser = useMemo(() => {
-    return new Map((insight?.profiles ?? []).map((p) => [p.userId, p]))
-  }, [insight?.profiles])
+  const openCountByUser = useMemo(
+    () => new Map((insight?.profiles ?? []).map((profile) => [profile.userId, profile.openCount])),
+    [insight?.profiles],
+  )
 
-  const memberById = useMemo(() => {
-    return new Map((members.data ?? []).map((m) => [m.user_id, m]))
-  }, [members.data])
+  const suggestion = insight?.best ? personById.get(insight.best.userId) : null
+  const showSuggestion = Boolean(suggestion && insight?.best && value.assigneeId !== insight.best.userId)
 
-  function pickAssignee(userId: string, fromAi: boolean) {
+  const query = search.trim().toLowerCase()
+  const visiblePeople = query
+    ? people.filter((p) =>
+        [p.name, p.position, p.member.email ?? ''].some((text) => text.toLowerCase().includes(query)),
+      )
+    : people
+
+  function assign(userId: string | null) {
     onChange({ ...value, assigneeId: userId })
-    setManualMode(!fromAi)
   }
-
-  function renderRecommendation(rec: AssigneeRecommendation, emphasized: boolean) {
-    const member = memberById.get(rec.userId)
-    if (!member) return null
-    const name = labelFor(member)
-    const profile = profileByUser.get(rec.userId)
-    return (
-      <div
-        key={rec.userId}
-        className={cn(
-          'rounded-xl border p-3',
-          emphasized ? 'border-accent/30 bg-accent/5' : 'border-border-subtle bg-surface/40',
-        )}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex min-w-0 items-start gap-2">
-            <MemberAvatar member={member} name={name} />
-            <div className="min-w-0">
-              <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                {emphasized ? <Sparkles className="size-3.5 shrink-0 text-accent" /> : null}
-                {emphasized ? `${t('workspace.recommendedAssignee')}: ${name}` : name}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted">
-                {t('workspace.confidenceScore', { score: rec.confidence })}
-                {' · '}
-                {t('workspace.completionConfidence', { score: rec.expectedCompletionConfidence })}
-                {' · '}
-                {t('workspace.workloadImpact', { hours: rec.workloadImpactHours })}
-              </p>
-              <ul className="mt-2 space-y-0.5 text-xs text-muted">
-                {rec.reasons.map((reason) => (
-                  <li key={reason}>• {reason}</li>
-                ))}
-              </ul>
-              {profile ? (
-                <div className="mt-2 w-40">
-                  <CapacityBar percent={profile.loadPercent} capacity={profile.capacity} />
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <Button type="button" size="sm" variant={emphasized ? 'default' : 'secondary'} onClick={() => pickAssignee(rec.userId, true)}>
-            {emphasized ? t('workspace.assignRecommended') : t('workspace.assignThis')}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const showAssistPanel =
-    showAiAssist && Boolean(insight?.best) && Boolean(value.departmentId || value.teamId || memberOptions.length <= 12)
 
   return (
     <div className={cn('space-y-3 rounded-xl border border-border-subtle bg-surface-2/30 p-3', className)}>
-      <p className="text-sm font-medium">{t('workspace.assignTitle')}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="assign-dept">{t('workspace.department')}</Label>
-          <select
-            id="assign-dept"
-            className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
-            value={value.departmentId ?? ''}
-            onChange={(e) => {
-              onChange({
-                departmentId: e.target.value || null,
-                teamId: null,
-                assigneeId: null,
-              })
-              setManualMode(false)
-            }}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">{t('workspace.assignTitle')}</p>
+        {hasOrg ? (
+          <button
+            type="button"
+            className="text-xs text-muted transition-colors hover:text-foreground"
+            onClick={() => setRoutingOpen((open) => !open)}
           >
-            <option value="">{t('workspace.anyDepartment')}</option>
-            {(departments.data ?? []).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="assign-team">{t('workspace.team')}</Label>
-          <select
-            id="assign-team"
-            className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
-            value={value.teamId ?? ''}
-            onChange={(e) => {
-              const teamId = e.target.value || null
-              const team = (teams.data ?? []).find((item) => item.id === teamId)
-              onChange({
-                departmentId: value.departmentId ?? team?.department_id ?? null,
-                teamId,
-                assigneeId: null,
-              })
-              setManualMode(false)
-            }}
-          >
-            <option value="">{t('workspace.anyTeam')}</option>
-            {teamsInDept.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            {routingOpen ? t('workspace.hideRouting') : t('workspace.routeToTeam')}
+          </button>
+        ) : null}
       </div>
 
-      {showAiAssist && insight?.profiles.length ? (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted">{t('workspace.teamLoadTitle')}</p>
-          <div className="max-h-48 space-y-2 overflow-y-auto pe-1">
-            {insight.profiles.map((profile) => {
-              const member = memberById.get(profile.userId)
-              if (!member) return null
-              const name = labelFor(member)
-              const selected = value.assigneeId === profile.userId
-              return (
-                <button
-                  key={profile.userId}
-                  type="button"
-                  onClick={() => pickAssignee(profile.userId, false)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-start transition-colors',
-                    selected
-                      ? 'border-accent/40 bg-accent/10'
-                      : 'border-border-subtle bg-surface/50 hover:border-border',
-                  )}
-                >
-                  <MemberAvatar member={member} name={name} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-medium">{name}</p>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-md px-1.5 py-0.5 text-[10px]',
-                          profile.capacity === 'low' && 'bg-success/15 text-success',
-                          profile.capacity === 'medium' && 'bg-info/15 text-info',
-                          profile.capacity === 'high' && 'bg-warning/15 text-warning',
-                          profile.capacity === 'overloaded' && 'bg-danger/15 text-danger',
-                        )}
-                      >
-                        {t(`workspace.capacity.${profile.capacity}`)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted">
-                      {t(`workspace.roles.${profile.role}`, { defaultValue: profile.role })}
-                      {' · '}
-                      {t('workspace.loadActive', { count: profile.openCount })}
-                      {' · '}
-                      {t('workspace.loadOverdue', { count: profile.overdueCount })}
-                      {' · '}
-                      {profile.available ? t('workspace.available') : t('workspace.unavailable')}
-                    </p>
-                    <div className="mt-1.5">
-                      <CapacityBar percent={profile.loadPercent} capacity={profile.capacity} />
-                      <p className="mt-0.5 text-[10px] text-muted">
-                        {t('workspace.loadHours', {
-                          used: Math.round(profile.estimatedHoursLoad),
-                          total: Math.round(profile.availableHoursWeek),
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
+      {routingOpen && hasOrg ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="assign-dept">{t('workspace.department')}</Label>
+            <select
+              id="assign-dept"
+              className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+              value={value.departmentId ?? ''}
+              onChange={(e) =>
+                onChange({ departmentId: e.target.value || null, teamId: null, assigneeId: value.assigneeId })
+              }
+            >
+              <option value="">{t('workspace.anyDepartment')}</option>
+              {(departments.data ?? []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="assign-team">{t('workspace.team')}</Label>
+            <select
+              id="assign-team"
+              className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
+              value={value.teamId ?? ''}
+              onChange={(e) => {
+                const teamId = e.target.value || null
+                const team = (teams.data ?? []).find((item) => item.id === teamId)
+                onChange({
+                  departmentId: value.departmentId ?? team?.department_id ?? null,
+                  teamId,
+                  assigneeId: value.assigneeId,
+                })
+              }}
+            >
+              <option value="">{t('workspace.anyTeam')}</option>
+              {teamsInDept.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       ) : null}
 
-      {showAssistPanel && insight?.best ? (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium text-muted">{t('workspace.aiAssignAssist')}</p>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setManualMode(true)}>
-              {t('workspace.assignManually')}
-            </Button>
+      {showSuggestion && suggestion && insight?.best ? (
+        <div className="flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2">
+          <Sparkles className="size-4 shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm">
+              <span className="text-muted">{t('workspace.suggestedAssignee')}: </span>
+              <span className="font-medium">{suggestion.name}</span>{' '}
+              <span className="text-[11px] text-muted">{suggestion.position}</span>
+            </p>
+            {insight.best.reasons.length ? (
+              <p className="truncate text-[11px] text-muted">{insight.best.reasons.slice(0, 2).join(' · ')}</p>
+            ) : null}
           </div>
-          {renderRecommendation(insight.best, true)}
-          {insight.alternatives.length ? (
-            <div className="space-y-2">
-              <p className="text-[11px] text-muted">{t('workspace.alternativeCandidates')}</p>
-              {insight.alternatives.map((rec) => renderRecommendation(rec, false))}
-            </div>
-          ) : null}
-          {!manualMode && value.assigneeId === insight.best.userId ? (
-            <p className="text-[11px] text-muted">{t('workspace.usingRecommendation')}</p>
-          ) : null}
+          <Button type="button" size="sm" variant="secondary" onClick={() => assign(insight.best!.userId)}>
+            {t('workspace.assignThis')}
+          </Button>
         </div>
       ) : null}
 
-      {(manualMode || !showAssistPanel || !insight?.best) && (
-        <div className="space-y-1.5">
-          <Label htmlFor="assign-member">{t('workspace.memberOptional')}</Label>
-          <select
-            id="assign-member"
-            className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm"
-            value={value.assigneeId ?? ''}
-            onChange={(e) => {
-              onChange({ ...value, assigneeId: e.target.value || null })
-              setManualMode(true)
-            }}
-          >
-            <option value="">{t('workspace.unassignedMember')}</option>
-            {memberOptions.map((m) => (
-              <option key={m.user_id} value={m.user_id}>
-                {labelFor(m)}
-              </option>
-            ))}
-          </select>
+      {people.length > SEARCH_THRESHOLD ? (
+        <div className="relative">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('workspace.searchPeople')}
+            aria-label={t('workspace.searchPeople')}
+            className="h-9 ps-9 text-sm"
+          />
         </div>
-      )}
+      ) : null}
+
+      <div role="radiogroup" aria-label={t('workspace.assignTitle')} className="max-h-64 space-y-1 overflow-y-auto pe-1">
+        <PersonOption
+          selected={!value.assigneeId}
+          onSelect={() => assign(null)}
+          label={value.teamId || value.departmentId ? t('workspace.unassignedMember') : t('workspace.unassigned')}
+        />
+        {visiblePeople.map((person) => {
+          const open = openCountByUser.get(person.member.user_id)
+          return (
+            <PersonOption
+              key={person.member.user_id}
+              selected={value.assigneeId === person.member.user_id}
+              onSelect={() => assign(person.member.user_id)}
+              avatar={<MemberAvatar member={person.member} name={person.name} />}
+              label={person.isYou ? `${person.name} (${t('workspace.you')})` : person.name}
+              position={person.position}
+              meta={open != null ? t('workspace.openTasksShort', { count: open }) : undefined}
+            />
+          )
+        })}
+      </div>
 
       {!value.assigneeId && (value.teamId || value.departmentId) ? (
         <p className="text-xs text-muted">{t('workspace.teamLeadDeliveryHint')}</p>
       ) : null}
     </div>
+  )
+}
+
+function PersonOption({
+  selected,
+  onSelect,
+  avatar,
+  label,
+  position,
+  meta,
+}: {
+  selected: boolean
+  onSelect: () => void
+  avatar?: ReactNode
+  label: string
+  position?: string
+  meta?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-start transition-colors',
+        selected ? 'border-accent/40 bg-accent/10' : 'border-transparent hover:bg-surface',
+      )}
+    >
+      {avatar ?? <span className="size-7 shrink-0 rounded-lg border border-dashed border-border" />}
+      <span className="min-w-0 flex-1 truncate text-sm">
+        <span className="font-medium">{label}</span>
+        {position ? <span className="ms-2 text-[11px] text-muted">{position}</span> : null}
+      </span>
+      {meta ? <span className="shrink-0 text-[11px] tabular-nums text-muted">{meta}</span> : null}
+      {selected ? <Check className="size-4 shrink-0 text-accent" /> : null}
+    </button>
   )
 }

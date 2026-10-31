@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -11,23 +10,24 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   getWorkspaceMemberSettings,
+  listAllMemberSettings,
   workspaceKeys,
+  type WorkspaceProject,
   type WorkspaceTask,
 } from '@/features/workspace-os/api'
 import { listDepartments, listTeams, orgKeys } from '@/features/workspace-os/org-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
 import {
-  resolveVisibleDepartmentIds,
-  taskPassesDepartmentFilter,
-} from '@/features/workspace-os/lib/org-visibility'
-import {
-  filterProjectsForMember,
-  filterTasksForMember,
+  buildTaskVisibilityScope,
+  canSeeMemberWork,
+  canSeeWorkspaceTask,
+  filterProjectsForScope,
+  taskDepartmentId,
 } from '@/features/workspace-os/lib/member-visibility'
-import type { WorkspaceProject } from '@/features/workspace-os/api'
 
 type OrgVisibilityContextValue = {
   homeDepartmentId: string | null
+  /** Departments shown as filter chips: all of them for owners/admins, the headed ones for heads. */
   visibleDepartmentIds: string[]
   selectedDepartmentIds: string[]
   setSelectedDepartmentIds: (ids: string[]) => void
@@ -35,9 +35,12 @@ type OrgVisibilityContextValue = {
   selectAllVisible: () => void
   selectHomeOnly: () => void
   filterTasks: (tasks: WorkspaceTask[]) => WorkspaceTask[]
-  filterProjects: (projects: WorkspaceProject[], tasks: WorkspaceTask[]) => WorkspaceProject[]
+  filterProjects: <P extends WorkspaceProject>(projects: P[], tasks: WorkspaceTask[]) => P[]
+  canSeeTask: (task: WorkspaceTask) => boolean
+  canSeeMember: (userId: string) => boolean
   leadTeamIds: Set<string>
   canSeeAll: boolean
+  isDepartmentHead: boolean
 }
 
 const OrgVisibilityContext = createContext<OrgVisibilityContextValue | null>(null)
@@ -48,10 +51,20 @@ export function useOrgVisibility() {
   return ctx
 }
 
+function readStoredSelection(storageKey: string): string[] | null {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : null
+  } catch {
+    return null
+  }
+}
+
 export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { workspaceId, role } = useWorkspace()
-  const storageKey = `hilm:ws-dept-filter:${workspaceId}`
+  const storageKey = `hilm:ws-dept-filter:v2:${workspaceId}`
 
   const departments = useQuery({
     queryKey: orgKeys.departments(workspaceId),
@@ -65,68 +78,72 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
     queryKey: workspaceKeys.memberSettings(workspaceId),
     queryFn: () => getWorkspaceMemberSettings(workspaceId),
   })
+  const allMemberSettings = useQuery({
+    queryKey: [...workspaceKeys.all, 'member-settings-all', workspaceId],
+    queryFn: () => listAllMemberSettings(workspaceId),
+  })
 
   const homeDepartmentId = memberSettings.data?.department_id ?? null
   const canSeeAll = role === 'owner' || role === 'admin'
 
-  const visibleDepartmentIds = useMemo(() => {
-    return [
-      ...resolveVisibleDepartmentIds({
+  const scope = useMemo(
+    () =>
+      buildTaskVisibilityScope({
+        userId: user?.id,
         role,
-        homeDepartmentId,
         departments: departments.data ?? [],
+        teams: teams.data ?? [],
+        memberSettings: allMemberSettings.data ?? [],
       }),
-    ]
-  }, [role, homeDepartmentId, departments.data])
+    [user?.id, role, departments.data, teams.data, allMemberSettings.data],
+  )
 
-  const visibleKey = visibleDepartmentIds.slice().sort().join(',')
-  const [selectedDepartmentIds, setSelectedDepartmentIdsState] = useState<string[]>([])
+  const visibleDepartmentIds = useMemo(
+    () =>
+      canSeeAll
+        ? (departments.data ?? []).map((dept) => dept.id)
+        : (departments.data ?? []).filter((dept) => scope.headDepartmentIds.has(dept.id)).map((dept) => dept.id),
+    [canSeeAll, departments.data, scope.headDepartmentIds],
+  )
 
-  useEffect(() => {
-    if (!visibleDepartmentIds.length) {
-      setSelectedDepartmentIdsState([])
-      return
-    }
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) {
-        const parsed = JSON.parse(raw) as string[]
-        const next = parsed.filter((id) => visibleDepartmentIds.includes(id))
-        if (next.length) {
-          setSelectedDepartmentIdsState(next)
-          return
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    if (homeDepartmentId && visibleDepartmentIds.includes(homeDepartmentId)) {
-      setSelectedDepartmentIdsState([homeDepartmentId])
-    } else {
-      setSelectedDepartmentIdsState(visibleDepartmentIds)
-    }
-  }, [storageKey, visibleKey, homeDepartmentId, visibleDepartmentIds])
+  // null = never narrowed: everything in view is selected.
+  const [selectionByKey, setSelectionByKey] = useState<Record<string, string[] | null>>({})
+  const storedSelection =
+    storageKey in selectionByKey ? selectionByKey[storageKey]! : readStoredSelection(storageKey)
+  const setStoredSelection = useCallback(
+    (ids: string[] | null) => setSelectionByKey((prev) => ({ ...prev, [storageKey]: ids })),
+    [storageKey],
+  )
+  const selectedDepartmentIds = useMemo(() => {
+    if (!storedSelection) return visibleDepartmentIds
+    return storedSelection.filter((id) => visibleDepartmentIds.includes(id))
+  }, [storedSelection, visibleDepartmentIds])
 
   const setSelectedDepartmentIds = useCallback(
     (ids: string[]) => {
       const next = ids.filter((id) => visibleDepartmentIds.includes(id))
-      setSelectedDepartmentIdsState(next)
-      localStorage.setItem(storageKey, JSON.stringify(next))
+      const all = next.length === visibleDepartmentIds.length
+      setStoredSelection(all ? null : next)
+      try {
+        if (all) localStorage.removeItem(storageKey)
+        else localStorage.setItem(storageKey, JSON.stringify(next))
+      } catch {
+        /* storage unavailable */
+      }
     },
-    [storageKey, visibleDepartmentIds],
+    [setStoredSelection, storageKey, visibleDepartmentIds],
   )
 
   const toggleDepartment = useCallback(
     (id: string) => {
       if (!visibleDepartmentIds.includes(id)) return
-      setSelectedDepartmentIdsState((prev) => {
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-        const filtered = next.filter((x) => visibleDepartmentIds.includes(x))
-        localStorage.setItem(storageKey, JSON.stringify(filtered))
-        return filtered
-      })
+      setSelectedDepartmentIds(
+        selectedDepartmentIds.includes(id)
+          ? selectedDepartmentIds.filter((x) => x !== id)
+          : [...selectedDepartmentIds, id],
+      )
     },
-    [storageKey, visibleDepartmentIds],
+    [selectedDepartmentIds, setSelectedDepartmentIds, visibleDepartmentIds],
   )
 
   const selectAllVisible = useCallback(() => {
@@ -147,33 +164,30 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
     )
   }, [teams.data, user?.id])
 
+  const canSeeTask = useCallback((task: WorkspaceTask) => canSeeWorkspaceTask(task, scope), [scope])
+  const canSeeMember = useCallback((userId: string) => canSeeMemberWork(userId, scope), [scope])
+
   const filterTasks = useCallback(
     (tasks: WorkspaceTask[]) => {
-      const memberScoped = filterTasksForMember(tasks, user?.id, role)
+      const scoped = tasks.filter((task) => canSeeWorkspaceTask(task, scope))
+      if (!visibleDepartmentIds.length || selectedDepartmentIds.length === visibleDepartmentIds.length) {
+        return scoped
+      }
       const selected = new Set(selectedDepartmentIds)
-      const allVisibleSelected =
-        selected.size > 0 &&
-        selected.size === visibleDepartmentIds.length &&
-        visibleDepartmentIds.every((id) => selected.has(id))
-
-      if (canSeeAll && allVisibleSelected) return memberScoped
-
-      return memberScoped.filter((task) =>
-        taskPassesDepartmentFilter(task, {
-          selectedDepartmentIds: selected,
-          userId: user?.id ?? null,
-          leadTeamIds,
-          includeUnscoped: selected.size === 0 ? canSeeAll : allVisibleSelected,
-        }),
-      )
+      // Department chips narrow other people's work; your own assigned tasks always stay.
+      return scoped.filter((task) => {
+        if (task.assignee_id && task.assignee_id === scope.userId) return true
+        const departmentId = taskDepartmentId(task, scope)
+        return departmentId != null && selected.has(departmentId)
+      })
     },
-    [selectedDepartmentIds, canSeeAll, visibleDepartmentIds, user?.id, leadTeamIds, role],
+    [scope, selectedDepartmentIds, visibleDepartmentIds],
   )
 
   const filterProjects = useCallback(
-    (projects: WorkspaceProject[], tasks: WorkspaceTask[]) =>
-      filterProjectsForMember(projects, tasks, user?.id, role),
-    [user?.id, role],
+    <P extends WorkspaceProject>(projects: P[], tasks: WorkspaceTask[]) =>
+      filterProjectsForScope(projects, tasks, scope),
+    [scope],
   )
 
   const value = useMemo(
@@ -188,8 +202,11 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
         selectHomeOnly,
         filterTasks,
         filterProjects,
+        canSeeTask,
+        canSeeMember,
         leadTeamIds,
         canSeeAll,
+        isDepartmentHead: scope.headDepartmentIds.size > 0,
       }) satisfies OrgVisibilityContextValue,
     [
       homeDepartmentId,
@@ -201,8 +218,11 @@ export function OrgVisibilityProvider({ children }: { children: ReactNode }) {
       selectHomeOnly,
       filterTasks,
       filterProjects,
+      canSeeTask,
+      canSeeMember,
       leadTeamIds,
       canSeeAll,
+      scope.headDepartmentIds.size,
     ],
   )
 

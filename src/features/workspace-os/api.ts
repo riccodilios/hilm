@@ -18,6 +18,8 @@ import { refreshWorkspaceProjectCompletion } from '@/features/workspace-os/lib/p
 export type WorkspaceWithMembership = Workspace & {
   my_role: WorkspaceRole
   my_page_permissions: MemberPagePermissions
+  /** Leads a team or heads a department. */
+  my_leads_people: boolean
 }
 
 export const workspaceKeys = {
@@ -107,21 +109,35 @@ export async function listMyWorkspaces() {
 
 export async function getWorkspace(id: string) {
   const userId = await requireUserId()
-  const { data: membership, error: memError } = await supabase
-    .from('workspace_members')
-    .select('role, page_permissions')
-    .eq('workspace_id', id)
-    .eq('user_id', userId)
-    .maybeSingle()
+  const [{ data: membership, error: memError }, { data, error }, ledTeams, headedDepartments] =
+    await Promise.all([
+      supabase
+        .from('workspace_members')
+        .select('role, page_permissions')
+        .eq('workspace_id', id)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      supabase.from('workspaces').select('*').eq('id', id).maybeSingle(),
+      supabase
+        .from('workspace_teams')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', id)
+        .eq('lead_user_id', userId),
+      supabase
+        .from('workspace_departments')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', id)
+        .eq('head_user_id', userId),
+    ])
   if (memError) throw memError
   if (!membership) throw new Error('Workspace not found')
-
-  const { data, error } = await supabase.from('workspaces').select('*').eq('id', id).single()
   if (error) throw error
+  if (!data) throw new Error('Workspace not found')
   return {
     ...(data as Workspace),
     my_role: membership.role as WorkspaceRole,
     my_page_permissions: normalizePagePermissions(membership.page_permissions),
+    my_leads_people: (ledTeams.count ?? 0) > 0 || (headedDepartments.count ?? 0) > 0,
   }
 }
 
@@ -1062,7 +1078,7 @@ export async function getWorkspaceHome(workspaceId: string) {
     )[0] ??
     null
 
-  const projectCards = projects.slice(0, 6).map((project) => {
+  const projectCards = projects.map((project) => {
     const projectTasks = tasks.filter((task) => task.project_id === project.id)
     const open = projectTasks.filter((task) => task.status !== 'done' && task.status !== 'archived')
     const overdue = open.filter((task) => {
@@ -1093,8 +1109,9 @@ export async function getWorkspaceHome(workspaceId: string) {
     upcoming,
     recentActivity: activity,
     projects: projectCards,
+    tasks,
     openTasks,
-    members: members.slice(0, 8),
+    members,
   }
 }
 

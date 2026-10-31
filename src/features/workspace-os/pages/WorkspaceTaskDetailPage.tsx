@@ -35,8 +35,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { TaskDueDateField } from '@/shared/tasks/TaskDueDateField'
 import { combineDueAt } from '@/shared/reminders'
-import { useAuth } from '@/features/auth/AuthProvider'
-import { memberCanSeeTask } from '@/features/workspace-os/lib/member-visibility'
+import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { patchWorkspaceTasksCache } from '@/features/workspace-os/lib/workspace-cache'
 import { StatusBadge } from '@/components/ui/badge'
 import { PageHeader, Skeleton } from '@/components/ui/page'
@@ -51,9 +50,9 @@ import {
 export function WorkspaceTaskDetailPage() {
   const { t, i18n } = useTranslation()
   const { taskId = '' } = useParams()
-  const { workspaceId, workspace, canWritePage, role } = useWorkspace()
+  const { workspaceId, workspace, canWritePage } = useWorkspace()
   const canEdit = canWritePage('tasks')
-  const { user } = useAuth()
+  const { canSeeTask } = useOrgVisibility()
   const qc = useQueryClient()
   const [description, setDescription] = useState('')
   const voiceBaseRef = useRef('')
@@ -176,7 +175,7 @@ export function WorkspaceTaskDetailPage() {
 
   if (task.isLoading) return <Skeleton className="h-40" />
   if (!task.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
-  if (!memberCanSeeTask(task.data, user?.id, role)) {
+  if (!canSeeTask(task.data)) {
     return <p className="text-sm text-danger">{t('common.notFound')}</p>
   }
 

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { ar, enUS } from 'date-fns/locale'
 import { motion } from 'framer-motion'
-import { ArrowRight, Check, FolderKanban, Plus, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, Check, Plus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
@@ -140,7 +140,7 @@ export function WorkspaceHomePage() {
   const { user } = useAuth()
   const { workspaceId, workspace, canWritePage } = useWorkspace()
   const canEdit = canWritePage('tasks')
-  const { filterTasks } = useOrgVisibility()
+  const { filterTasks, filterProjects, canSeeMember, canSeeAll, isDepartmentHead } = useOrgVisibility()
   const qc = useQueryClient()
   const locale = i18n.language
   const dateLocale = locale.startsWith('ar') ? ar : enUS
@@ -200,14 +200,16 @@ export function WorkspaceHomePage() {
   const data = home.data
   const openTasks = data.openTasks ?? []
   const myTasks = openTasks.filter((task) => task.assignee_id === user?.id)
-  const visibleOpen = filterTasks(openTasks)
   const overdueTasks = filterTasks(data.overdueTasks ?? [])
   const todayTasks = filterTasks(data.todayTasks ?? [])
   const upcoming = filterTasks(data.upcoming ?? []).slice(0, 8)
-  const focus = pickFocus(myTasks) ?? pickFocus(visibleOpen)
-  const projects = data.projects ?? []
+  // Focus is only ever your own work: tasks you hand to others never land here.
+  const focus = pickFocus(myTasks)
+  const visibleTasks = filterTasks(data.tasks ?? [])
+  const projects = filterProjects(data.projects ?? [], data.tasks ?? [])
   const recentActivity = data.recentActivity ?? []
-  const members = data.members ?? []
+  const showTeam = canSeeAll || isDepartmentHead
+  const members = showTeam ? (data.members ?? []).filter((member) => canSeeMember(member.user_id)).slice(0, 8) : []
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-full">
@@ -234,28 +236,7 @@ export function WorkspaceHomePage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button asChild variant="secondary" size="sm">
-          <Link to={`/workspace/${workspaceId}/tasks`}>
-            {t('workspace.viewAllTasks')}
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/workspace/${workspaceId}/projects`}>
-            <FolderKanban className="size-4" />
-            {t('nav.projects')}
-          </Link>
-        </Button>
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/workspace/${workspaceId}/team`}>
-            <Users className="size-4" />
-            {t('nav.team')}
-          </Link>
-        </Button>
-      </div>
-
-      <DepartmentFilterBar className="mb-2" />
-      <p className="mb-6 text-xs text-muted">{t('workspace.departmentFilterHint')}</p>
+      <DepartmentFilterBar className="mb-6" />
 
       <motion.section
         custom={0}
@@ -308,12 +289,6 @@ export function WorkspaceHomePage() {
                   {t('workspace.markDone')}
                 </Button>
               ) : null}
-              <Button asChild variant="ghost">
-                <Link to={`/workspace/${workspaceId}/team`}>
-                  <Users className="size-4" />
-                  {t('nav.team')}
-                </Link>
-              </Button>
             </div>
           </>
         ) : (
@@ -347,8 +322,8 @@ export function WorkspaceHomePage() {
         {[
           { label: t('workspace.myTasks'), value: myTasks.length },
           { label: t('workspace.statOverdue'), value: overdueTasks.length },
-          { label: t('workspace.doneTasks'), value: data.doneTaskCount ?? 0 },
-          { label: t('nav.projects'), value: data.projectCount ?? projects.length },
+          { label: t('workspace.doneTasks'), value: visibleTasks.filter((task) => task.status === 'done').length },
+          { label: t('nav.projects'), value: projects.length },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -455,7 +430,7 @@ export function WorkspaceHomePage() {
               </Button>
             </CardHeader>
             <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2">
-              {projects.map((project) => (
+              {projects.slice(0, 6).map((project) => (
                 <Link
                   key={project.id}
                   to={`/workspace/${workspaceId}/projects/${project.id}`}
@@ -499,7 +474,13 @@ export function WorkspaceHomePage() {
           </Card>
         </motion.div>
 
-        <motion.div custom={5} variants={fadeUp} initial="hidden" animate="show">
+        <motion.div
+          custom={5}
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          className={showTeam ? undefined : 'lg:col-span-2'}
+        >
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('workspace.recentActivity')}</CardTitle>
@@ -524,6 +505,7 @@ export function WorkspaceHomePage() {
           </Card>
         </motion.div>
 
+        {showTeam ? (
         <motion.div custom={6} variants={fadeUp} initial="hidden" animate="show">
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -570,6 +552,7 @@ export function WorkspaceHomePage() {
             </CardContent>
           </Card>
         </motion.div>
+        ) : null}
       </div>
     </div>
   )

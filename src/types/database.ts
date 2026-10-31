@@ -1362,6 +1362,63 @@ export type Database = {
           updated_at?: string
         }
       >
+      workspace_roadmap_items: Table<
+        {
+          id: string
+          workspace_id: string
+          project_id: string
+          created_by: string | null
+          title: string
+          description: string | null
+          horizon: Database['public']['Enums']['roadmap_horizon']
+          position: number
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          project_id: string
+          created_by: string
+          title: string
+          description?: string | null
+          horizon?: Database['public']['Enums']['roadmap_horizon']
+          position?: number
+        },
+        {
+          title?: string
+          description?: string | null
+          horizon?: Database['public']['Enums']['roadmap_horizon']
+          position?: number
+        }
+      >
+      workspace_project_notes: Table<
+        {
+          id: string
+          workspace_id: string
+          project_id: string
+          created_by: string | null
+          updated_by: string | null
+          title: string
+          body: string
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: string
+          workspace_id: string
+          project_id: string
+          created_by: string
+          updated_by?: string | null
+          title?: string
+          body?: string
+        },
+        {
+          title?: string
+          body?: string
+          updated_by?: string | null
+        }
+      >
       workspace_team_members: Table<
         {
           id: string
