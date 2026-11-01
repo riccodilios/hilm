@@ -1,12 +1,24 @@
 # https://hilm.tech/robots.txt
 #
-# hilm.tech is Hilm's public website. The product runs on app.hilm.tech (its own robots.txt
-# disallows crawling) and private data is protected by sign-in and database permissions, not by
-# this file. Each group repeats the private paths because a crawler follows only its own group.
+# Hilm (حلم) is an AI-powered Personal OS and Workspace OS: tasks, projects, notes, daily logs,
+# AI meeting transcription and summaries (Arabic and English), team workspaces, departments,
+# reports and an AI assistant. Every public page on hilm.tech, in English and Arabic, is open to
+# search engines, AI search and answer engines, AI assistants and model training crawlers.
+#
+# Start here:
+#   Sitemap (every public page, English and Arabic):  https://hilm.tech/sitemap.xml
+#   Summary for language models:                      https://hilm.tech/llms.txt
+#   Full product description for language models:     https://hilm.tech/llms-full.txt
+#
+# The product itself runs on app.hilm.tech behind sign-in (its own robots.txt keeps it out of
+# indexes). Customer data is protected by authentication and database permissions, not by this
+# file. Each group repeats the private paths because a crawler follows only its own group.
 
 # Everyone else
 User-agent: *
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Disallow: /personal/
 Disallow: /workspace/
 Disallow: /app/
@@ -21,6 +33,14 @@ Disallow: /_public/
 # Web search
 User-agent: Googlebot
 User-agent: Bingbot
+User-agent: Applebot
+User-agent: DuckDuckBot
+User-agent: YandexBot
+User-agent: Slurp
+User-agent: Baiduspider
+User-agent: PetalBot
+User-agent: SeznamBot
+User-agent: Qwantbot
 Allow: /
 Disallow: /personal/
 Disallow: /workspace/
@@ -33,14 +53,27 @@ Disallow: /shared/
 Disallow: /api/
 Disallow: /_public/
 
-# AI search and user-requested fetches (answers that cite and link to hilm.tech)
+# AI search, answer engines and assistants fetching pages for users (answers that cite hilm.tech)
 User-agent: OAI-SearchBot
 User-agent: ChatGPT-User
 User-agent: PerplexityBot
 User-agent: Perplexity-User
 User-agent: Claude-SearchBot
 User-agent: Claude-User
+User-agent: Claude-Web
+User-agent: DuckAssistBot
+User-agent: YouBot
+User-agent: MistralAI-User
+User-agent: Meta-ExternalFetcher
+User-agent: Amazonbot
+User-agent: GoogleOther
+User-agent: Google-CloudVertexBot
+User-agent: PhindBot
+User-agent: Kagibot
+User-agent: Andibot
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Disallow: /personal/
 Disallow: /workspace/
 Disallow: /app/
@@ -52,10 +85,44 @@ Disallow: /shared/
 Disallow: /api/
 Disallow: /_public/
 
-# AI model training (a separate policy from search; public pages only)
+# AI model training and open web datasets (public pages only)
 User-agent: GPTBot
 User-agent: ClaudeBot
+User-agent: anthropic-ai
 User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Meta-ExternalAgent
+User-agent: FacebookBot
+User-agent: CCBot
+User-agent: cohere-ai
+User-agent: cohere-training-data-crawler
+User-agent: AI2Bot
+User-agent: Diffbot
+User-agent: Bytespider
+User-agent: Timpibot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /personal/
+Disallow: /workspace/
+Disallow: /app/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /login
+Disallow: /signup
+Disallow: /shared/
+Disallow: /api/
+Disallow: /_public/
+
+# Link previews in social apps and chat
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: LinkedInBot
+User-agent: Slackbot
+User-agent: Discordbot
+User-agent: WhatsApp
+User-agent: TelegramBot
+User-agent: Pinterestbot
 Allow: /
 Disallow: /personal/
 Disallow: /workspace/

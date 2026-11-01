@@ -77,13 +77,14 @@ export function WorkspaceTasksPage() {
     }
   }, [params, canEdit, projectFilter, projects.data])
 
-  const filtered = useMemo(
-    () =>
-      filterTasks(tasks.data ?? []).filter((task) =>
-        projectFilter ? task.project_id === projectFilter : true,
-      ),
-    [tasks.data, projectFilter, filterTasks, selectedDepartmentIds],
-  )
+  // Open work first, closed (done, cancelled, archived) after; each group keeps its order.
+  const filtered = useMemo(() => {
+    const visible = filterTasks(tasks.data ?? []).filter((task) =>
+      projectFilter ? task.project_id === projectFilter : true,
+    )
+    const closed = (status: string) => status === 'done' || status === 'cancelled' || status === 'archived'
+    return [...visible.filter((task) => !closed(task.status)), ...visible.filter((task) => closed(task.status))]
+  }, [tasks.data, projectFilter, filterTasks, selectedDepartmentIds])
 
   function resetForm() {
     setTitle('')

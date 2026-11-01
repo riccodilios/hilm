@@ -17,15 +17,20 @@ export function WorkspaceRealtime() {
   useEffect(() => {
     if (!user) return
 
+    // One task change emits several events (task, project, activity). Refresh once per burst and
+    // let a refresh already in flight finish instead of restarting it for every event.
+    let timer: ReturnType<typeof setTimeout> | null = null
     const invalidateWorkspace = () => {
-      void Promise.all([
-        qc.invalidateQueries({ queryKey: homeKeys.all }),
-        qc.invalidateQueries({ queryKey: tasksKeys.all }),
-        qc.invalidateQueries({ queryKey: projectsKeys.all }),
-        qc.invalidateQueries({ queryKey: activityKeys.all }),
-        qc.invalidateQueries({ queryKey: notesKeys.all }),
-        qc.invalidateQueries({ queryKey: dailyLogKeys.all }),
-      ])
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        timer = null
+        const options = { cancelRefetch: false }
+        void Promise.all(
+          [homeKeys.all, tasksKeys.all, projectsKeys.all, activityKeys.all, notesKeys.all, dailyLogKeys.all].map((queryKey) =>
+            qc.invalidateQueries({ queryKey }, options),
+          ),
+        )
+      }, 800)
     }
 
     const channel = supabase
@@ -58,6 +63,7 @@ export function WorkspaceRealtime() {
       .subscribe()
 
     return () => {
+      if (timer) clearTimeout(timer)
       void supabase.removeChannel(channel)
     }
   }, [user, qc])

@@ -47,8 +47,8 @@ export function HomePage() {
   const { data, isLoading, error } = useQuery({
     queryKey: homeKeys.dashboard(),
     queryFn: getDashboardData,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    // Realtime keeps it current; a few seconds avoids refetching data that was just prefetched.
+    staleTime: 15_000,
     refetchOnWindowFocus: true,
   })
 

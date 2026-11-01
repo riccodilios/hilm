@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getSettings, settingsKeys } from '@/features/settings/api'
 import { WhatsNewGate } from '@/features/announcements/WhatsNewGate'
 import { Skeleton } from '@/components/ui/page'
@@ -7,10 +8,21 @@ import { Skeleton } from '@/components/ui/page'
 /** Ensures onboarding is finished before entering Personal or Workspace OS. */
 export function RequireOnboarding() {
   const location = useLocation()
+  const qc = useQueryClient()
   const settings = useQuery({
     queryKey: settingsKeys.me(),
     queryFn: getSettings,
   })
+
+  // Opening the Personal home: load the dashboard while the settings check runs, not after it.
+  useEffect(() => {
+    if (location.pathname !== '/personal') return
+    void import('@/features/home/api').then(({ getDashboardData, homeKeys }) =>
+      qc.prefetchQuery({ queryKey: homeKeys.dashboard(), queryFn: getDashboardData, staleTime: 30_000 }),
+    )
+    // Only on first mount: later navigations are handled by the page itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (settings.isLoading) {
     return (

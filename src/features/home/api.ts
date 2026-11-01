@@ -1,10 +1,8 @@
 import { addDays } from 'date-fns'
-import { listTasks } from '@/features/tasks/api'
 import { listProjects } from '@/features/projects/api'
-import { listActivity } from '@/features/activity/api'
-import { listNotes } from '@/features/notes/api'
 import { getDailyLog } from '@/features/daily-log/api'
 import { supabase } from '@/lib/supabase/client'
+import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import {
   addLocalDays,
   taskDueDateKey,
@@ -13,7 +11,6 @@ import {
 } from '@/lib/dates'
 import {
   computeProjectHealth,
-  toPersistedHealthStatus,
   type Momentum,
   type ProjectHealth,
 } from '@/features/projects/health'
@@ -45,22 +42,59 @@ function sortByDue(a: TaskWithProject, b: TaskWithProject) {
   return aDue - bDue
 }
 
-async function loadRoadmapCounts(projectIds: string[]) {
+async function loadRoadmapCounts() {
   const map = new Map<string, { total: number; done: number }>()
-  if (!projectIds.length) return map
-  const { data, error } = await supabase
-    .from('roadmap_items')
-    .select('project_id, horizon')
-    .in('project_id', projectIds)
+  const { data, error } = await supabase.from('roadmap_items').select('project_id, horizon')
   if (error) throw error
   for (const item of data ?? []) {
     const current = map.get(item.project_id) ?? { total: 0, done: 0 }
     current.total += 1
-    // Treat "now" horizon items as in-flight; no explicit done flag — use later/future as remaining bias.
-    if (item.horizon === 'now') current.done += 0
     map.set(item.project_id, current)
   }
   return map
+}
+
+// The dashboard never shows descriptions or note bodies; leaving them out keeps the payload small.
+const DASHBOARD_TASK_COLUMNS =
+  'id, user_id, project_id, title, status, priority, due_at, due_date, due_time, completed_at, created_at, updated_at, position, projects(id, name, color, icon)'
+
+async function listDashboardTasks() {
+  const rows = await fetchAllByKeyset<TaskWithProject>((afterId, size) => {
+    let q = supabase
+      .from('tasks')
+      .select(DASHBOARD_TASK_COLUMNS)
+      .not('project_id', 'is', null)
+      .neq('status', 'archived')
+      .order('id')
+      .limit(size)
+    if (afterId) q = q.gt('id', afterId)
+    return q as unknown as PromiseLike<{ data: TaskWithProject[] | null; error: unknown }>
+  })
+  return rows.sort(
+    (a, b) =>
+      Number(a.position) - Number(b.position) ||
+      (a.due_at ?? '\uffff').localeCompare(b.due_at ?? '\uffff') ||
+      a.id.localeCompare(b.id),
+  )
+}
+
+async function listDashboardNotes() {
+  const rows = await fetchAllByKeyset<Pick<Tables<'notes'>, 'id' | 'title' | 'project_id' | 'updated_at'>>((afterId, size) => {
+    let q = supabase.from('notes').select('id, title, project_id, updated_at').order('id').limit(size)
+    if (afterId) q = q.gt('id', afterId)
+    return q as unknown as PromiseLike<{ data: Array<Pick<Tables<'notes'>, 'id' | 'title' | 'project_id' | 'updated_at'>> | null; error: unknown }>
+  })
+  return sortByTimestampDesc(rows, 'updated_at')
+}
+
+async function listDashboardActivity() {
+  const { data, error } = await supabase
+    .from('activity_events')
+    .select('id, project_id, summary, created_at')
+    .order('created_at', { ascending: false })
+    .limit(80)
+  if (error) throw error
+  return (data ?? []) as Array<Pick<Tables<'activity_events'>, 'id' | 'project_id' | 'summary' | 'created_at'>>
 }
 
 export async function getDashboardData() {
@@ -70,12 +104,13 @@ export async function getDashboardData() {
   const weekAgo = addDays(now, -7).toISOString()
   const twoWeeksAgo = addDays(now, -14).toISOString()
 
-  const [projects, allTasks, activity, notes, dailyLog] = await Promise.all([
+  const [projects, allTasks, activity, notes, dailyLog, roadmapMap] = await Promise.all([
     listProjects(),
-    listTasks(),
-    listActivity(80),
-    listNotes(),
+    listDashboardTasks(),
+    listDashboardActivity(),
+    listDashboardNotes(),
     getDailyLog(),
+    loadRoadmapCounts(),
   ])
 
   const openTasks = allTasks.filter(isOpenTask)
@@ -115,7 +150,6 @@ export async function getDashboardData() {
     return new Date(task.completed_at) >= addDays(now, -7)
   }).length
 
-  const roadmapMap = await loadRoadmapCounts(projects.map((project) => project.id))
   const notesByProject = new Map<string, number>()
   for (const note of notes) {
     if (!note.project_id) continue
@@ -189,28 +223,9 @@ export async function getDashboardData() {
     }
   })
 
-  // Persist completion + explanation quietly so project views stay honest.
-  void Promise.all(
-    projectInsights.map(async (insight) => {
-      const raw = projects.find((project) => project.id === insight.id)
-      if (
-        raw &&
-        Math.abs(Number(raw.completion_pct) - insight.completion_pct) < 0.05 &&
-        (raw.health_explanation ?? '') === insight.healthExplanation
-      ) {
-        return
-      }
-      await supabase
-        .from('projects')
-        .update({
-          completion_pct: insight.completion_pct,
-          health: toPersistedHealthStatus(insight.health),
-          health_explanation: insight.healthExplanation,
-        })
-        .eq('id', insight.id)
-    }),
-  ).catch(() => undefined)
-
+  // Display only. Stored completion and health are kept current by task writes
+  // (refreshProjectCompletion); writing them from here on every load triggered realtime refetch
+  // storms across every open device.
   return {
     focus,
     todayTasks,
