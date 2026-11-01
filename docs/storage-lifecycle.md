@@ -15,9 +15,12 @@
 | Audit trail | `private.storage_lifecycle_events` (append-only), `private.storage_lifecycle_runs` |
 | Monitoring | `private.ops_*` tables, collector `ops/collector.ts` (hourly), alerts `ops/alerts.ts`, console → Infrastructure |
 
-The scheduler is the single scheduled function (every minute): reminders and the email outbox
-every run; lifecycle and alert evaluation every 10 minutes; metrics hourly; usage reconciliation
-and snapshot pruning daily. Job timing lives in `private.ops_collector_state`.
+Background work runs in `_shared/jobs/scheduler-run.ts`. The database decides when to call it:
+pg_cron runs `private.scheduler_tick()` every minute inside Postgres (free) and calls the Netlify
+function `scheduler-run` through pg_net only when a reminder or email is due, or a periodic job is
+due (lifecycle and alerts every 30 minutes, metrics hourly, reconciliation and pruning daily). The
+Netlify `scheduler` schedule runs hourly as a safety net. Job timing lives in
+`private.ops_collector_state`; the `scheduler_tick_stale` alert fires if the database tick stops.
 
 ## Storage worker account
 

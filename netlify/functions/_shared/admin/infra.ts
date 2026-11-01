@@ -219,7 +219,7 @@ export async function forecastView(db: Db) {
   const inputs = {
     audioBytesPerHour: metricValue(metrics, 'storage.audio_bytes_per_hour'),
     currentDbBytes: metricValue(metrics, 'supabase.db_size_bytes'),
-    fixedInvocationsMonth: 44_640,
+    fixedInvocationsMonth: 2_400,
     attachmentRetentionDays: policy?.retention_days ?? 90,
     quarantineDays: Number(settings?.quarantine_days ?? 14),
     audioRetentionDays: settings?.audio_disposal_enabled ? 0 : 365,

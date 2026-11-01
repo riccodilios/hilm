@@ -320,6 +320,11 @@ describe('Reminders and scheduled jobs', () => {
       const querySecret = await fetch(`${APP}/.netlify/functions/${fn}?cron_secret=guess`, { method: 'POST' })
       expect(querySecret.status, fn).toBe(403)
     }
+    // The database-triggered entry point is routed, so only its secret is accepted.
+    const run = `${APP}/api/scheduler-run`
+    expect((await fetch(run, { method: 'POST', headers: { 'x-netlify-event': 'schedule' } })).status).toBe(401)
+    expect((await fetch(run, { method: 'POST', headers: { 'x-cron-secret': 'guess' } })).status).toBe(401)
+    expect((await fetch(`${run}?cron_secret=guess`, { method: 'POST' })).status).toBe(401)
   })
 })
 

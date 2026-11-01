@@ -44,3 +44,17 @@ export function authorizeCronRequest(
 
   return { ok: false, status: 401, error: 'Unauthorized' }
 }
+
+/**
+ * For publicly routed job endpoints: only a matching secret header is accepted (never the
+ * scheduled-event header, which anyone can send to a routed function).
+ */
+export function authorizeSecretRequest(
+  request: Request,
+  secret: string | undefined | null,
+): { ok: true } | { ok: false; status: number; error: string } {
+  if (!secret?.trim()) return { ok: false, status: 500, error: 'secret not configured' }
+  const provided = extractCronSecret(request)
+  if (provided && timingSafeEqual(provided, secret.trim())) return { ok: true }
+  return { ok: false, status: 401, error: 'Unauthorized' }
+}

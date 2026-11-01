@@ -68,12 +68,17 @@ export async function evaluateAlerts(db: Queryable, now = Date.now()): Promise<A
   const collectors = (
     await db.query<{ collector: string; age: string | null }>(
       `select collector, extract(epoch from now() - coalesce(last_success_at, last_attempt_at)) / 60 as age
-       from private.ops_collector_state where collector in ('metrics', 'lifecycle')`,
+       from private.ops_collector_state where collector in ('metrics', 'lifecycle', 'tick')`,
     )
   ).rows
+  const ageMetric: Record<string, string> = {
+    metrics: 'ops.collector_age_minutes|global',
+    lifecycle: 'ops.lifecycle_age_minutes|global',
+    tick: 'ops.tick_age_minutes|global',
+  }
   for (const c of collectors) {
     if (c.age == null) continue
-    values.set(c.collector === 'metrics' ? 'ops.collector_age_minutes|global' : 'ops.lifecycle_age_minutes|global', Number(c.age))
+    values.set(ageMetric[c.collector]!, Number(c.age))
   }
 
   const limits = new Map(

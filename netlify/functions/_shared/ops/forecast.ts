@@ -66,7 +66,7 @@ export type ForecastInputs = {
   audioBytesPerHour?: number | null
   /** Current database size; the fixed part is carried forward. */
   currentDbBytes?: number | null
-  /** Invocations that do not depend on users (the scheduler: 1/min). */
+  /** Invocations that do not depend on users (lifecycle every 30 min + hourly safety net). */
   fixedInvocationsMonth?: number
   attachmentRetentionDays?: number
   quarantineDays?: number
@@ -135,7 +135,7 @@ export function forecastRow(orgs: number, profile: UsageProfile, inputs: Forecas
   const dbBytes = dbFixed + orgs * p.dbBytesPerOrgMonth * horizon
   // Soniox downloads each recording once through a signed URL: that is Supabase egress.
   const egressBytesMonth = members * p.egressBytesPerMemberMonth + audioMonthBytes
-  const invocationsMonth = (inputs.fixedInvocationsMonth ?? 44_640) + members * p.invocationsPerMemberMonth
+  const invocationsMonth = (inputs.fixedInvocationsMonth ?? 2_400) + members * p.invocationsPerMemberMonth
   const bandwidthBytesMonth = members * p.bandwidthBytesPerMemberMonth
   const aiUsdMonth = members * p.aiUsdPerMemberMonth
   const sonioxUsdMonth = orgs * p.audioHoursPerOrgMonth * (inputs.sonioxUsdPerHour ?? 0.1)

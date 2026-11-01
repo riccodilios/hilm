@@ -14,6 +14,10 @@
   # Large workspace batch plans need headroom beyond the default; reliability still comes from create_many + parse recovery.
   timeout = 26
 
+[functions."scheduler-run"]
+  # Background jobs called by the database; reminders, email and the storage lifecycle need headroom.
+  timeout = 26
+
 [functions."admin-portal"]
   # "Collect metrics now" and "Run lifecycle now" call provider APIs and the storage worker.
   timeout = 26
