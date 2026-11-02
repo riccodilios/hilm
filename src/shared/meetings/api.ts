@@ -617,7 +617,7 @@ export async function getMeetingQuota(): Promise<MeetingQuota | null> {
     tier: String(row.tier ?? 'free'),
     enabled: Boolean(row.enabled),
     maxMinutes: num(row.max_minutes, 60),
-    minutesPerMonth: num(row.minutes_per_month, 300),
+    minutesPerMonth: num(row.minutes_per_month, 60),
     usedMinutesMonth: num(row.used_minutes_month),
     maxRetries: num(row.max_retries, 3),
   }
