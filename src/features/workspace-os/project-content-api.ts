@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { requireUserId } from '@/lib/supabase/activity'
-import { workspaceKeys } from '@/features/workspace-os/api'
+import { recordWorkspaceEvent, workspaceKeys } from '@/features/workspace-os/api'
 import { planRoadmapCompletion } from '@/features/roadmap/advance'
 import type { Tables } from '@/types/database'
 import type { RoadmapHorizon } from '@/types/domain'
@@ -76,6 +76,18 @@ export async function completeWorkspaceRoadmapItem(workspaceId: string, projectI
     await updateWorkspaceRoadmapItem(workspaceId, move.id, { horizon: move.horizon })
   }
   await deleteWorkspaceRoadmapItem(workspaceId, plan.deleteId)
+  const finished = items.find((item) => item.id === id)
+  if (finished) {
+    // Completed items are deleted; roadmap reports read the finished steps from the activity log.
+    await recordWorkspaceEvent({
+      workspaceId,
+      eventType: 'roadmap.completed',
+      entityType: 'roadmap_item',
+      entityId: id,
+      summary: `Completed roadmap item ${finished.title}`,
+      payload: { projectId, title: finished.title, horizon: finished.horizon },
+    }).catch(() => undefined)
+  }
 }
 
 export async function listWorkspaceProjectNotes(workspaceId: string, projectId: string) {

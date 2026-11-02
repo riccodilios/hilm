@@ -20,13 +20,14 @@ const PRESET_HINTS: Array<{ preset: DateRangePreset; keys: string[] }> = [
 ]
 
 const TYPE_HINTS: Array<{ id: ReportTypeId; keys: string[] }> = [
+  { id: 'roadmap', keys: ['roadmap', 'milestone', 'phases'] },
   { id: 'overdue_tasks', keys: ['overdue', 'behind', 'late'] },
   { id: 'completed_work', keys: ['completed', 'done', 'shipped', 'delivered'] },
   { id: 'team_performance', keys: ['team performance', 'engineering team', 'team'] },
   { id: 'team_workload', keys: ['team workload', 'capacity'] },
   { id: 'department_performance', keys: ['department'] },
   { id: 'project_health', keys: ['health', 'bottleneck', 'blocker', 'risk'] },
-  { id: 'project_progress', keys: ['progress', 'roadmap'] },
+  { id: 'project_progress', keys: ['progress'] },
   { id: 'workload', keys: ['workload', 'load', 'where i spent', 'time spent'] },
   { id: 'time_allocation', keys: ['time allocation', 'allocation'] },
   { id: 'sprint', keys: ['sprint'] },

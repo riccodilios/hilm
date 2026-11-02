@@ -1,3 +1,5 @@
+import type { RoadmapReportData } from '@/shared/reports/roadmap'
+
 /** Shared report engine types — Personal OS and Workspace OS. */
 
 export type ReportOs = 'personal' | 'workspace'
@@ -39,6 +41,7 @@ export type ReportTypeId =
   | 'project_progress'
   | 'project_health'
   | 'roadmap_progress'
+  | 'roadmap'
   | 'workload'
   | 'time_allocation'
   | 'ai_activity'
@@ -61,6 +64,8 @@ export type ReportSectionId =
   | 'ai_insights'
   | 'recommendations'
   | 'appendix'
+  | 'roadmap'
+  | 'ai_analysis'
 
 export type ReportConfig = {
   typeId: ReportTypeId
@@ -77,6 +82,8 @@ export type ReportConfig = {
   charts?: ReportChartSpec[]
   aiPrompt?: string
   locale?: 'en' | 'ar'
+  /** Roadmap report: run the AI analysis (uses the AI quota once). */
+  includeAiAnalysis?: boolean
 }
 
 export type ChartDatum = { label: string; value: number; color?: string }
@@ -147,6 +154,8 @@ export type ReportSnapshot = {
   recommendations: string[]
   sections: ReportSectionId[]
   config: ReportConfig
+  /** Roadmap report: steps per project and the AI analysis, saved with the report. */
+  roadmap?: RoadmapReportData
 }
 
 export type ReportTypeDefinition = {

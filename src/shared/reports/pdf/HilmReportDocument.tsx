@@ -16,6 +16,8 @@ import {
 import type { ChartDatum, ChartSeries, ReportChartKind, ReportSnapshot } from '@/shared/reports/types'
 import i18n from '@/i18n'
 import { localizedPdfCopy } from '@/shared/reports/i18n'
+import { HILM } from '@/shared/reports/pdf/theme'
+import { RoadmapAnalysisSection, RoadmapClosing, RoadmapDiagram, RoadmapStepTimeline } from '@/shared/reports/pdf/RoadmapPdf'
 
 Font.register({
   family: 'NotoSansArabic',
@@ -44,24 +46,6 @@ function formatWhen(iso: string, locale: string) {
     return iso
   }
 }
-
-/** Hilm monochrome print palette (matches app zinc theme, no blue). */
-const HILM = {
-  ink: '#111113',
-  body: '#3f3f46',
-  muted: '#71717a',
-  mutedSoft: '#a1a1aa',
-  border: '#d4d4d8',
-  borderSubtle: '#e4e4e7',
-  surface: '#f7f7f8',
-  surface2: '#f1f1f3',
-  paper: '#ffffff',
-  cover: '#0a0a0b',
-  coverFg: '#f4f4f5',
-  coverMuted: '#a1a1aa',
-  accent: '#18181b',
-  accentOnCover: '#e4e4e7',
-} as const
 
 function stylesFor(accent: string, arabic: boolean) {
   const accentInk = accent && accent !== '#2563eb' ? accent : HILM.accent
@@ -778,7 +762,7 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
           <Text style={styles.coverMeta}>
             {t('reports.dateRange')}
             {'\n'}
-            {snapshot.periodStart} → {snapshot.periodEnd}
+            {snapshot.periodStart} {arabic ? 'إلى' : '–'} {snapshot.periodEnd}
             {'\n\n'}
             {copy.generatedAt(formatWhen(snapshot.generatedAt, locale))}
             {'\n\n'}
@@ -900,6 +884,37 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
           </View>
         ) : null}
       </Page>
+
+      {sections.has('roadmap') && snapshot.roadmap
+        ? snapshot.roadmap.projects.flatMap((project) => {
+            const roadmap = snapshot.roadmap!
+            const analysis = roadmap.analysis?.projects.find((item) => item.projectId === project.id)
+            return [
+              <Page key={`${project.id}-diagram`} size="A4" orientation="landscape" style={styles.page}>
+                <Header snapshot={snapshot} styles={styles} />
+                <Footer snapshot={snapshot} styles={styles} />
+                {/* A4 landscape width minus the page's horizontal padding. */}
+                <RoadmapDiagram project={project} analysis={analysis} t={t} arabic={arabic} contentWidth={842 - 96} />
+              </Page>,
+              <Page key={`${project.id}-detail`} size="A4" style={styles.page}>
+                <Header snapshot={snapshot} styles={styles} />
+                <Footer snapshot={snapshot} styles={styles} />
+                <RoadmapStepTimeline project={project} analysis={analysis} t={t} arabic={arabic} />
+                {sections.has('ai_analysis') ? (
+                  <RoadmapAnalysisSection project={project} analysis={analysis} aiError={roadmap.aiError} t={t} arabic={arabic} />
+                ) : null}
+              </Page>,
+            ]
+          })
+        : null}
+
+      {sections.has('roadmap') && snapshot.roadmap ? (
+        <Page size="A4" style={styles.page}>
+          <Header snapshot={snapshot} styles={styles} />
+          <Footer snapshot={snapshot} styles={styles} />
+          <RoadmapClosing data={snapshot.roadmap} t={t} arabic={arabic} generatedAt={snapshot.generatedAt} />
+        </Page>
+      ) : null}
     </Document>
   )
 }

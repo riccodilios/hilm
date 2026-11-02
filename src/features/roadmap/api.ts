@@ -138,6 +138,8 @@ export async function completeRoadmapItem(id: string) {
       plan.moves.length > 0
         ? `Completed roadmap item ${current.title}; advanced Next into Now`
         : `Completed roadmap item ${current.title}`,
+    // Completed items are deleted; roadmap reports read the finished steps from here.
+    metadata: { title: current.title, horizon: current.horizon },
   })
 
   return listRoadmap(current.project_id)

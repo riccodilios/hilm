@@ -26,6 +26,11 @@ import type {
   ReportTypeId,
 } from '@/shared/reports/types'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { resolveReportPeriod } from '@/shared/reports/date-ranges'
+import { roadmapAiReason } from '@/shared/reports/roadmap'
+import { fetchRoadmapReport } from '@/shared/reports/roadmap-api'
+import { applyRoadmapData } from '@/shared/reports/engine/roadmapSnapshot'
 
 export type ReportStudioProps = {
   os: ReportOs
@@ -110,6 +115,7 @@ export function ReportStudio(props: ReportStudioProps) {
 
   const types = useMemo(() => listLocalizedReportTypes(props.os, t), [props.os, t])
   const typeDef = localizedReportType(props.os, config.typeId, t)
+  const isRoadmap = config.typeId === 'roadmap'
   const metricOptions = useMemo(
     () =>
       metricsForOs(props.os).map((metric) => ({
@@ -132,9 +138,10 @@ export function ReportStudio(props: ReportStudioProps) {
       datePreset:
         typeId === 'weekly_productivity'
           ? 'this_week'
-          : typeId === 'monthly_productivity'
+          : typeId === 'monthly_productivity' || typeId === 'roadmap'
             ? 'this_month'
             : prev.datePreset,
+      ...(typeId === 'roadmap' ? { includeAiAnalysis: prev.includeAiAnalysis ?? true, charts: undefined } : {}),
     }))
     setStep('configure')
   }
@@ -143,9 +150,10 @@ export function ReportStudio(props: ReportStudioProps) {
     const activeConfig = nextConfig ?? config
     const notes = nextNotes ?? aiNotes
     const activeType = getReportType(props.os, activeConfig.typeId)
+    const locale = i18n.language?.startsWith('ar') ? 'ar' : 'en'
     setBusy(true)
     try {
-      const built = buildReportSnapshot({
+      let built = buildReportSnapshot({
         os: props.os,
         config: {
           ...activeConfig,
@@ -161,9 +169,31 @@ export function ReportStudio(props: ReportStudioProps) {
         members: props.members,
         aiPromptNotes: notes,
       })
+      if (activeConfig.typeId === 'roadmap') {
+        const period = resolveReportPeriod(activeConfig.datePreset, activeConfig.customStart, activeConfig.customEnd, new Date(), locale)
+        const data = await fetchRoadmapReport({
+          os: props.os,
+          workspaceId: props.workspaceId,
+          projectIds: activeConfig.projectIds,
+          locale,
+          periodStart: period.start,
+          periodEnd: period.end,
+          includeAi: activeConfig.includeAiAnalysis !== false,
+        })
+        if (!data.projects.length) {
+          toast.error(t('reports.roadmap.errors.no_projects'))
+          return
+        }
+        built = applyRoadmapData(built, data, i18n.getFixedT(locale), activeConfig.title)
+        if (data.aiError && activeConfig.includeAiAnalysis !== false) {
+          toast.message(t('reports.roadmap.aiSkipped', { reason: roadmapAiReason(data.aiError, t) }))
+        }
+      }
       setSnapshot(built)
       setStep('preview')
       props.onClearReopen?.()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('reports.previewFailed'))
     } finally {
       setBusy(false)
     }
@@ -378,6 +408,27 @@ export function ReportStudio(props: ReportStudioProps) {
                 onToggle={(id) => toggleId('projectIds', id, 'all')}
               />
 
+              {isRoadmap ? (
+                <div className="space-y-3 rounded-xl border border-border-subtle bg-surface-2/40 p-3">
+                  <p className="text-[11px] text-muted">{t('reports.roadmap.projectsHint')}</p>
+                  {config.projectIds !== 'all' && config.projectIds.length > 6 ? (
+                    <p className="text-[11px] text-danger">{t('reports.roadmap.tooManyProjects')}</p>
+                  ) : null}
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={config.includeAiAnalysis !== false}
+                      onChange={(e) => patchConfig({ includeAiAnalysis: e.target.checked })}
+                    />
+                    <span>
+                      {t('reports.roadmap.includeAi')}
+                      <span className="block text-[11px] text-muted">{t('reports.roadmap.includeAiHint')}</span>
+                    </span>
+                  </label>
+                </div>
+              ) : null}
+
               {props.os === 'workspace' && typeDef.needsDepartments && props.departments?.length ? (
                 <MultiSelect
                   label={t('reports.departments', { defaultValue: 'Departments' })}
@@ -411,6 +462,8 @@ export function ReportStudio(props: ReportStudioProps) {
                 />
               ) : null}
 
+              {isRoadmap ? null : (
+              <>
               <div>
                 <p className="mb-2 text-xs text-muted">
                   {t('reports.metrics', { defaultValue: 'Metrics' })}
@@ -486,15 +539,23 @@ export function ReportStudio(props: ReportStudioProps) {
                   })}
                 </div>
               </div>
+              </>
+              )}
 
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button type="button" variant="secondary" onClick={() => setStep('type')}>
                   {t('common.back', { defaultValue: 'Back' })}
                 </Button>
-                <Button type="button" disabled={busy} onClick={() => void generatePreview()}>
+                <Button
+                  type="button"
+                  disabled={busy || (isRoadmap && config.projectIds !== 'all' && config.projectIds.length > 6)}
+                  onClick={() => void generatePreview()}
+                >
                   <Wand2 className="size-4" />
                   {busy
-                    ? t('reports.generating', { defaultValue: 'Generating…' })
+                    ? isRoadmap
+                      ? t('reports.roadmap.analyzing')
+                      : t('reports.generating', { defaultValue: 'Generating…' })
                     : snapshot && configDirty
                       ? t('reports.regeneratePreview', { defaultValue: 'Regenerate preview' })
                       : t('reports.generatePreview', { defaultValue: 'Generate preview' })}

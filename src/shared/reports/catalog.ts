@@ -74,12 +74,12 @@ const personalTypes: ReportTypeDefinition[] = [
     sections: ['cover', 'executive_summary', 'key_metrics', 'projects', 'recommendations'],
   },
   {
-    id: 'roadmap_progress',
+    id: 'roadmap',
     os: 'personal',
-    title: 'Roadmap Progress Report',
-    description: 'Roadmap items and delivery horizon progress.',
-    defaultMetrics: ['project_progress', 'upcoming_deadlines'],
-    sections: ['cover', 'key_metrics', 'projects', 'appendix'],
+    title: 'Roadmap Report',
+    description: 'Each project’s roadmap drawn as connected steps, with an AI analysis of progress, risks and next actions.',
+    defaultMetrics: [],
+    sections: ['cover', 'executive_summary', 'key_metrics', 'charts', 'roadmap', 'ai_analysis'],
   },
   {
     id: 'workload',
@@ -168,6 +168,14 @@ const workspaceTypes: ReportTypeDefinition[] = [
     description: 'Health distribution and blocked/stalled projects.',
     defaultMetrics: ['project_health', 'overdue_tasks', 'open_tasks'],
     sections: ['cover', 'executive_summary', 'key_metrics', 'projects', 'recommendations'],
+  },
+  {
+    id: 'roadmap',
+    os: 'workspace',
+    title: 'Roadmap Report',
+    description: 'Each project’s roadmap drawn as connected steps, with an AI analysis of progress, risks and next actions.',
+    defaultMetrics: [],
+    sections: ['cover', 'executive_summary', 'key_metrics', 'charts', 'roadmap', 'ai_analysis'],
   },
   {
     id: 'overdue_tasks',

@@ -85,6 +85,8 @@ async function recordWsActivity(input: {
   })
 }
 
+export const recordWorkspaceEvent = recordWsActivity
+
 export async function listMyWorkspaces() {
   const userId = await requireUserId()
   const { data: memberships, error } = await supabase
