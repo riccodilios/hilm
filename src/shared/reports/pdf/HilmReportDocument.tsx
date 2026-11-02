@@ -890,11 +890,11 @@ export function HilmReportDocument({ snapshot }: { snapshot: ReportSnapshot }) {
             const roadmap = snapshot.roadmap!
             const analysis = roadmap.analysis?.projects.find((item) => item.projectId === project.id)
             return [
-              <Page key={`${project.id}-diagram`} size="A4" orientation="landscape" style={styles.page}>
+              <Page key={`${project.id}-diagram`} size="A4" style={styles.page}>
                 <Header snapshot={snapshot} styles={styles} />
                 <Footer snapshot={snapshot} styles={styles} />
-                {/* A4 landscape width minus the page's horizontal padding. */}
-                <RoadmapDiagram project={project} analysis={analysis} t={t} arabic={arabic} contentWidth={842 - 96} />
+                {/* A4 portrait width minus the page's horizontal padding. */}
+                <RoadmapDiagram project={project} analysis={analysis} t={t} arabic={arabic} contentWidth={595 - 96} />
               </Page>,
               <Page key={`${project.id}-detail`} size="A4" style={styles.page}>
                 <Header snapshot={snapshot} styles={styles} />

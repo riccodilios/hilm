@@ -112,8 +112,13 @@ describe('roadmap report', () => {
   it('renders the PDF with the node diagram, step details and AI analysis', async () => {
     const buffer = await renderToBuffer(doc(snapshot('en')))
     expect(buffer.length).toBeGreaterThan(5_000)
-    // cover, summary, landscape diagram, details/analysis, closing
-    expect(buffer.toString('latin1').match(/\/Type \/Page\b/g)?.length).toBeGreaterThanOrEqual(5)
+    const raw = buffer.toString('latin1')
+    // cover, summary, diagram, details/analysis, closing
+    expect(raw.match(/\/Type \/Page\b/g)?.length).toBeGreaterThanOrEqual(5)
+    // Every page is A4 portrait (width < height).
+    const boxes = [...raw.matchAll(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/g)]
+    expect(boxes.length).toBeGreaterThan(0)
+    for (const [, width, height] of boxes) expect(Number(width)).toBeLessThan(Number(height))
   }, 60_000)
 
   it('renders without an AI analysis', async () => {

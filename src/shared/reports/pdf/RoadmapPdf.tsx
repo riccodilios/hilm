@@ -14,8 +14,10 @@ import { HILM, pdfFonts } from '@/shared/reports/pdf/theme'
 type ProjectAnalysis = RoadmapAnalysis['projects'][number]
 type StepNote = ProjectAnalysis['steps'][number]
 
-/** Steps shown per lane on the diagram page; the step timeline lists every step. */
-const LANE_LIMIT = 7
+/** Steps shown per stage on the diagram page; the step timeline lists every step. */
+const LANE_LIMIT = 6
+const LANE_COLUMNS = 3
+const CARD_GAP = 8
 const STAGES: RoadmapStage[] = ['done', 'now', 'next', 'later', 'future']
 
 function stylesFor(arabic: boolean) {
@@ -28,36 +30,33 @@ function stylesFor(arabic: boolean) {
     body: { fontSize: 9.5, lineHeight: 1.55, color: HILM.body, marginBottom: 6 },
     bullet: { fontSize: 9.5, lineHeight: 1.5, color: HILM.body, marginBottom: 3 },
     small: { fontSize: 7.5, color: HILM.muted },
-    lanes: { flexDirection: 'row', alignItems: 'flex-start' },
     laneHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       borderRadius: 10,
       paddingVertical: 5,
-      paddingHorizontal: 8,
-      marginBottom: 8,
+      paddingHorizontal: 10,
+      marginBottom: 6,
       borderWidth: 1,
     },
+    laneRow: { flexDirection: 'row', marginBottom: CARD_GAP },
+    laneCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      borderWidth: 1,
+      borderColor: HILM.border,
+      borderRadius: 5,
+      paddingVertical: 6,
+      paddingHorizontal: 6,
+      backgroundColor: HILM.paper,
+    },
     laneLabel: { fontSize: 8, fontFamily: font.bold, letterSpacing: arabic ? 0 : 0.6 },
-    nodeRow: { flexDirection: 'row' },
     gutter: { width: 18, alignItems: 'center' },
     circle: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
     // Step numbers are Western digits: the Arabic font's tall line box would push them out of the circle.
     circleText: { fontSize: 7, fontFamily: 'Helvetica-Bold', lineHeight: 1 },
     connector: { width: 1.2, flexGrow: 1, backgroundColor: HILM.border, minHeight: 6 },
-    card: {
-      flexGrow: 1,
-      flexBasis: 0,
-      borderWidth: 1,
-      borderColor: HILM.border,
-      borderRadius: 5,
-      paddingVertical: 5,
-      paddingHorizontal: 6,
-      marginBottom: 6,
-      marginLeft: 4,
-      backgroundColor: HILM.paper,
-    },
     cardTitle: { fontSize: 8, fontFamily: font.bold, color: HILM.ink, lineHeight: 1.3 },
     cardMeta: { fontSize: 6.5, color: HILM.muted, marginTop: 2 },
     legend: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, gap: 10 },
@@ -152,14 +151,20 @@ function laneStyle(stage: RoadmapStage) {
   return { backgroundColor: HILM.surface, borderColor: HILM.border, color: HILM.body }
 }
 
-function Arrow() {
+function DownArrow() {
   return (
-    <View style={{ width: 16, alignItems: 'center', paddingTop: 7 }}>
-      <Svg width={12} height={10}>
-        <Path d="M0 5 L9 5 M5 1 L10 5 L5 9" stroke={HILM.mutedSoft} strokeWidth={1.4} fill="none" />
+    <View style={{ height: 16, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={10} height={12}>
+        <Path d="M5 0 L5 9 M1 5 L5 10 L9 5" stroke={HILM.mutedSoft} strokeWidth={1.4} fill="none" />
       </Svg>
     </View>
   )
+}
+
+function chunk<T>(items: T[], size: number) {
+  const rows: T[][] = []
+  for (let index = 0; index < items.length; index += size) rows.push(items.slice(index, index + size))
+  return rows
 }
 
 export function RoadmapDiagram({
@@ -178,7 +183,7 @@ export function RoadmapDiagram({
   const styles = stylesFor(arabic)
   const notes = new Map((analysis?.steps ?? []).map((note) => [note.stepId, note]))
   const lanes = STAGES.filter((stage) => stage === 'now' || project.steps.some((step) => step.stage === stage))
-  const laneWidth = (contentWidth - (lanes.length - 1) * 16) / Math.max(lanes.length, 1)
+  const cardWidth = (contentWidth - (LANE_COLUMNS - 1) * CARD_GAP) / LANE_COLUMNS
 
   return (
     <View>
@@ -204,49 +209,52 @@ export function RoadmapDiagram({
       </View>
 
       {project.steps.length ? (
-        <View style={styles.lanes}>
+        <View>
           {lanes.map((stage, laneIndex) => {
             const steps = project.steps.filter((step) => step.stage === stage)
             const shown = steps.slice(0, LANE_LIMIT)
             const look = laneStyle(stage)
             return (
-              <View key={stage} style={{ flexDirection: 'row' }}>
-                {laneIndex > 0 ? <Arrow /> : null}
-                <View style={{ width: laneWidth }}>
+              <View key={stage}>
+                {laneIndex > 0 ? <DownArrow /> : null}
+                <View wrap={false}>
                   <View style={[styles.laneHeader, { backgroundColor: look.backgroundColor, borderColor: look.borderColor }]}>
                     <Text style={[styles.laneLabel, { color: look.color }]}>{t(`reports.roadmap.stage.${stage}`)}</Text>
                     <Text style={[styles.laneLabel, { color: look.color }]}>{steps.length}</Text>
                   </View>
                   {shown.length ? (
-                    shown.map((step, index) => {
-                      const note = notes.get(step.id)
-                      const last = index === shown.length - 1
-                      return (
-                        <View key={step.id} style={styles.nodeRow} wrap={false}>
-                          <View style={styles.gutter}>
-                            <Node step={step} note={note} styles={styles} />
-                            {last ? null : <View style={styles.connector} />}
-                          </View>
-                          <View style={styles.card}>
-                            <Text style={styles.cardTitle}>{clip(step.title, 90)}</Text>
-                            <Text style={styles.cardMeta}>
-                              {step.stage === 'done'
-                                ? t('reports.roadmap.pdf.completedOn', { date: formatDate(step.completedAt, arabic) })
-                                : note
-                                  ? `${t(`reports.roadmap.readiness.${note.readiness}`)} · ${t('reports.roadmap.pdf.relatedTasks', { count: note.relatedTasks })}`
-                                  : step.endsAt
-                                    ? t('reports.roadmap.pdf.until', { date: formatDate(step.endsAt, arabic) })
-                                    : t(`reports.roadmap.stage.${step.stage}`)}
-                            </Text>
-                          </View>
-                        </View>
-                      )
-                    })
+                    chunk(shown, LANE_COLUMNS).map((row, rowIndex) => (
+                      <View key={rowIndex} style={styles.laneRow}>
+                        {row.map((step, index) => {
+                          const note = notes.get(step.id)
+                          return (
+                            <View
+                              key={step.id}
+                              style={[styles.laneCard, { width: cardWidth, marginLeft: index === 0 ? 0 : CARD_GAP }]}
+                            >
+                              <Node step={step} note={note} styles={styles} />
+                              <View style={{ flexGrow: 1, flexBasis: 0, marginLeft: 6 }}>
+                                <Text style={styles.cardTitle}>{clip(step.title, 80)}</Text>
+                                <Text style={styles.cardMeta}>
+                                  {step.stage === 'done'
+                                    ? t('reports.roadmap.pdf.completedOn', { date: formatDate(step.completedAt, arabic) })
+                                    : note
+                                      ? `${t(`reports.roadmap.readiness.${note.readiness}`)} · ${t('reports.roadmap.pdf.relatedTasks', { count: note.relatedTasks })}`
+                                      : step.endsAt
+                                        ? t('reports.roadmap.pdf.until', { date: formatDate(step.endsAt, arabic) })
+                                        : t(`reports.roadmap.stage.${step.stage}`)}
+                                </Text>
+                              </View>
+                            </View>
+                          )
+                        })}
+                      </View>
+                    ))
                   ) : (
-                    <Text style={[styles.small, { paddingHorizontal: 4 }]}>{t('reports.roadmap.pdf.emptyLane')}</Text>
+                    <Text style={[styles.small, { paddingHorizontal: 4, marginBottom: 4 }]}>{t('reports.roadmap.pdf.emptyLane')}</Text>
                   )}
                   {steps.length > shown.length ? (
-                    <Text style={[styles.small, { marginLeft: 22 }]}>
+                    <Text style={[styles.small, { marginBottom: 4 }]}>
                       {t('reports.roadmap.pdf.more', { count: steps.length - shown.length })}
                     </Text>
                   ) : null}

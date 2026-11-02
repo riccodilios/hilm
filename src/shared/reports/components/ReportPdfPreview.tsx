@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LoaderCircle } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
@@ -7,10 +7,44 @@ import type { ReportSnapshot } from '@/shared/reports/types'
 import { cn } from '@/lib/utils'
 
 /**
- * Renders the report PDF via an object URL instead of PDFViewer.
- * PDFViewer silently fails when yoga WASM / fonts are blocked and remounts
- * aggressively; this path surfaces loading/errors and stays stable.
+ * Desktop browsers show the PDF in their own viewer (iframe). Phones have no inline PDF viewer
+ * (Android Chrome shows "This content is blocked"), so there the pages are drawn as images with
+ * PDF.js, loaded only when needed.
  */
+function hasInlinePdfViewer() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return false
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false
+  return navigator.pdfViewerEnabled === true && !coarse
+}
+
+async function renderPages(blob: Blob, width: number, isCancelled: () => boolean) {
+  const pdfjs = await import('pdfjs-dist')
+  const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false, useSystemFonts: true }).promise
+  const images: string[] = []
+  const ratio = Math.min(window.devicePixelRatio || 1, 2)
+  try {
+    for (let index = 1; index <= doc.numPages; index += 1) {
+      if (isCancelled()) break
+      const page = await doc.getPage(index)
+      const base = page.getViewport({ scale: 1 })
+      const viewport = page.getViewport({ scale: (width / base.width) * ratio })
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.floor(viewport.width)
+      canvas.height = Math.floor(viewport.height)
+      const context = canvas.getContext('2d')
+      if (!context) continue
+      await page.render({ canvasContext: context, viewport }).promise
+      images.push(canvas.toDataURL('image/png'))
+      page.cleanup()
+    }
+  } finally {
+    void doc.destroy()
+  }
+  return images
+}
+
 export function ReportPdfPreview({
   snapshot,
   className,
@@ -19,9 +53,12 @@ export function ReportPdfPreview({
   className?: string
 }) {
   const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
   const [url, setUrl] = useState<string | null>(null)
+  const [pages, setPages] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [inline] = useState(hasInlinePdfViewer)
   const previewKey = [
     snapshot.generatedAt,
     snapshot.title,
@@ -35,13 +72,20 @@ export function ReportPdfPreview({
     setLoading(true)
     setError(null)
     setUrl(null)
+    setPages([])
 
     void (async () => {
       try {
         const blob = await pdf(<HilmReportDocument snapshot={snapshot} />).toBlob()
         if (cancelled) return
-        objectUrl = URL.createObjectURL(blob)
-        setUrl(objectUrl)
+        if (inline) {
+          objectUrl = URL.createObjectURL(blob)
+          setUrl(objectUrl)
+        } else {
+          const width = containerRef.current?.clientWidth || 360
+          const images = await renderPages(blob, width, () => cancelled)
+          if (!cancelled) setPages(images)
+        }
       } catch (err) {
         if (cancelled) return
         const message = err instanceof Error ? err.message : String(err)
@@ -60,12 +104,14 @@ export function ReportPdfPreview({
     }
     // snapshot identity is captured via previewKey — avoid remount thrash
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewKey])
+  }, [previewKey, inline])
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        'relative h-[70vh] min-h-[480px] w-full overflow-hidden rounded-xl border border-border-subtle bg-white',
+        'relative w-full overflow-hidden rounded-xl border border-border-subtle bg-white',
+        inline ? 'h-[70vh] min-h-[480px]' : 'min-h-[320px]',
         className,
       )}
     >
@@ -94,6 +140,18 @@ export function ReportPdfPreview({
           src={url}
           className="h-full w-full border-0"
         />
+      ) : null}
+      {pages.length ? (
+        <div className="space-y-2 bg-zinc-200 p-2">
+          {pages.map((src, index) => (
+            <img
+              key={index}
+              src={src}
+              alt={t('reports.previewPage', { defaultValue: 'Page {{page}}', page: index + 1 })}
+              className="block w-full bg-white shadow-sm"
+            />
+          ))}
+        </div>
       ) : null}
     </div>
   )
