@@ -299,7 +299,7 @@ export function TaskDetailPage() {
                 await qc.invalidateQueries({ queryKey: [...tasksKeys.detail(id!), 'attachments'] })
               }}
             />
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2 sm:col-span-3">
                 <Label htmlFor="project">{t('tasks.project')}</Label>
                 <select

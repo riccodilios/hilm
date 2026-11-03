@@ -324,6 +324,31 @@
       "deleteBody": "This permanently deletes the workspace with all of its projects, tasks, meetings, notes and files for every member. This cannot be undone.",
       "typeName": "Type the workspace name to confirm:",
       "noRights": "Only the workspace owner and admins can edit it, and only the owner can delete it."
+    },
+    "settingsPage": {
+      "cardTitle": "Workspace settings",
+      "cardDesc": "Name and color, usage, invites, file retention, ownership and deletion.",
+      "title": "Workspace settings",
+      "desc": "Everything about this workspace in one place.",
+      "usageTitle": "Usage",
+      "usageDesc": "How much this workspace holds and uses this month.",
+      "members": "Members",
+      "projects": "Projects",
+      "openTasks": "Open tasks",
+      "doneTasks": "Completed tasks",
+      "meetings": "Meetings",
+      "meetingMinutes": "Minutes this month",
+      "storage": "Storage",
+      "storageOf": "{{used}} of {{quota}}",
+      "storageBreakdown": "{{files}} files · attachments {{attachments}} · recordings {{audio}}",
+      "aiTitle": "AI this month",
+      "aiRequests": "Chat requests",
+      "aiMeetings": "Meeting AI runs",
+      "aiTokens": "Tokens",
+      "aiCost": "Estimated spend",
+      "aiUsers": "Members using AI",
+      "general": "General",
+      "invites": "Invites"
     }
   },
   "auth": {

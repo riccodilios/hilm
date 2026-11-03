@@ -22,19 +22,12 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { getSettings, settingsKeys, updateSettings } from '@/shared/user-settings'
 import { getProfile, profileKeys, updateProfile } from '@/shared/user-profile'
 import {
-  deleteWorkspace,
   getWorkspaceMemberSettings,
-  leaveWorkspace,
-  listWorkspaceMembers,
-  regenerateInviteCode,
-  transferOwnership,
-  updateWorkspace,
   upsertWorkspaceMemberSettings,
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { listDepartments, orgKeys } from '@/features/workspace-os/org-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
-import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -47,18 +40,13 @@ export function WorkspaceProfilePage() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const qc = useQueryClient()
-  const { workspaceId, workspace, role, canManage, canManageTeam, canDelete } = useWorkspace()
+  const { workspaceId, workspace, role } = useWorkspace()
 
   const profile = useQuery({ queryKey: profileKeys.me(), queryFn: getProfile })
   const accountSettings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   const memberSettings = useQuery({
     queryKey: workspaceKeys.memberSettings(workspaceId),
     queryFn: () => getWorkspaceMemberSettings(workspaceId),
-  })
-  const members = useQuery({
-    queryKey: workspaceKeys.members(workspaceId),
-    queryFn: () => listWorkspaceMembers(workspaceId),
-    enabled: canManage || canDelete,
   })
   const departments = useQuery({
     queryKey: orgKeys.departments(workspaceId),
@@ -74,10 +62,6 @@ export function WorkspaceProfilePage() {
   const [workspaceEmails, setWorkspaceEmails] = useState(true)
   const [compactUi, setCompactUi] = useState(false)
   const [aiSuggestAssign, setAiSuggestAssign] = useState(true)
-  const [wsName, setWsName] = useState(workspace.name)
-  const [wsDescription, setWsDescription] = useState(workspace.description ?? '')
-  const [wsColor, setWsColor] = useState(workspace.color)
-  const [transferTo, setTransferTo] = useState('')
 
   useEffect(() => {
     const settings = memberSettings.data
@@ -101,12 +85,6 @@ export function WorkspaceProfilePage() {
     setWorkspaceEmails(accountSettings.data?.email_workspace_enabled ?? true)
   }, [accountSettings.data])
 
-  useEffect(() => {
-    setWsName(workspace.name)
-    setWsDescription(workspace.description ?? '')
-    setWsColor(workspace.color)
-  }, [workspace.name, workspace.description, workspace.color])
-
   const accountName = profile.data?.display_name || t('brand.name')
   const workspaceDisplay =
     displayOverride.trim() || accountName
@@ -115,9 +93,9 @@ export function WorkspaceProfilePage() {
 
   const hubLinks = [
     {
-      to: `/workspace/${workspaceId}/account-settings`,
-      label: t('workspace.personalSettings'),
-      description: t('workspace.personalSettingsDesc'),
+      to: `/workspace/${workspaceId}/settings`,
+      label: t('workspace.settingsPage.cardTitle'),
+      description: t('workspace.settingsPage.cardDesc'),
       icon: Settings,
     },
     {
@@ -195,59 +173,6 @@ export function WorkspaceProfilePage() {
     onError: (error: Error) => toast.error(error.message),
   })
 
-  const saveWorkspace = useMutation({
-    mutationFn: () =>
-      updateWorkspace(workspaceId, {
-        name: wsName,
-        description: wsDescription || null,
-        color: wsColor,
-      }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.detail(workspaceId) })
-      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
-      toast.success(t('workspace.settingsSaved'))
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
-  const invite = useMutation({
-    mutationFn: () => regenerateInviteCode(workspaceId),
-    onSuccess: async (code) => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.detail(workspaceId) })
-      toast.success(t('workspace.inviteRegenerated', { code }))
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
-  const transfer = useMutation({
-    mutationFn: () => transferOwnership(workspaceId, transferTo),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.detail(workspaceId) })
-      toast.success(t('workspace.ownershipTransferred'))
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
-  const remove = useMutation({
-    mutationFn: () => deleteWorkspace(workspaceId),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
-      toast.success(t('workspace.deleted'))
-      navigate('/workspace')
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
-  const leave = useMutation({
-    mutationFn: () => leaveWorkspace(workspaceId),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
-      toast.success(t('workspace.left'))
-      navigate('/workspace')
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
   if (profile.isLoading || memberSettings.isLoading) {
     return (
       <div className="space-y-4">
@@ -269,7 +194,7 @@ export function WorkspaceProfilePage() {
           >
             {(workspaceDisplay || workspace.name).slice(0, 1).toUpperCase()}
           </span>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-[11rem]">
             <h2 className="truncate text-lg font-medium">{workspaceDisplay}</h2>
             <p className="text-sm text-muted">
               {workspace.name} · {roleLabel}
@@ -284,7 +209,7 @@ export function WorkspaceProfilePage() {
         </CardContent>
       </Card>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {hubLinks.map(({ to, label, description, icon: Icon }) => (
           <Link key={to} to={to}>
             <Card className="h-full transition-colors hover:border-border hover:bg-surface">
@@ -340,7 +265,7 @@ export function WorkspaceProfilePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center gap-3 space-y-0">
             <UserRound className="size-4 text-accent" />
@@ -463,66 +388,6 @@ export function WorkspaceProfilePage() {
         </Button>
       </div>
 
-      {canManage ? (
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>{t('workspace.ownerSettings')}</CardTitle>
-            <CardDescription>{t('workspace.settingsDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent className="max-w-lg space-y-4">
-            <div>
-              <Label htmlFor="ws-name">{t('workspace.name')}</Label>
-              <Input id="ws-name" className="mt-1" value={wsName} onChange={(e) => setWsName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="ws-desc">{t('workspace.description')}</Label>
-              <Input
-                id="ws-desc"
-                className="mt-1"
-                value={wsDescription}
-                onChange={(e) => setWsDescription(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="ws-color">{t('workspace.color')}</Label>
-              <Input
-                id="ws-color"
-                type="color"
-                className="mt-1 h-10"
-                value={wsColor}
-                onChange={(e) => setWsColor(e.target.value)}
-              />
-            </div>
-            <Button disabled={saveWorkspace.isPending || !wsName.trim()} onClick={() => saveWorkspace.mutate()}>
-              {t('workspace.saveWorkspaceSettings')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canManageTeam ? (
-        <Card className="mt-6">
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Users className="size-4 text-accent" />
-            <div>
-              <CardTitle>{t('workspace.inviteManagement')}</CardTitle>
-              <CardDescription>{t('workspace.teamDesc')}</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button asChild variant="secondary">
-              <Link to={`/workspace/${workspaceId}/team`}>{t('nav.team')}</Link>
-            </Button>
-            <Button variant="secondary" disabled={invite.isPending} onClick={() => invite.mutate()}>
-              {t('workspace.regenerate')}
-            </Button>
-            <p className="w-full text-xs text-muted">
-              {t('workspace.inviteCode')}: <span className="font-mono">{workspace.invite_code}</span>
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Card className="mt-6">
         <CardHeader className="flex-row items-center gap-3 space-y-0">
           <Shield className="size-4 text-accent" />
@@ -536,68 +401,6 @@ export function WorkspaceProfilePage() {
           <p>{t('workspace.securityHint')}</p>
         </CardContent>
       </Card>
-
-      {canDelete ? (
-        <div className="mt-8 max-w-lg space-y-4 rounded-2xl border border-danger/30 bg-danger/5 p-4">
-          <h2 className="text-sm font-medium text-danger">{t('workspace.dangerZone')}</h2>
-          <div>
-            <Label>{t('workspace.transferOwnership')}</Label>
-            <select
-              className="mt-1 w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm"
-              value={transferTo}
-              onChange={(e) => setTransferTo(e.target.value)}
-            >
-              <option value="">{t('workspace.selectMember')}</option>
-              {(members.data ?? [])
-                .filter((m) => m.user_id !== user?.id)
-                .map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {resolveMemberDisplayName({
-                      displayNameOverride: m.display_name_override,
-                      displayName: m.profiles?.display_name,
-                      email: m.email ?? m.profiles?.email,
-                    })}
-                  </option>
-                ))}
-            </select>
-            <Button
-              className="mt-2"
-              variant="secondary"
-              disabled={!transferTo || transfer.isPending}
-              onClick={() => transfer.mutate()}
-            >
-              {t('workspace.transfer')}
-            </Button>
-          </div>
-          <Button
-            variant="ghost"
-            className="text-danger"
-            disabled={remove.isPending}
-            onClick={() => {
-              if (window.confirm(t('workspace.deleteConfirm'))) remove.mutate()
-            }}
-          >
-            {t('workspace.deleteWorkspace')}
-          </Button>
-        </div>
-      ) : (
-        <div className="mt-8 max-w-lg rounded-2xl border border-border-subtle p-4">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-medium">
-            <LogOut className="size-4" /> {t('workspace.leaveWorkspace')}
-          </h2>
-          <p className="mb-3 text-sm text-muted">{t('workspace.leaveDesc')}</p>
-          <Button
-            variant="ghost"
-            className="text-danger"
-            disabled={leave.isPending}
-            onClick={() => {
-              if (window.confirm(t('workspace.leaveConfirm'))) leave.mutate()
-            }}
-          >
-            {t('workspace.leaveWorkspace')}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

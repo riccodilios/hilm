@@ -20,7 +20,7 @@ export function WorkspaceTaskRefBadge({
   const ref = formatWorkspaceTaskRef(taskKey, taskNumber)
   if (!ref) return null
   const classes = cn(
-    'font-mono text-[11px] tracking-wide text-muted hover:text-fg',
+    'shrink-0 whitespace-nowrap font-mono text-[11px] tracking-wide text-muted hover:text-fg',
     className,
   )
   if (!link) return <span className={classes}>{ref}</span>

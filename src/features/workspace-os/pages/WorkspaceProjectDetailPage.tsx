@@ -170,31 +170,27 @@ export function WorkspaceProjectDetailPage() {
   if (!project.data) return <p className="text-sm text-danger">{t('common.notFound')}</p>
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-background"
-            style={{ backgroundColor: project.data.color || '#60a5fa' }}
-          >
-            <ProjectIcon icon={project.data.icon} size={22} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="break-words text-2xl font-medium tracking-tight sm:text-3xl">
-              {project.data.name}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <PriorityBadge priority={project.data.priority} />
-              <span className="text-xs capitalize text-muted">{project.data.status}</span>
-            </div>
-            {project.data.description ? (
-              <p className="mt-2 text-sm text-muted">{project.data.description}</p>
-            ) : null}
+    <div className="w-full min-w-0">
+      <div className="mb-6 flex min-w-0 items-start gap-3">
+        <span
+          className="flex size-12 shrink-0 items-center justify-center rounded-2xl text-background"
+          style={{ backgroundColor: project.data.color || '#60a5fa' }}
+        >
+          <ProjectIcon icon={project.data.icon} size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-2xl font-medium tracking-tight sm:text-3xl">
+            {project.data.name}
+          </h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <PriorityBadge priority={project.data.priority} />
+            <HealthBadge health={project.data.health} />
+            <span className="text-xs capitalize text-muted">{project.data.status}</span>
+            <span className="text-xs tabular-nums text-muted">· {Math.round(completionPct)}%</span>
           </div>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <HealthBadge health={project.data.health} />
-          <span className="text-sm tabular-nums text-muted">{Math.round(completionPct)}%</span>
+          {project.data.description ? (
+            <p className="mt-2 break-words text-sm text-muted">{project.data.description}</p>
+          ) : null}
         </div>
       </div>
 
@@ -212,7 +208,7 @@ export function WorkspaceProjectDetailPage() {
         </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Progress</CardTitle>
@@ -350,7 +346,7 @@ export function WorkspaceProjectDetailPage() {
                   }
                 />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="ws-project-status">Status</Label>
                   <select

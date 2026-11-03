@@ -1673,6 +1673,10 @@ export type Database = {
         Args: { p_project_id: string; p_workspace_id: string; p_confirmation: string }
         Returns: Json
       }
+      workspace_usage_summary: {
+        Args: { p_workspace_id: string }
+        Returns: Json
+      }
       copy_project_to_workspace: {
         Args: { p_project_id: string; p_workspace_id: string }
         Returns: Json

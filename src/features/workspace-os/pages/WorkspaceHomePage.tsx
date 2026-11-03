@@ -180,7 +180,7 @@ export function WorkspaceHomePage() {
       <div className="w-full min-w-0 space-y-4">
         <Skeleton className="h-10 w-48 max-w-full" />
         <Skeleton className="h-40 w-full" />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Skeleton className="h-48" />
           <Skeleton className="h-48" />
         </div>
@@ -335,7 +335,7 @@ export function WorkspaceHomePage() {
         ))}
       </motion.div>
 
-      <div className="grid w-full min-w-0 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 w-full min-w-0 gap-4 lg:grid-cols-2">
         <motion.div custom={2} variants={fadeUp} initial="hidden" animate="show" className="lg:col-span-2">
           <Card className="min-w-0 overflow-hidden">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -429,7 +429,7 @@ export function WorkspaceHomePage() {
                 <Link to={`/workspace/${workspaceId}/projects`}>{t('workspace.viewProjects')}</Link>
               </Button>
             </CardHeader>
-            <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <CardContent className="grid grid-cols-1 min-w-0 gap-3 sm:grid-cols-2">
               {projects.slice(0, 6).map((project) => (
                 <Link
                   key={project.id}

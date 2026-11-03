@@ -308,7 +308,7 @@ export function ProjectDetailPage() {
         </div>
 
         <TabsContent value="overview">
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle>About this project</CardTitle>
@@ -414,7 +414,7 @@ export function ProjectDetailPage() {
             </form>
             <p className="mt-3 text-xs text-muted">{t('projects.roadmapHint')}</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {ROADMAP_HORIZONS.map((horizon) => {
               const items = roadmap?.filter((item) => item.horizon === horizon) ?? []
               return (
@@ -515,7 +515,7 @@ export function ProjectDetailPage() {
             </Button>
           </div>
           {notes?.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {notes.map((note) => (
                 <NoteCard
                   key={note.id}
@@ -592,7 +592,7 @@ export function ProjectDetailPage() {
                   disabled={saveLabels.isPending}
                 />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="project-status">{t('tasks.status')}</Label>
                   <select

@@ -248,7 +248,7 @@ function ActionItemEditor({
       }}
     >
       <Input value={title} onChange={(event) => setTitle(event.target.value)} aria-label={t('meetings.fields.title')} dir="auto" />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <select
           value={owner}
           onChange={(event) => setOwner(event.target.value)}

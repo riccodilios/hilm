@@ -38,6 +38,7 @@ export const workspaceKeys = {
   activity: (id: string) => [...workspaceKeys.all, 'activity', id] as const,
   home: (id: string) => [...workspaceKeys.all, 'home', id, 'v2'] as const,
   memberSettings: (id: string) => [...workspaceKeys.all, 'member-settings', id] as const,
+  usage: (id: string) => [...workspaceKeys.all, 'usage', id] as const,
 }
 
 export type Workspace = Tables<'workspaces'>
@@ -193,6 +194,25 @@ export async function updateWorkspace(
 export async function deleteWorkspace(id: string) {
   const { error } = await supabase.from('workspaces').delete().eq('id', id)
   if (error) throw error
+}
+
+export type WorkspaceUsage = {
+  ok: boolean
+  can_see_costs: boolean
+  members: number
+  projects: number
+  tasks_open: number
+  tasks_done: number
+  meetings: number
+  meeting_minutes_month: number
+  storage?: { used_bytes: number; quota_bytes: number | null; files: number; attachments_bytes: number; audio_bytes: number }
+  ai_month?: { requests: number; tokens: number; meeting_requests: number; cost_usd: number; active_users: number }
+}
+
+export async function getWorkspaceUsage(workspaceId: string) {
+  const { data, error } = await supabase.rpc('workspace_usage_summary', { p_workspace_id: workspaceId })
+  if (error) throw error
+  return data as unknown as WorkspaceUsage
 }
 
 export async function regenerateInviteCode(workspaceId: string) {

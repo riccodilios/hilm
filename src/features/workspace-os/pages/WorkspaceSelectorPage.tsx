@@ -90,14 +90,14 @@ export function WorkspaceSelectorPage() {
       </div>
 
       {list.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Skeleton className="h-36" />
           <Skeleton className="h-36" />
         </div>
       ) : (
         <>
         {list.data?.length ? <p className="mb-3 text-xs text-muted">{t('workspace.actions.hint')}</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(list.data ?? []).map((ws) => (
             <HoldableWorkspaceCard
               key={ws.id}

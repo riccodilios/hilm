@@ -323,7 +323,7 @@ export function WorkspaceOrgPage() {
       <OrgLeadershipHealth />
 
       {canManage ? (
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>{t('workspace.orgNewDept', { defaultValue: 'New department' })}</CardTitle>

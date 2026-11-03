@@ -78,7 +78,7 @@ export function WorkspaceProjectNotes({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
       <div className="space-y-2">
         {canEdit ? (
           <Button

@@ -165,6 +165,11 @@ const WorkspaceMissionControlPage = lazy(() =>
     default: m.WorkspaceMissionControlPage,
   })),
 )
+const WorkspaceSettingsPage = lazy(() =>
+  import('@/features/workspace-os/pages/WorkspaceSettingsPage').then((m) => ({
+    default: m.WorkspaceSettingsPage,
+  })),
+)
 const WorkspaceProfilePage = lazy(() =>
   import('@/features/workspace-os/pages/WorkspaceProfilePage').then((m) => ({
     default: m.WorkspaceProfilePage,
@@ -404,7 +409,7 @@ export function AppRouter() {
               <Route path="crm" element={<Suspense fallback={<AppFallback />}><WorkspaceCrmPage /></Suspense>} />
               <Route path="load-balancer" element={<WorkspaceLoadBalancerRedirect />} />
               <Route path="reports" element={<Suspense fallback={<AppFallback />}><WorkspaceReportsPage /></Suspense>} />
-              <Route path="settings" element={<Navigate to="profile" replace />} />
+              <Route path="settings" element={<Suspense fallback={<AppFallback />}><WorkspaceSettingsPage /></Suspense>} />
               <Route path="account-settings" element={<Suspense fallback={<AppFallback />}><WorkspacePersonalSettingsPage /></Suspense>} />
               <Route path="profile" element={<Suspense fallback={<AppFallback />}><WorkspaceProfilePage /></Suspense>} />
               <Route path="activity" element={<Suspense fallback={<AppFallback />}><WorkspaceActivityPage /></Suspense>} />

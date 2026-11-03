@@ -249,7 +249,7 @@ export function WorkspaceMissionControlPage() {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-8 w-full max-w-xl" />
         <Skeleton className="h-20 w-full" />
-        <div className="grid min-h-[70dvh] gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 min-h-[70dvh] gap-4 lg:grid-cols-3">
           <Skeleton className="min-h-[420px]" />
           <Skeleton className="min-h-[420px]" />
           <Skeleton className="min-h-[420px]" />
@@ -363,7 +363,7 @@ export function WorkspaceMissionControlPage() {
         }}
       />
 
-      <div className="grid min-h-[70dvh] min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
+      <div className="grid grid-cols-1 min-h-[70dvh] min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.85fr)]">
         <section
           className={cn(
             'flex min-h-[420px] flex-col rounded-2xl border border-border-subtle bg-surface/30 p-3 sm:p-4',
