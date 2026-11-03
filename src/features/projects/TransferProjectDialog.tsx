@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRightLeft, LoaderCircle } from 'lucide-react'
+import { ArrowRightLeft, Copy, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  copyProjectToWorkspace,
   matchesTransferPhrase,
   transferPhrase,
   transferProjectToWorkspace,
@@ -19,13 +20,16 @@ import { cn } from '@/lib/utils'
 import type { Tables } from '@/types/database'
 
 type Project = Tables<'projects'>
+export type ProjectMoveMode = 'transfer' | 'copy'
 
 export function TransferProjectDialog({
   project,
+  mode,
   targets,
   onClose,
 }: {
   project: Project | null
+  mode: ProjectMoveMode
   targets: TransferTarget[]
   onClose: () => void
 }) {
@@ -35,6 +39,8 @@ export function TransferProjectDialog({
   const [step, setStep] = useState<'review' | 'confirm'>('review')
   const [workspaceId, setWorkspaceId] = useState('')
   const [typed, setTyped] = useState('')
+  const copying = mode === 'copy'
+  const text = copying ? 'projects.copy' : 'projects.transfer'
 
   useEffect(() => {
     if (!project) return
@@ -47,33 +53,53 @@ export function TransferProjectDialog({
   const phrase = project ? transferPhrase(project.name) : ''
   const matches = Boolean(project && matchesTransferPhrase(typed, project.name))
 
-  const transfer = useMutation({
+  const run = useMutation({
     mutationFn: () =>
-      transferProjectToWorkspace({ projectId: project!.id, workspaceId, confirmation: typed }),
+      copying
+        ? copyProjectToWorkspace({ projectId: project!.id, workspaceId })
+        : transferProjectToWorkspace({ projectId: project!.id, workspaceId, confirmation: typed }),
     onSuccess: async (result) => {
-      toast.success(t('projects.transfer.done', { name: project?.name ?? '', workspace: target?.name ?? '' }))
+      const href = `/workspace/${result.workspaceId}/projects/${result.projectId}`
+      const done = t(`${text}.done`, { name: project?.name ?? '', workspace: target?.name ?? '' })
       if (result.pendingFiles > 0) toast.warning(t('projects.transfer.filesPending'))
       onClose()
+      if (copying) {
+        toast.success(done, { action: { label: t('projects.copy.open'), onClick: () => navigate(href) } })
+        void qc.invalidateQueries()
+        return
+      }
+      toast.success(done)
       qc.removeQueries({ queryKey: projectsKeys.all })
       void qc.invalidateQueries()
-      navigate(`/workspace/${result.workspaceId}/projects/${result.projectId}`)
+      navigate(href)
     },
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const submitLabel = run.isPending ? t(`${text}.working`) : t(`${text}.submit`)
+  const submitIcon = run.isPending ? (
+    <LoaderCircle className="size-4 animate-spin" />
+  ) : copying ? (
+    <Copy className="size-4" />
+  ) : (
+    <ArrowRightLeft className="size-4" />
+  )
+
   return (
-    <Dialog open={Boolean(project)} onOpenChange={(next) => !next && !transfer.isPending && onClose()}>
+    <Dialog open={Boolean(project)} onOpenChange={(next) => !next && !run.isPending && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('projects.transfer.title', { name: project?.name ?? '' })}</DialogTitle>
-          <DialogDescription>{t('projects.transfer.body')}</DialogDescription>
+          <DialogTitle>{t(`${text}.title`, { name: project?.name ?? '' })}</DialogTitle>
+          <DialogDescription>{t(`${text}.body`)}</DialogDescription>
         </DialogHeader>
 
         {step === 'review' ? (
           <div className="space-y-4">
             <ul className="list-disc space-y-1 ps-5 text-sm text-muted">
+              {copying ? <li>{t('projects.copy.once')}</li> : null}
               <li>{t('projects.transfer.assignees')}</li>
               <li>{t('projects.transfer.subtasks')}</li>
+              {copying ? <li>{t('projects.copy.notCopied')}</li> : null}
             </ul>
             {targets.length > 1 ? (
               <div className="space-y-2">
@@ -104,12 +130,19 @@ export function TransferProjectDialog({
               </p>
             ) : null}
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={onClose}>
+              <Button variant="ghost" disabled={run.isPending} onClick={onClose}>
                 {t('common.cancel')}
               </Button>
-              <Button disabled={!target} onClick={() => setStep('confirm')}>
-                {t('projects.transfer.continue')}
-              </Button>
+              {copying ? (
+                <Button disabled={!target || run.isPending} onClick={() => run.mutate()}>
+                  {submitIcon}
+                  {submitLabel}
+                </Button>
+              ) : (
+                <Button disabled={!target} onClick={() => setStep('confirm')}>
+                  {t('projects.transfer.continue')}
+                </Button>
+              )}
             </div>
           </div>
         ) : (
@@ -117,7 +150,7 @@ export function TransferProjectDialog({
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault()
-              if (matches && !transfer.isPending) transfer.mutate()
+              if (matches && !run.isPending) run.mutate()
             }}
           >
             <div className="space-y-2">
@@ -138,16 +171,16 @@ export function TransferProjectDialog({
                 value={typed}
                 onChange={(event) => setTyped(event.target.value)}
                 onPaste={(event) => event.preventDefault()}
-                disabled={transfer.isPending}
+                disabled={run.isPending}
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" disabled={transfer.isPending} onClick={() => setStep('review')}>
+              <Button type="button" variant="ghost" disabled={run.isPending} onClick={() => setStep('review')}>
                 {t('common.back')}
               </Button>
-              <Button type="submit" variant="destructive" disabled={!matches || transfer.isPending}>
-                {transfer.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowRightLeft className="size-4" />}
-                {transfer.isPending ? t('projects.transfer.working') : t('projects.transfer.submit')}
+              <Button type="submit" variant="destructive" disabled={!matches || run.isPending}>
+                {submitIcon}
+                {submitLabel}
               </Button>
             </div>
           </form>

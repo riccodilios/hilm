@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Archive, ArchiveRestore, ArrowRightLeft, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowRightLeft, Copy, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   archiveProject,
@@ -27,8 +27,8 @@ import { LabelsBar } from '@/components/labels/LabelsBar'
 import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
 import { LabelChip } from '@/components/labels/LabelChip'
 import { homeKeys } from '@/features/home/api'
-import { listTransferTargets, transferKeys } from '@/features/projects/transfer-api'
-import { TransferProjectDialog } from '@/features/projects/TransferProjectDialog'
+import { listProjectCopies, listTransferTargets, transferKeys } from '@/features/projects/transfer-api'
+import { TransferProjectDialog, type ProjectMoveMode } from '@/features/projects/TransferProjectDialog'
 import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
 import { useLongPress } from '@/hooks/useLongPress'
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page'
@@ -164,6 +164,11 @@ export function ProjectsPage() {
     staleTime: 5 * 60_000,
   })
   const targets = transferTargets.data ?? []
+  const copiesQuery = useQuery({
+    queryKey: transferKeys.copies,
+    queryFn: listProjectCopies,
+    enabled: targets.length > 0,
+  })
   const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -172,7 +177,7 @@ export function ProjectsPage() {
   const [icon, setIcon] = useState('folder')
   const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
   const [menuProject, setMenuProject] = useState<Project | null>(null)
-  const [transferProject, setTransferProject] = useState<Project | null>(null)
+  const [moveProject, setMoveProject] = useState<{ project: Project; mode: ProjectMoveMode } | null>(null)
   const [editProject, setEditProject] = useState<Project | null>(null)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -294,6 +299,13 @@ export function ProjectsPage() {
 
   const listLoading = showArchived ? archivedQuery.isLoading : isLoading
   const menuIsArchived = Boolean(menuProject && menuProject.status === 'archived')
+  const menuCopy = menuProject ? copiesQuery.data?.find((copy) => copy.personalProjectId === menuProject.id) ?? null : null
+
+  function openMove(mode: ProjectMoveMode) {
+    if (!menuProject) return
+    setMoveProject({ project: menuProject, mode })
+    setMenuProject(null)
+  }
 
   return (
     <div className="w-full min-w-0">
@@ -468,18 +480,32 @@ export function ProjectsPage() {
             >
               <ExternalLink className="size-4" /> {t('projects.open')}
             </Button>
-            {targets.length ? (
+            {menuCopy ? (
               <Button
                 variant="secondary"
-                className="justify-start"
+                className="h-auto justify-start py-2"
                 onClick={() => {
-                  if (!menuProject) return
-                  setTransferProject(menuProject)
                   setMenuProject(null)
+                  navigate(`/workspace/${menuCopy.workspaceId}/projects/${menuCopy.workspaceProjectId}`)
                 }}
               >
-                <ArrowRightLeft className="size-4" /> {t('projects.transfer.action')}
+                <Copy className="size-4 shrink-0" />
+                <span className="flex min-w-0 flex-col items-start">
+                  <span>{t('projects.copy.openCopy')}</span>
+                  <span className="truncate text-xs text-muted">
+                    {t('projects.copy.copiedTo', { workspace: menuCopy.workspaceName })}
+                  </span>
+                </span>
               </Button>
+            ) : targets.length && copiesQuery.isSuccess ? (
+              <>
+                <Button variant="secondary" className="justify-start" onClick={() => openMove('copy')}>
+                  <Copy className="size-4" /> {t('projects.copy.action')}
+                </Button>
+                <Button variant="secondary" className="justify-start" onClick={() => openMove('transfer')}>
+                  <ArrowRightLeft className="size-4" /> {t('projects.transfer.action')}
+                </Button>
+              </>
             ) : null}
             {!menuIsArchived ? (
               <Button
@@ -531,7 +557,12 @@ export function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
-      <TransferProjectDialog project={transferProject} targets={targets} onClose={() => setTransferProject(null)} />
+      <TransferProjectDialog
+        project={moveProject?.project ?? null}
+        mode={moveProject?.mode ?? 'transfer'}
+        targets={targets}
+        onClose={() => setMoveProject(null)}
+      />
 
       <Dialog open={Boolean(editProject)} onOpenChange={(next) => !next && setEditProject(null)}>
         <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>

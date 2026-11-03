@@ -1,8 +1,9 @@
 /**
- * Moves a personal project into a workspace. The database does the move and every permission and
- * confirmation check (transfer_project_to_workspace); this function then copies the stored files to
- * their workspace keys with the caller's own token and finalizes them. Files that could not be
- * copied stay readable at their old keys, and a later call with { transferId } retries them.
+ * Moves (mode "transfer") or copies (mode "copy") a personal project into a workspace. The database
+ * does the move or copy and every permission and confirmation check (transfer_project_to_workspace,
+ * copy_project_to_workspace); this function then copies the stored files to their workspace keys
+ * with the caller's own token and finalizes them. A later call with { transferId } retries files
+ * that could not be copied.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aiCorsHeaders, aiJson } from './_shared/ai-guard'
@@ -12,7 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const COPY_CONCURRENCY = 4
 
 type FileMove = { id: string; bucket: string; from: string; to: string }
-type Body = { projectId?: string; workspaceId?: string; confirmation?: string; transferId?: string }
+type Body = { mode?: string; projectId?: string; workspaceId?: string; confirmation?: string; transferId?: string }
 
 const MESSAGES: Record<string, string> = {
   not_found: 'This project no longer exists in your Personal OS.',
@@ -21,6 +22,7 @@ const MESSAGES: Record<string, string> = {
   already_transferred: 'This project is already in that workspace.',
   meeting_in_progress: 'A meeting in this project is still recording or processing. Try again when it is ready.',
   storage_quota_exceeded: 'The workspace does not have enough storage for this project’s files.',
+  already_copied: 'This project already has a copy in Workspace OS.',
 }
 
 async function copyOne(client: SupabaseClient, file: FileMove) {
@@ -84,28 +86,36 @@ async function handler(request: Request) {
       return json({ ok: true, transferId: body.transferId, pendingFiles: pending.length })
     }
 
+    const mode = body.mode === 'copy' ? 'copy' : 'transfer'
     const projectId = String(body.projectId ?? '')
     const workspaceId = String(body.workspaceId ?? '')
     const confirmation = String(body.confirmation ?? '').slice(0, 500)
     if (!UUID.test(projectId) || !UUID.test(workspaceId)) return json({ error: 'Choose a project and a workspace' }, 400)
-    if (!confirmation.trim()) return json({ error: MESSAGES.confirmation_mismatch, code: 'confirmation_mismatch' }, 400)
+    if (mode === 'transfer' && !confirmation.trim()) {
+      return json({ error: MESSAGES.confirmation_mismatch, code: 'confirmation_mismatch' }, 400)
+    }
 
-    const { data, error } = await client.rpc('transfer_project_to_workspace', {
-      p_project_id: projectId,
-      p_workspace_id: workspaceId,
-      p_confirmation: confirmation,
-    })
-    if (error) return json({ error: 'The transfer failed. Nothing was changed.' }, 500)
+    const { data, error } =
+      mode === 'copy'
+        ? await client.rpc('copy_project_to_workspace', { p_project_id: projectId, p_workspace_id: workspaceId })
+        : await client.rpc('transfer_project_to_workspace', {
+            p_project_id: projectId,
+            p_workspace_id: workspaceId,
+            p_confirmation: confirmation,
+          })
+    const failed = mode === 'copy' ? 'The copy failed. Nothing was changed.' : 'The transfer failed. Nothing was changed.'
+    if (error) return json({ error: failed }, 500)
     const result = (data ?? {}) as {
       ok?: boolean
       code?: string
       transfer_id?: string
+      project_id?: string
       counts?: Record<string, number>
       files?: FileMove[]
     }
     if (!result.ok || !result.transfer_id) {
       const code = result.code ?? 'failed'
-      return json({ error: MESSAGES[code] ?? 'The transfer failed. Nothing was changed.', code }, code === 'not_found' ? 404 : 409)
+      return json({ error: MESSAGES[code] ?? failed, code }, code === 'not_found' ? 404 : 409)
     }
 
     let pendingFiles = 0
@@ -117,8 +127,9 @@ async function handler(request: Request) {
     return json({
       ok: true,
       transferId: result.transfer_id,
+      mode,
       workspaceId,
-      projectId,
+      projectId: result.project_id ?? projectId,
       counts: result.counts ?? {},
       pendingFiles,
     })

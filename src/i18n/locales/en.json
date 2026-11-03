@@ -793,6 +793,19 @@
       "working": "Transferring…",
       "done": "“{{name}}” is now in {{workspace}}",
       "filesPending": "A few files could not be copied yet. They are safe and still open for you, but other members cannot see them yet."
+    },
+    "copy": {
+      "action": "Copy to Workspace OS",
+      "title": "Copy “{{name}}” to Workspace OS?",
+      "body": "A separate copy of the whole project is created in the workspace: tasks, meetings and transcripts, roadmap, notes, files, labels, activity, completion and health. Your personal project stays as it is, and changes to one never affect the other.",
+      "once": "A project can be copied to Workspace OS only once.",
+      "notCopied": "Upcoming reminders and meeting share links stay with your personal project.",
+      "submit": "Copy project",
+      "working": "Copying…",
+      "done": "A copy of “{{name}}” is now in {{workspace}}",
+      "open": "Open",
+      "openCopy": "Open workspace copy",
+      "copiedTo": "Copied to {{workspace}}"
     }
   },
   "tasks": {

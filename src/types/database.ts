@@ -1222,6 +1222,17 @@ export type Database = {
           updated_at?: string
         }
       >
+      project_workspace_copies: Table<
+        {
+          personal_project_id: string
+          user_id: string
+          workspace_id: string
+          workspace_project_id: string
+          created_at: string
+        },
+        Record<string, never>,
+        Record<string, never>
+      >
       workspace_labels: Table<
         {
           id: string
@@ -1660,6 +1671,10 @@ export type Database = {
       }
       transfer_project_to_workspace: {
         Args: { p_project_id: string; p_workspace_id: string; p_confirmation: string }
+        Returns: Json
+      }
+      copy_project_to_workspace: {
+        Args: { p_project_id: string; p_workspace_id: string }
         Returns: Json
       }
       finalize_project_transfer: {

@@ -7,13 +7,17 @@ export type TransferResult = {
   ok: true
   transferId: string
   workspaceId: string
+  /** The workspace project: the same id after a transfer, a new id for a copy. */
   projectId: string
   counts: Record<string, number>
   pendingFiles: number
 }
 
+export type ProjectCopy = { personalProjectId: string; workspaceId: string; workspaceProjectId: string; workspaceName: string }
+
 export const transferKeys = {
   targets: ['projects', 'transfer-targets'] as const,
+  copies: ['projects', 'workspace-copies'] as const,
 }
 
 /** The phrase the user types to confirm; the server compares it ignoring case and extra spaces. */
@@ -60,11 +64,34 @@ async function post(body: Record<string, unknown>) {
   return payload
 }
 
-export async function transferProjectToWorkspace(input: {
-  projectId: string
-  workspaceId: string
-  confirmation: string
-}): Promise<TransferResult> {
+/** Personal projects that already have their one workspace copy. */
+export async function listProjectCopies(): Promise<ProjectCopy[]> {
+  const { data, error } = await supabase
+    .from('project_workspace_copies')
+    .select('personal_project_id, workspace_id, workspace_project_id, workspaces(name)')
+  if (error) throw error
+  return ((data ?? []) as unknown as Array<{
+    personal_project_id: string
+    workspace_id: string
+    workspace_project_id: string
+    workspaces: { name: string } | null
+  }>).map((row) => ({
+    personalProjectId: row.personal_project_id,
+    workspaceId: row.workspace_id,
+    workspaceProjectId: row.workspace_project_id,
+    workspaceName: row.workspaces?.name ?? '',
+  }))
+}
+
+export function copyProjectToWorkspace(input: { projectId: string; workspaceId: string }) {
+  return run({ mode: 'copy', ...input })
+}
+
+export function transferProjectToWorkspace(input: { projectId: string; workspaceId: string; confirmation: string }) {
+  return run({ mode: 'transfer', ...input })
+}
+
+async function run(input: Record<string, unknown>): Promise<TransferResult> {
   const result = (await post(input)) as unknown as TransferResult
   if (result.pendingFiles > 0) {
     // One more pass for files whose copy did not finish the first time.
