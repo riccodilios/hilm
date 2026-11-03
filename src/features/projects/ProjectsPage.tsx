@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Archive, ArchiveRestore, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowRightLeft, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   archiveProject,
@@ -27,6 +27,8 @@ import { LabelsBar } from '@/components/labels/LabelsBar'
 import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
 import { LabelChip } from '@/components/labels/LabelChip'
 import { homeKeys } from '@/features/home/api'
+import { listTransferTargets, transferKeys } from '@/features/projects/transfer-api'
+import { TransferProjectDialog } from '@/features/projects/TransferProjectDialog'
 import { ProjectIcon, ProjectIconPicker } from '@/features/projects/icons'
 import { useLongPress } from '@/hooks/useLongPress'
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page'
@@ -156,6 +158,12 @@ export function ProjectsPage() {
     queryKey: labelKeys.list(),
     queryFn: listLabels,
   })
+  const transferTargets = useQuery({
+    queryKey: transferKeys.targets,
+    queryFn: listTransferTargets,
+    staleTime: 5 * 60_000,
+  })
+  const targets = transferTargets.data ?? []
   const [labelFilter, setLabelFilter] = useState<string | 'all'>('all')
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -164,6 +172,7 @@ export function ProjectsPage() {
   const [icon, setIcon] = useState('folder')
   const [createLabelIds, setCreateLabelIds] = useState<string[]>([])
   const [menuProject, setMenuProject] = useState<Project | null>(null)
+  const [transferProject, setTransferProject] = useState<Project | null>(null)
   const [editProject, setEditProject] = useState<Project | null>(null)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -459,6 +468,19 @@ export function ProjectsPage() {
             >
               <ExternalLink className="size-4" /> {t('projects.open')}
             </Button>
+            {targets.length ? (
+              <Button
+                variant="secondary"
+                className="justify-start"
+                onClick={() => {
+                  if (!menuProject) return
+                  setTransferProject(menuProject)
+                  setMenuProject(null)
+                }}
+              >
+                <ArrowRightLeft className="size-4" /> {t('projects.transfer.action')}
+              </Button>
+            ) : null}
             {!menuIsArchived ? (
               <Button
                 variant="secondary"
@@ -508,6 +530,8 @@ export function ProjectsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransferProjectDialog project={transferProject} targets={targets} onClose={() => setTransferProject(null)} />
 
       <Dialog open={Boolean(editProject)} onOpenChange={(next) => !next && setEditProject(null)}>
         <DialogContent className={PROJECT_FORM_DIALOG_CLASS}>

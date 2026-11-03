@@ -1417,6 +1417,8 @@ export type Database = {
           description: string | null
           horizon: Database['public']['Enums']['roadmap_horizon']
           position: number
+          starts_at: string | null
+          ends_at: string | null
           created_at: string
           updated_at: string
         },
@@ -1427,6 +1429,8 @@ export type Database = {
           created_by: string
           title: string
           description?: string | null
+          starts_at?: string | null
+          ends_at?: string | null
           horizon?: Database['public']['Enums']['roadmap_horizon']
           position?: number
         },
@@ -1650,6 +1654,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      project_transfer_targets: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      transfer_project_to_workspace: {
+        Args: { p_project_id: string; p_workspace_id: string; p_confirmation: string }
+        Returns: Json
+      }
+      finalize_project_transfer: {
+        Args: { p_transfer_id: string }
+        Returns: Json
+      }
       begin_ai_request: {
         Args: {
           p_request_kind: string

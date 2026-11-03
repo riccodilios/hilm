@@ -18,6 +18,10 @@
   # Loads the roadmap and waits for the AI analysis (bounded at 22 s in the handler).
   timeout = 26
 
+[functions."project-transfer"]
+  # One database transaction plus copying the project's stored files.
+  timeout = 26
+
 [functions."scheduler-run"]
   # Background jobs called by the database; reminders, email and the storage lifecycle need headroom.
   timeout = 26
@@ -183,6 +187,15 @@
 [[redirects]]
   from = "/api/ai-roadmap-report"
   to = "/.netlify/functions/ai-roadmap-report"
+  status = 200
+  [redirects.rate_limit]
+    window_limit = 10
+    window_size = 60
+    aggregate_by = ["ip", "domain"]
+
+[[redirects]]
+  from = "/api/project-transfer"
+  to = "/.netlify/functions/project-transfer"
   status = 200
   [redirects.rate_limit]
     window_limit = 10

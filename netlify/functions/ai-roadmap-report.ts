@@ -69,9 +69,7 @@ async function loadRows(client: SupabaseClient, input: { workspaceId: string | n
     .select('id, name, description, status, health, health_explanation, completion_pct')
     .in('id', projectIds)
   if (ws) projectQuery = projectQuery.eq('workspace_id', ws)
-  const stepColumns = ws
-    ? 'id, project_id, title, description, horizon, position, created_at'
-    : 'id, project_id, title, description, horizon, position, starts_at, ends_at, created_at'
+  const stepColumns = 'id, project_id, title, description, horizon, position, starts_at, ends_at, created_at'
   const taskColumns = ws
     ? 'id, project_id, title, status, priority, due_date, due_at, completed_at, created_at, assignee_id'
     : 'id, project_id, title, status, priority, due_date, due_at, completed_at, created_at'

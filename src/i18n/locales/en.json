@@ -778,6 +778,21 @@
       "next": "Next",
       "later": "Later",
       "future": "Future"
+    },
+    "transfer": {
+      "action": "Transfer to Workspace OS",
+      "title": "Transfer “{{name}}” to Workspace OS?",
+      "body": "The whole project moves to the workspace: tasks, meetings and transcripts, roadmap, notes, files, labels, activity, completion and health. It is removed from your Personal OS.",
+      "assignees": "Its tasks are assigned to you in the workspace. Workspace owners and admins will see the project.",
+      "subtasks": "Subtasks become a checklist in each task’s description.",
+      "chooseWorkspace": "Move to",
+      "continue": "Continue",
+      "typeToConfirm": "To confirm, type the text below exactly:",
+      "confirmLabel": "Confirmation",
+      "submit": "Transfer project",
+      "working": "Transferring…",
+      "done": "“{{name}}” is now in {{workspace}}",
+      "filesPending": "A few files could not be copied yet. They are safe and still open for you, but other members cannot see them yet."
     }
   },
   "tasks": {
