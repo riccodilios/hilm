@@ -155,8 +155,11 @@ function WorkspaceShellInner() {
     { to: `${base}/tasks`, label: t('nav.tasks'), icon: CheckSquare, page: 'tasks' as const },
     { to: `${base}/team`, label: t('nav.team'), icon: Users, page: 'team' as const },
     { to: `${base}/ai`, label: t('nav.ai'), icon: Brain, page: 'ai' as const },
+    ...(!hidePersonal
+      ? [{ to: '/personal', label: t('nav.personal'), icon: LayoutGrid, page: 'home' as const }]
+      : []),
     { to: `${base}/profile`, label: t('nav.profile'), icon: UserRound, page: 'profile' as const },
-  ].filter((item) => canReadPage(item.page))
+  ].filter((item) => item.to === '/personal' || canReadPage(item.page))
 
   const navGroups: Array<{ id: 'work' | 'people' | 'account'; label: string }> = [
     { id: 'work', label: t('nav.work') },
@@ -255,12 +258,12 @@ function WorkspaceShellInner() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'flex min-w-[3.25rem] flex-1 flex-col items-center gap-1 py-2.5 text-[10px] md:min-w-[4.5rem] md:gap-1.5 md:py-3 md:text-[11px]',
+                  'flex min-w-[3rem] flex-1 flex-col items-center gap-1 py-2.5 text-[9px] md:min-w-[4.5rem] md:gap-1.5 md:py-3 md:text-[11px]',
                   isActive ? 'text-foreground' : 'text-muted',
                 )
               }
             >
-              <item.icon className="size-5 md:size-[1.35rem]" />
+              <item.icon className="size-4 md:size-5" />
               <span className="truncate">{item.label}</span>
             </NavLink>
           ))}
