@@ -10,6 +10,11 @@ import {
   listMyWorkspaces,
   workspaceKeys,
 } from '@/features/workspace-os/api'
+import {
+  HoldableWorkspaceCard,
+  WorkspaceActionsDialog,
+  type WorkspaceListItem,
+} from '@/features/workspace-os/components/WorkspaceActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +29,7 @@ export function PersonalWorkspacesPage() {
   const [joinOpen, setJoinOpen] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [actionsFor, setActionsFor] = useState<WorkspaceListItem | null>(null)
 
   const list = useQuery({ queryKey: workspaceKeys.list(), queryFn: listMyWorkspaces })
 
@@ -69,11 +75,12 @@ export function PersonalWorkspacesPage() {
         <div className="mt-6 space-y-2"><Skeleton className="h-16" /></div>
       ) : (
         <div className="mt-6 space-y-2">
+          {list.data?.length ? <p className="text-xs text-muted">{t('workspace.actions.hint')}</p> : null}
           {(list.data ?? []).map((ws) => (
-            <button
+            <HoldableWorkspaceCard
               key={ws.id}
-              type="button"
-              onClick={() => navigate(`/workspace/${ws.id}`)}
+              workspace={ws}
+              onHold={setActionsFor}
               className="flex w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface/40 px-4 py-4 text-start hover:bg-surface"
             >
               <span
@@ -87,13 +94,15 @@ export function PersonalWorkspacesPage() {
                 <p className="truncate text-sm text-muted">{ws.description || t('workspace.noDescription')}</p>
               </div>
               <span className="text-[11px] uppercase text-muted">{ws.my_role}</span>
-            </button>
+            </HoldableWorkspaceCard>
           ))}
           {!list.data?.length ? (
             <p className="text-sm text-muted">{t('personal.noWorkspacesYet')}</p>
           ) : null}
         </div>
       )}
+
+      <WorkspaceActionsDialog workspace={actionsFor} onClose={() => setActionsFor(null)} />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">

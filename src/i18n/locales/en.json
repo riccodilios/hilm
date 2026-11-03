@@ -312,7 +312,19 @@
     "projectNoteTitle": "Title",
     "projectNoteSaved": "Note saved",
     "projectNoteDeleted": "Note deleted",
-    "kanbanReadOnly": "You can view this board but not move tasks."
+    "kanbanReadOnly": "You can view this board but not move tasks.",
+    "actions": {
+      "hint": "Hold or right-click a workspace for more options.",
+      "menuHint": "Choose what to do with this workspace.",
+      "open": "Open workspace",
+      "edit": "Edit workspace",
+      "editDesc": "Change the name, description and color everyone in the workspace sees.",
+      "delete": "Delete workspace",
+      "deleteTitle": "Delete “{{name}}”?",
+      "deleteBody": "This permanently deletes the workspace with all of its projects, tasks, meetings, notes and files for every member. This cannot be undone.",
+      "typeName": "Type the workspace name to confirm:",
+      "noRights": "Only the workspace owner and admins can edit it, and only the owner can delete it."
+    }
   },
   "auth": {
     "signInTitle": "Sign in",

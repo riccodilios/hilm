@@ -11,6 +11,11 @@ import {
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { clearPendingInvite } from '@/features/auth/pending-invite'
+import {
+  HoldableWorkspaceCard,
+  WorkspaceActionsDialog,
+  type WorkspaceListItem,
+} from '@/features/workspace-os/components/WorkspaceActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +33,7 @@ export function WorkspaceSelectorPage() {
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#60a5fa')
   const [code, setCode] = useState('')
+  const [actionsFor, setActionsFor] = useState<WorkspaceListItem | null>(null)
 
   const list = useQuery({ queryKey: workspaceKeys.list(), queryFn: listMyWorkspaces })
 
@@ -89,12 +95,14 @@ export function WorkspaceSelectorPage() {
           <Skeleton className="h-36" />
         </div>
       ) : (
+        <>
+        {list.data?.length ? <p className="mb-3 text-xs text-muted">{t('workspace.actions.hint')}</p> : null}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(list.data ?? []).map((ws) => (
-            <button
+            <HoldableWorkspaceCard
               key={ws.id}
-              type="button"
-              onClick={() => navigate(`/workspace/${ws.id}`)}
+              workspace={ws}
+              onHold={setActionsFor}
               className="rounded-2xl border border-border-subtle bg-surface/40 p-5 text-start transition hover:border-border hover:bg-surface"
             >
               <span
@@ -106,7 +114,7 @@ export function WorkspaceSelectorPage() {
               <p className="font-medium">{ws.name}</p>
               <p className="mt-1 line-clamp-2 text-sm text-muted">{ws.description || t('workspace.noDescription')}</p>
               <p className="mt-3 text-[11px] uppercase tracking-wide text-muted">{ws.my_role}</p>
-            </button>
+            </HoldableWorkspaceCard>
           ))}
 
           <button
@@ -128,7 +136,10 @@ export function WorkspaceSelectorPage() {
             <span className="text-sm font-medium">{t('workspace.join')}</span>
           </button>
         </div>
+        </>
       )}
+
+      <WorkspaceActionsDialog workspace={actionsFor} onClose={() => setActionsFor(null)} />
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
