@@ -434,20 +434,33 @@ export function WorkspaceHomePage() {
                 <Link
                   key={project.id}
                   to={`/workspace/${workspaceId}/projects/${project.id}`}
-                  className="flex w-full min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface/60 p-3 transition-colors hover:border-border hover:bg-surface"
+                  className="block w-full min-w-0 overflow-hidden rounded-2xl border border-border-subtle bg-surface/60 p-4 transition-colors hover:border-border hover:bg-surface"
                 >
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl text-background" style={{ backgroundColor: project.color || '#60a5fa' }}>
-                    <ProjectIcon icon={project.icon} size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-medium">{project.name}</p>
-                      <HealthBadge health={project.health} />
-                      <span className="text-[11px] tabular-nums text-muted">
-                        {Math.round(project.completion_pct ?? 0)}%
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <span
+                        className="flex size-9 shrink-0 items-center justify-center rounded-xl text-background"
+                        style={{ backgroundColor: project.color || '#60a5fa' }}
+                      >
+                        <ProjectIcon icon={project.icon} size={18} />
                       </span>
+                      <p className="min-w-0 truncate text-sm font-medium">{project.name}</p>
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                    <HealthBadge health={project.health} />
+                  </div>
+                  <div className="mt-3 flex min-w-0 items-center gap-3">
+                    <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
+                      <div
+                        className="h-full rounded-full bg-accent/70 transition-all"
+                        style={{ width: `${Math.min(100, Math.max(0, project.completion_pct ?? 0))}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-xs tabular-nums text-muted">
+                      {Math.round(project.completion_pct ?? 0)}%
+                    </span>
+                  </div>
+                  <div>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
                       <span>
                         {project.remainingTasks ?? 0} {t('workspace.tasksRemaining')}
                       </span>

@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Skeleton } from '@/components/ui/page'
-import { HealthBadge } from '@/components/ui/badge'
+import { HealthBadge, PriorityBadge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -150,9 +150,9 @@ export function WorkspaceProjectsPage() {
       ) : null}
 
       {projects.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-20" />
-          <Skeleton className="h-20" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Skeleton className="h-36 min-w-0" />
+          <Skeleton className="h-36 min-w-0" />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -166,32 +166,41 @@ export function WorkspaceProjectsPage() {
             >
               <Link
                 to={`/workspace/${workspaceId}/projects/${project.id}`}
-                className="flex h-full min-w-0 max-w-full gap-3 overflow-hidden rounded-xl border border-border-subtle bg-surface/70 p-3 transition-colors hover:border-border hover:bg-surface sm:p-4"
+                className="group block h-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border-subtle bg-surface/70 p-4 transition-colors hover:border-border hover:bg-surface sm:p-5"
               >
-                <span
-                  className="flex size-10 shrink-0 items-center justify-center rounded-xl text-background sm:size-11"
-                  style={{ backgroundColor: project.color || '#60a5fa' }}
-                >
-                  <ProjectIcon icon={project.icon} size={20} />
-                </span>
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className="min-w-0 max-w-full flex-1 basis-[8rem] truncate font-medium">
-                      {project.name}
-                    </p>
-                    <HealthBadge health={project.health} />
-                    <span className="shrink-0 text-[11px] tabular-nums text-muted">
-                      {Math.round(project.completion_pct)}%
+                <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                    <span
+                      className="flex size-9 shrink-0 items-center justify-center rounded-xl text-background sm:size-10"
+                      style={{ backgroundColor: project.color || '#60a5fa' }}
+                    >
+                      <ProjectIcon icon={project.icon} size={18} />
                     </span>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="truncate font-medium tracking-tight">{project.name}</h2>
+                      <p className="line-clamp-1 text-sm text-muted">
+                        {project.description || t('workspace.noDescription')}
+                      </p>
+                    </div>
                   </div>
-                  <p className="line-clamp-2 text-sm text-muted">
-                    {project.description || t('workspace.noDescription')}
-                  </p>
-                  <div className="flex min-w-0 flex-wrap gap-1.5">
-                    {(projectLinks.data?.byProject?.[project.id] ?? []).map((label) => (
-                      <LabelChip key={label.id} name={label.name} color={label.color} />
-                    ))}
+                  <HealthBadge health={project.health} />
+                </div>
+                <div className="mt-4 flex min-w-0 items-center justify-between gap-3 sm:mt-5">
+                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-3">
+                    <div
+                      className="h-full rounded-full bg-accent/70 transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, project.completion_pct))}%` }}
+                    />
                   </div>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">
+                    {Math.round(project.completion_pct)}%
+                  </span>
+                </div>
+                <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+                  <PriorityBadge priority={project.priority} />
+                  {(projectLinks.data?.byProject?.[project.id] ?? []).map((label) => (
+                    <LabelChip key={label.id} name={label.name} color={label.color} />
+                  ))}
                 </div>
               </Link>
             </motion.div>
