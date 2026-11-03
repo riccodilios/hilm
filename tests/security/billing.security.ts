@@ -297,6 +297,21 @@ describe('independent lifecycles', () => {
   })
 })
 
+describe('workspace deletion', () => {
+  it('a workspace with usage history can be deleted; its events stay workspace-scoped', async () => {
+    await client.query(`savepoint delete_ws`)
+    await client.query(`delete from public.workspaces where id = $1`, [workspaceId])
+    const rows = await one(
+      `select count(*) filter (where scope = 'workspace')::int as ws, count(*) filter (where scope = 'personal' and user_id = $1)::int as personal
+       from public.ai_usage_events where user_id = any($2)`,
+      [u.user1, [u.user1, u.user2, u.user3]],
+    )
+    expect(rows.ws).toBeGreaterThan(0)
+    expect((await personal(u.user1)).tokens_day).toBe(25_000)
+    await client.query(`rollback to savepoint delete_ws`)
+  })
+})
+
 describe('admin reporting', () => {
   it('18. personal and workspace usage are reported separately', async () => {
     const overview = await billingOverview(client)
