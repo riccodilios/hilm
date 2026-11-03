@@ -172,6 +172,7 @@ async function handler(request: Request) {
     activeModel = resolveAllowedAiModel({ defaultModel: runtime.models.chat, allowedEnv: process.env.OPENROUTER_ALLOWED_MODELS })
     const guard = await beginAiRequest(userClient, {
       requestKind: 'chat',
+      scope: workspaceId ? 'workspace' : 'personal',
       model: activeModel,
       workspaceId,
       idempotencyKey: body.idempotencyKey?.trim() || null,

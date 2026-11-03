@@ -82,11 +82,17 @@ export async function aiCosts(db: Db, days: number) {
   const byFeature = await db.query(`
     select e.request_kind as key, round(sum(${COST})::numeric, 4) as cost, count(*)::int as requests
     from public.ai_usage_events e where ${window} group by 1 order by 2 desc nulls last`)
+  const byScope = await db.query(`
+    select e.scope as key, round(coalesce(sum(${COST}), 0)::numeric, 4) as cost, count(*)::int as requests,
+           coalesce(sum(e.total_tokens), 0)::bigint as tokens, count(distinct e.user_id)::int as users
+    from public.ai_usage_events e where ${window} group by 1 order by 1`)
   const byModel = await db.query(`
     select coalesce(e.model, 'unknown') as key, round(sum(${COST})::numeric, 4) as cost, count(*)::int as requests
     from public.ai_usage_events e where ${window} group by 1 order by 2 desc nulls last limit 12`)
   const topUsers = await db.query(`
-    select e.user_id as id, u.email, round(sum(${COST})::numeric, 4) as cost, count(*)::int as requests
+    select e.user_id as id, u.email, round(sum(${COST})::numeric, 4) as cost, count(*)::int as requests,
+           round(coalesce(sum(${COST}) filter (where e.scope = 'personal'), 0)::numeric, 4) as personal_cost,
+           round(coalesce(sum(${COST}) filter (where e.scope = 'workspace'), 0)::numeric, 4) as workspace_cost
     from public.ai_usage_events e left join auth.users u on u.id = e.user_id
     where ${window} group by 1, 2 order by 3 desc nulls last limit 10`)
   const controls = await db.query(
@@ -98,6 +104,7 @@ export async function aiCosts(db: Db, days: number) {
     totals: totals.rows[0],
     byDay: byDay.rows,
     byFeature: byFeature.rows,
+    byScope: byScope.rows,
     byModel: byModel.rows,
     topUsers: topUsers.rows,
     controls: controls.rows[0] ?? null,
@@ -138,7 +145,9 @@ export async function listUsers(db: Db, q: string, page: number) {
             (select count(*)::int from public.workspaces w where w.owner_id = u.id) as owned_workspaces,
             (select count(*)::int from public.workspace_members m where m.user_id = u.id) as memberships,
             (select round(coalesce(sum(coalesce(e.provider_cost_usd, e.estimated_cost_usd)), 0)::numeric, 4)
-               from public.ai_usage_events e where e.user_id = u.id and e.created_at > now() - interval '30 days') as ai_cost_30d,
+               from public.ai_usage_events e where e.user_id = u.id and e.scope = 'personal' and e.created_at > now() - interval '30 days') as ai_cost_30d,
+            (select round(coalesce(sum(coalesce(e.provider_cost_usd, e.estimated_cost_usd)), 0)::numeric, 4)
+               from public.ai_usage_events e where e.user_id = u.id and e.scope = 'workspace' and e.created_at > now() - interval '30 days') as workspace_ai_cost_30d,
             exists (select 1 from private.admin_users a where a.user_id = u.id) as is_admin
      from auth.users u
      left join public.profiles p on p.id = u.id

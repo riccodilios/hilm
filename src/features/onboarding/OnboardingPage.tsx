@@ -8,6 +8,7 @@ import { getSettings, updateSettings, settingsKeys } from '@/features/settings/a
 import { createWorkspace, joinWorkspaceByInvite, workspaceKeys } from '@/features/workspace-os/api'
 import { resolvePostAuthDestination } from '@/features/auth/startup'
 import { clearPendingInvite, pendingInvite } from '@/features/auth/pending-invite'
+import { useWorkspaceCreateGate } from '@/shared/billing/useWorkspaceCreateGate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,6 +22,7 @@ export function OnboardingPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const createGate = useWorkspaceCreateGate()
   const settings = useQuery({ queryKey: settingsKeys.me(), queryFn: getSettings })
   // An emailed invite opened before sign-up goes straight to "join" with the code filled in.
   const [invite] = useState(() => pendingInvite())
@@ -66,7 +68,14 @@ export function OnboardingPage() {
       ])
       navigate(`/workspace/${ws.id}`)
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: async (error: Error) => {
+      if (createGate.handleError(error)) {
+        await qc.invalidateQueries({ queryKey: settingsKeys.me() })
+        navigate('/workspace')
+        return
+      }
+      toast.error(error.message)
+    },
   })
 
   const join = useMutation({

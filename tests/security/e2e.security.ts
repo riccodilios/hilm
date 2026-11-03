@@ -42,6 +42,8 @@ beforeAll(async () => {
   }
   for (const label of Object.keys(u) as Array<keyof typeof u>) await signIn(label)
 
+  // Creating a workspace needs a workspace plan; the test owner gets a Team subscription (removed with the account).
+  await db.query(`insert into public.workspace_subscriptions (owner_user_id, plan_id, status, notes) values ($1, 'team', 'active', 'security e2e')`, [u.owner])
   const { data: ws, error } = await clients.owner!.rpc('create_workspace', { p_name: 'Security E2E', p_description: null, p_color: '#60a5fa' })
   if (error) throw error
   ids.ws = (ws as { id: string }).id

@@ -23,6 +23,7 @@ import {
   workspaceLabelKeys,
 } from '@/features/workspace-os/labels-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { isPlanLimitError, openPlanPrompt } from '@/shared/billing/plan-prompt'
 import { LabelsBar } from '@/components/labels/LabelsBar'
 import { ProjectLabelPicker } from '@/components/labels/ProjectLabelPicker'
 import { LabelChip } from '@/components/labels/LabelChip'
@@ -112,7 +113,14 @@ export function WorkspaceProjectsPage() {
       await qc.invalidateQueries({ queryKey: workspaceKeys.home(workspaceId) })
       await qc.invalidateQueries({ queryKey: workspaceLabelKeys.all(workspaceId) })
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (isPlanLimitError(error, 'workspace_project_limit')) {
+        setOpen(false)
+        openPlanPrompt({ reason: 'workspace_project_limit', workspaceId })
+        return
+      }
+      toast.error(error.message)
+    },
   })
 
   const visibleProjects = filterProjects(projects.data ?? [], tasks.data ?? [])

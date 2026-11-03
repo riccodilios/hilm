@@ -83,7 +83,7 @@ export function MeetingRecorderPanel({
   const { t, i18n } = useTranslation()
   const location = useLocation()
   const recorder = useMeetingRecorder()
-  const quota = useMeetingQuota()
+  const quota = useMeetingQuota(adapter.scope)
   const mutations = useMeetingMutations(adapter, detail.meeting.id)
   const { meeting } = detail
   const active = recorder.isActiveFor(meeting.id)

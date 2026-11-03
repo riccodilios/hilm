@@ -53,8 +53,10 @@ export function useLinkedTasks(adapter: MeetingsAdapter, meetingId: string, enab
   })
 }
 
-export function useMeetingQuota() {
-  return useQuery({ queryKey: meetingKeys.quota(), queryFn: getMeetingQuota, staleTime: 60_000 })
+/** Minutes for the OS the meeting lives in: personal, or the workspace's shared pool. */
+export function useMeetingQuota(scope?: { os: 'personal' | 'workspace'; workspaceId?: string | null }) {
+  const workspaceId = scope?.os === 'workspace' ? (scope.workspaceId ?? null) : null
+  return useQuery({ queryKey: meetingKeys.quota(workspaceId), queryFn: () => getMeetingQuota(workspaceId), staleTime: 60_000 })
 }
 
 export function useMeetingMutations(adapter: MeetingsAdapter, meetingId?: string) {

@@ -1,10 +1,20 @@
-export function formatAiLimitError(payload: {
+import { openPlanPrompt, workspaceIdFromPath } from '@/shared/billing/plan-prompt'
+import { promptForAiCode } from '@/shared/billing/recommend'
+
+type AiLimitPayload = {
   error?: string
   code?: string
   message?: string
-}) {
+  /** Which subscription the rejected request belonged to (set by the server guard). */
+  scope?: 'personal' | 'workspace'
+  workspaceId?: string | null
+}
+
+export function formatAiLimitError(payload: AiLimitPayload) {
   const code = payload.code
   const fallback = payload.error || payload.message || 'AI request failed'
+  // Workspace limits come with the server's workspace-specific wording.
+  if (payload.scope === 'workspace' && (payload.error || payload.message)) return fallback
   switch (code) {
     case 'rate_limited':
       return 'You are sending AI requests too quickly. Please wait a moment and try again.'
@@ -33,4 +43,12 @@ export function formatAiLimitError(payload: {
     default:
       return fallback
   }
+}
+
+/** Opens the matching plan explanation for a quota rejection (personal or workspace, never mixed). */
+export function announceAiLimit(payload: AiLimitPayload) {
+  const scope = payload.scope ?? (workspaceIdFromPath() ? 'workspace' : 'personal')
+  const reason = promptForAiCode(payload.code, scope)
+  if (!reason) return
+  openPlanPrompt({ reason, workspaceId: scope === 'workspace' ? (payload.workspaceId ?? workspaceIdFromPath()) : null })
 }

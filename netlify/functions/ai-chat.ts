@@ -169,6 +169,7 @@ async function handler(request: Request) {
 
     const guard = await beginAiRequest(userClient, {
       requestKind: 'chat',
+      scope: activeWorkspaceId ? 'workspace' : 'personal',
       model: activeModel,
       workspaceId: activeWorkspaceId,
       conversationId: body.conversationId,

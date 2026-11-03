@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   meeting_in_progress: 'A meeting in this project is still recording or processing. Try again when it is ready.',
   storage_quota_exceeded: 'The workspace does not have enough storage for this project’s files.',
   already_copied: 'This project already has a copy in Workspace OS.',
+  workspace_project_limit: 'That workspace already has its plan’s 10 active projects. Archive one there, or use another workspace (Team Pro includes up to 3).',
 }
 
 async function copyOne(client: SupabaseClient, file: FileMove) {
@@ -104,6 +105,9 @@ async function handler(request: Request) {
             p_confirmation: confirmation,
           })
     const failed = mode === 'copy' ? 'The copy failed. Nothing was changed.' : 'The transfer failed. Nothing was changed.'
+    if (error?.message?.includes('workspace_project_limit')) {
+      return json({ error: MESSAGES.workspace_project_limit, code: 'workspace_project_limit' }, 409)
+    }
     if (error) return json({ error: failed }, 500)
     const result = (data ?? {}) as {
       ok?: boolean

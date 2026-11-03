@@ -26,6 +26,20 @@ import {
 } from './data.ts'
 import { adminJson, audit, authorizeAdmin, type AdminContext, type GuardDeps } from './guard.ts'
 import {
+  attachWorkspace,
+  billingOverview,
+  createWorkspaceSubscription,
+  listWorkspaceSubscriptions,
+  planUpdateSchema,
+  setRequestStatus,
+  subscriptionCreateSchema,
+  subscriptionUpdateSchema,
+  transferBillingOwner,
+  updatePlan,
+  updateWorkspaceSubscription,
+  userUsage,
+} from './billing.ts'
+import {
   extendFile,
   extendSchema,
   forecastView,
@@ -93,7 +107,7 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   const method = request.method
   const sensitive =
     (method === 'POST' &&
-      /^(users\/[^/]+\/(lock|unlock|terminate|tier)|ai\/controls|security\/networks\/remove|infra\/(lifecycle\/settings|retention|files\/hold|files\/extend|quota))$/.test(
+      /^(users\/[^/]+\/(lock|unlock|terminate|tier)|ai\/controls|security\/networks\/remove|infra\/(lifecycle\/settings|retention|files\/hold|files\/extend|quota)|billing\/.+)$/.test(
         path,
       )) ||
     false
@@ -238,6 +252,9 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
   // ── Infrastructure, storage and retention ───────────────────────────────
   if (path.startsWith('infra/')) return handleInfra(path.slice(6), method, request, url, deps, ctx, log)
 
+  // ── Subscriptions, plans and scope-separated usage ──────────────────────
+  if (path.startsWith('billing/')) return handleBilling(path.slice(8), method, request, url, deps, ctx, log)
+
   // ── Product emails ──────────────────────────────────────────────────────
   if (path === 'assets' && method === 'POST') {
     if (!deps.assets) return adminJson(503, { error: 'storage_not_configured' })
@@ -287,6 +304,91 @@ export async function handleAdminRequest(request: Request, deps: AdminDeps): Pro
       if (error instanceof BroadcastError) return adminJson(error.status, { error: error.code })
       throw error
     }
+  }
+
+  return adminJson(404, { error: 'not_found' })
+}
+
+async function handleBilling(
+  path: string,
+  method: string,
+  request: Request,
+  url: URL,
+  deps: AdminDeps,
+  ctx: AdminContext,
+  log: (action: string, target?: string | null, details?: Record<string, unknown>) => Promise<unknown>,
+) {
+  const period = url.searchParams.get('period')
+  if (method === 'GET') {
+    if (path === 'overview') return adminJson(200, await billingOverview(deps.db, period))
+    if (path === 'subscriptions') {
+      return adminJson(200, await listWorkspaceSubscriptions(deps.db, { q: url.searchParams.get('q'), plan: url.searchParams.get('plan'), period }))
+    }
+    const usage = path.match(/^users\/([^/]+)\/usage$/)
+    if (usage) {
+      if (!isUuid(usage[1]!)) return adminJson(400, { error: 'invalid_user' })
+      return adminJson(200, await userUsage(deps.db, usage[1]!, period))
+    }
+    return adminJson(404, { error: 'not_found' })
+  }
+  if (method !== 'POST') return adminJson(405, { error: 'method_not_allowed' })
+
+  const plan = path.match(/^plans\/([a-z_]+)$/)
+  if (plan) {
+    const parsed = planUpdateSchema.safeParse(await body(request))
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const result = await updatePlan(deps.db, plan[1]!, parsed.data)
+    if (!result.ok) return adminJson(400, { error: result.error })
+    await log('plan_updated', plan[1]!, { changes: parsed.data, previous: result.previous })
+    return adminJson(200, { ok: true })
+  }
+
+  if (path === 'subscriptions') {
+    const parsed = subscriptionCreateSchema.safeParse(await body(request))
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const result = await createWorkspaceSubscription(deps.db, parsed.data, ctx.userId)
+    if (!result.ok) return adminJson(404, { error: result.error })
+    await log('workspace_subscription_created', result.id, { owner: result.ownerId, plan: parsed.data.planId, status: parsed.data.status })
+    return adminJson(200, { ok: true, id: result.id })
+  }
+
+  const sub = path.match(/^subscriptions\/([^/]+)(?:\/(owner|attach))?$/)
+  if (sub) {
+    const [, id, action] = sub
+    if (!isUuid(id!)) return adminJson(400, { error: 'invalid_subscription' })
+    const input = (await body(request)) as Record<string, unknown> | null
+    if (action === 'owner') {
+      const email = typeof input?.email === 'string' ? input.email.trim() : ''
+      if (!email || email.length > 320) return adminJson(400, { error: 'invalid_request' })
+      const result = await transferBillingOwner(deps.db, id!, email)
+      if (!result.ok) return adminJson(404, { error: result.error })
+      await log('billing_owner_transferred', id!, { from: result.previousOwner, to: result.ownerId })
+      return adminJson(200, { ok: true })
+    }
+    if (action === 'attach') {
+      const workspaceId = typeof input?.workspaceId === 'string' ? input.workspaceId : ''
+      if (!isUuid(workspaceId)) return adminJson(400, { error: 'invalid_workspace' })
+      const result = await attachWorkspace(deps.db, id!, workspaceId)
+      if (!result.ok) return adminJson(409, { error: result.error })
+      await log('workspace_subscription_attached', id!, { workspace: workspaceId })
+      return adminJson(200, { ok: true })
+    }
+    const parsed = subscriptionUpdateSchema.safeParse(input)
+    if (!parsed.success) return adminJson(400, { error: 'invalid_request' })
+    const result = await updateWorkspaceSubscription(deps.db, id!, parsed.data)
+    if (!result.ok) return adminJson(result.error === 'not_found' ? 404 : 400, { error: result.error })
+    await log('workspace_subscription_updated', id!, { changes: parsed.data, previous: result.previous })
+    return adminJson(200, { ok: true })
+  }
+
+  const req = path.match(/^requests\/([^/]+)$/)
+  if (req) {
+    if (!isUuid(req[1]!)) return adminJson(400, { error: 'invalid_request' })
+    const input = (await body(request)) as { status?: unknown } | null
+    if (input?.status !== 'approved' && input?.status !== 'declined') return adminJson(400, { error: 'invalid_status' })
+    const changed = await setRequestStatus(deps.db, req[1]!, input.status, ctx.userId)
+    await log('subscription_request_handled', req[1]!, { status: input.status })
+    return adminJson(changed ? 200 : 404, changed ? { ok: true } : { error: 'not_found' })
   }
 
   return adminJson(404, { error: 'not_found' })

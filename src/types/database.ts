@@ -1694,7 +1694,21 @@ export type Database = {
           p_idempotency_key?: string | null
           p_fingerprint?: string | null
           p_user_id?: string | null
+          p_scope?: 'personal' | 'workspace' | null
+          p_reserve_tokens?: number | null
         }
+        Returns: Json
+      }
+      plan_catalog: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      my_billing: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      request_plan_upgrade: {
+        Args: { p_plan_id: string; p_workspace_id?: string | null; p_note?: string | null }
         Returns: Json
       }
       complete_ai_request: {
@@ -1725,7 +1739,7 @@ export type Database = {
         Returns: Json
       }
       meeting_quota_status: {
-        Args: { p_user_id?: string | null }
+        Args: { p_user_id?: string | null; p_workspace_id?: string | null }
         Returns: Json
       }
       register_meeting_segment: {

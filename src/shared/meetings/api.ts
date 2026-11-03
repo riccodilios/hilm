@@ -40,7 +40,7 @@ export const meetingKeys = {
   linkedTasks: (os: MeetingOs, meetingId: string) => ['meetings', os, 'tasks', meetingId] as const,
   translation: (os: MeetingOs, meetingId: string, target: TranslationTarget) =>
     ['meetings', os, 'translation', meetingId, target] as const,
-  quota: () => ['meetings', 'quota'] as const,
+  quota: (workspaceId?: string | null) => ['meetings', 'quota', workspaceId ?? 'personal'] as const,
 }
 
 type Row = Record<string, unknown>
@@ -609,8 +609,9 @@ export type MeetingQuota = {
   maxRetries: number
 }
 
-export async function getMeetingQuota(): Promise<MeetingQuota | null> {
-  const { data, error } = await supabase.rpc('meeting_quota_status', {})
+/** Personal minutes in Personal OS; the workspace's pooled minutes inside a workspace. */
+export async function getMeetingQuota(workspaceId?: string | null): Promise<MeetingQuota | null> {
+  const { data, error } = await supabase.rpc('meeting_quota_status', workspaceId ? { p_workspace_id: workspaceId } : {})
   if (error || !data) return null
   const row = data as Row
   return {

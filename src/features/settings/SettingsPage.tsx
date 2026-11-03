@@ -17,6 +17,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { RetentionSettings } from '@/components/storage/RetentionSettings'
+import { PersonalPlanCard } from '@/shared/billing/PersonalPlanCard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -552,6 +553,8 @@ export function SettingsPage({
             <RetentionSettings />
           </CardContent>
         </Card>
+
+        <PersonalPlanCard />
 
         <Card>
           <CardHeader>

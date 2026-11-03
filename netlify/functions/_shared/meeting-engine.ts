@@ -322,6 +322,7 @@ export async function transcribeSegment(
   const startSttGuard = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_transcribe',
+      scope: ctx.os,
       model: sttModel,
       workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
       idempotencyKey: key,
@@ -766,6 +767,7 @@ export async function analyzeMeeting(
   const startAnalysisGuard = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_analyze',
+      scope: ctx.os,
       model: stepModel,
       workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
       idempotencyKey: key,

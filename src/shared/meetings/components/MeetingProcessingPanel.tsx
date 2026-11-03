@@ -63,7 +63,7 @@ function StageStepper({ current }: { current: Stage }) {
 export function MeetingProcessingPanel({ adapter, detail }: { adapter: MeetingsAdapter; detail: MeetingDetail }) {
   const { t, i18n } = useTranslation()
   const recorder = useMeetingRecorder()
-  const quota = useMeetingQuota()
+  const quota = useMeetingQuota(adapter.scope)
   const mutations = useMeetingMutations(adapter, detail.meeting.id)
   const [retrying, setRetrying] = useState(false)
   const [justFinished, setJustFinished] = useState(false)

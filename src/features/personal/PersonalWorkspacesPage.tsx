@@ -15,6 +15,8 @@ import {
   WorkspaceActionsDialog,
   type WorkspaceListItem,
 } from '@/features/workspace-os/components/WorkspaceActions'
+import { billingKeys } from '@/shared/billing/api'
+import { useWorkspaceCreateGate } from '@/shared/billing/useWorkspaceCreateGate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +32,7 @@ export function PersonalWorkspacesPage() {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [actionsFor, setActionsFor] = useState<WorkspaceListItem | null>(null)
+  const createGate = useWorkspaceCreateGate()
 
   const list = useQuery({ queryKey: workspaceKeys.list(), queryFn: listMyWorkspaces })
 
@@ -40,8 +43,15 @@ export function PersonalWorkspacesPage() {
       setName('')
       navigate(`/workspace/${ws.id}`)
       await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
+      await qc.invalidateQueries({ queryKey: billingKeys.all })
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (createGate.handleError(error)) {
+        setCreateOpen(false)
+        return
+      }
+      toast.error(error.message)
+    },
   })
 
   const join = useMutation({
@@ -60,7 +70,7 @@ export function PersonalWorkspacesPage() {
       <PageHeader title={t('nav.workspace')} description={t('personal.workspaceBridgeDesc')} />
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => createGate.guard(() => setCreateOpen(true))}>
           <Plus className="size-4" /> {t('workspace.create')}
         </Button>
         <Button variant="secondary" onClick={() => setJoinOpen(true)}>

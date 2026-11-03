@@ -636,7 +636,60 @@
     ],
     "footerPrivacy": "Privacy",
     "footerDocs": "Documentation",
-    "footerContact": "Contact"
+    "footerContact": "Contact",
+    "pricing": {
+      "eyebrow": "Pricing",
+      "title": "Two plans for you, two for your team",
+      "description": "Personal OS and Workspace OS are billed separately. Joining a workspace you are invited to is always free.",
+      "personal": "Personal OS",
+      "workspace": "Workspace OS",
+      "perMonth": "SAR / month",
+      "cta": "Get started",
+      "contact": "Talk to us",
+      "note": "Prices in Saudi riyals, billed monthly. Workspace plans cover everyone you invite; members do not need their own subscription.",
+      "plans": {
+        "free": {
+          "name": "Free",
+          "blurb": "Your own projects, tasks and AI help.",
+          "points": [
+            "30 AI requests a day",
+            "60 meeting minutes a month",
+            "Join any workspace you are invited to"
+          ]
+        },
+        "pro": {
+          "name": "Pro",
+          "blurb": "For people who run their work through Hilm.",
+          "points": [
+            "80 AI requests a day",
+            "300 meeting minutes a month",
+            "Higher monthly AI allowance"
+          ]
+        },
+        "team": {
+          "name": "Team",
+          "blurb": "One shared workspace for your team.",
+          "points": [
+            "1 workspace",
+            "10 active projects",
+            "Shared AI: 400 requests a day",
+            "1,200 meeting minutes a month",
+            "5 GB shared storage"
+          ]
+        },
+        "team_pro": {
+          "name": "Team Pro",
+          "blurb": "For organizations running several teams.",
+          "points": [
+            "Up to 3 workspaces",
+            "10 active projects each",
+            "Shared AI: 600 requests a day per workspace",
+            "1,800 meeting minutes a month per workspace",
+            "10 GB storage per workspace"
+          ]
+        }
+      }
+    }
   },
   "privacy": {
     "title": "Privacy",
@@ -2013,5 +2066,113 @@
     "range": "Between {{min}} and {{max}} days. Individual files can be kept longer from the task.",
     "outOfRange": "Choose between {{min}} and {{max}} days.",
     "saved": "Retention updated"
+  },
+  "billing": {
+    "perMonth": "{{price}} SAR / month",
+    "free": "Free",
+    "plans": {
+      "free": "Personal Free",
+      "pro": "Personal Pro",
+      "team": "Team",
+      "team_pro": "Team Pro"
+    },
+    "planScope": {
+      "personal": "Personal OS",
+      "workspace": "Workspace OS"
+    },
+    "noPlan": "No workspace plan",
+    "current": "Current plan",
+    "required": "Required plan",
+    "gains": "What you get",
+    "dataSafe": "Your existing data, projects and members stay exactly as they are.",
+    "separate": "Personal OS and Workspace OS are billed separately. This does not change your other plan.",
+    "request": "Request {{plan}}",
+    "requested": "Request sent. The Hilm team will contact you to set up billing; nothing is charged in the app.",
+    "requestPending": "Request already sent",
+    "requestFailed": "Could not send the request",
+    "paymentNote": "Payments are not taken in the app yet: Hilm sets up your subscription with you directly.",
+    "close": "Close",
+    "openSettings": "Open workspace settings",
+    "gainsList": {
+      "requestsDay": "{{n}} AI requests a day",
+      "tokensDay": "{{n}} AI tokens a day",
+      "tokensMonth": "{{n}} AI tokens a month",
+      "meetingMinutes": "{{n}} meeting minutes a month",
+      "workspaces_one": "{{count}} workspace",
+      "workspaces_other": "Up to {{count}} workspaces",
+      "projects": "{{n}} active projects per workspace",
+      "storage": "{{size}} of shared file storage per workspace",
+      "pooled": "AI, meetings and storage are shared by everyone in the workspace",
+      "members": "Invite members on any personal plan, including Free"
+    },
+    "notes": {
+      "already_pro": "You are already on Personal Pro, the highest personal plan.",
+      "no_topups": "You are on Personal Pro. Extra AI top-ups are not available yet; your allowance resets at midnight UTC (daily) and on the 1st (monthly).",
+      "max_plan": "This is already the highest workspace plan. Contact Hilm if you need more.",
+      "owner_notified": "The workspace owner and admins have been notified. This does not use or affect your personal AI allowance.",
+      "ask_owner": "Only the person who pays for this workspace can change its plan. Ask the workspace owner.",
+      "renew": "Renew the subscription to restore full access. Your data is kept."
+    },
+    "prompt": {
+      "personal_upgrade": {
+        "title": "Upgrade to Personal Pro",
+        "body": "More AI, meetings and room for your own work in Personal OS."
+      },
+      "personal_ai_limit": {
+        "title": "You reached your personal AI allowance",
+        "body": "This only affects Personal OS. Workspace AI in any workspace you belong to is unaffected."
+      },
+      "workspace_create": {
+        "title": "A workspace plan is needed",
+        "body": "Creating a workspace requires Team or Team Pro. Joining a workspace someone invites you to is free."
+      },
+      "workspace_project_limit": {
+        "title": "This workspace has 10 active projects",
+        "body": "Each workspace holds up to 10 active projects. Archive a finished project to make room, or start another workspace."
+      },
+      "workspace_ai_limit": {
+        "title": "This workspace reached its AI allowance",
+        "body": "The workspace shares one AI allowance across all members. It resets daily (midnight UTC) and monthly."
+      },
+      "workspace_inactive": {
+        "title": "This workspace’s subscription is not active",
+        "body": "The workspace is read-only and its AI is paused until the subscription is renewed."
+      }
+    },
+    "usageStatus": "Workspace usage",
+    "usageToday": "Today: {{used}} of {{limit}} tokens",
+    "usageMonth": "This month: {{used}} of {{limit}} tokens",
+    "settings": {
+      "title": "Plan",
+      "personalDesc": "Your Personal OS plan. Workspaces you join are billed to the workspace, not to you.",
+      "upgrade": "Upgrade to Pro",
+      "workspaceTitle": "Workspace plans you pay for",
+      "none": "You do not pay for a workspace plan.",
+      "used": "{{used}} of {{max}} workspaces used",
+      "getTeam": "Get Team"
+    },
+    "workspace": {
+      "title": "Subscription",
+      "status": {
+        "active": "Active",
+        "grace": "Renewal due",
+        "restricted": "Read-only",
+        "none": "No subscription"
+      },
+      "graceUntil": "Full access until {{date}}, then read-only until renewed.",
+      "restricted": "Read-only: the subscription lapsed. Nothing has been deleted.",
+      "owner": "You pay for this workspace.",
+      "notOwner": "Billed to the workspace owner.",
+      "projects": "{{used}} of {{max}} active projects",
+      "aiToday": "AI today",
+      "aiMonth": "AI this month",
+      "upgradeTeamPro": "Request Team Pro",
+      "renew": "Request renewal"
+    },
+    "errors": {
+      "workspace_plan_required": "Creating a workspace requires a Team or Team Pro plan.",
+      "workspace_limit_reached": "Your workspace plan has no free workspace slot.",
+      "workspace_project_limit": "This workspace already has its plan’s 10 active projects."
+    }
   }
 }

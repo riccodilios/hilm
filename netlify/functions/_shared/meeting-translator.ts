@@ -125,6 +125,7 @@ export async function translateMeeting(
   const begin = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_translate',
+      scope: ctx.os,
       model,
       workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
       idempotencyKey: key,

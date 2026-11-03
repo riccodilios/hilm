@@ -9,6 +9,7 @@ import { AdminAuth, ReauthDialog } from '@/admin/AdminAuth'
 import { setReauthHandler } from '@/admin/client'
 import { AccountsPage, AiPage, AuditPage, EmailsPage, OverviewPage, SecurityPage } from '@/admin/pages'
 import { InfrastructurePage } from '@/admin/infra'
+import { BillingPage } from '@/admin/billing'
 import '@/styles/globals.css'
 
 const IDLE_LIMIT_MS = 15 * 60 * 1000
@@ -18,6 +19,7 @@ const NAV = [
   ['/', 'Overview'],
   ['/infrastructure', 'Infrastructure'],
   ['/ai', 'AI costs'],
+  ['/billing', 'Subscriptions'],
   ['/accounts', 'Accounts'],
   ['/emails', 'Product emails'],
   ['/security', 'Security'],
@@ -83,6 +85,7 @@ function Shell({ email, network, signOut }: { email: string | null; network: str
           <Route path="/" element={<OverviewPage />} />
           <Route path="/infrastructure" element={<InfrastructurePage />} />
           <Route path="/ai" element={<AiPage />} />
+          <Route path="/billing" element={<BillingPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/emails" element={<EmailsPage />} />
           <Route path="/security" element={<SecurityPage />} />

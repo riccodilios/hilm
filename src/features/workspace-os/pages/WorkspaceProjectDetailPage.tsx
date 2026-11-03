@@ -19,6 +19,7 @@ import {
   workspaceLabelKeys,
 } from '@/features/workspace-os/labels-api'
 import { useWorkspace } from '@/features/workspace-os/context/WorkspaceProvider'
+import { isPlanLimitError, openPlanPrompt } from '@/shared/billing/plan-prompt'
 import { useOrgVisibility } from '@/features/workspace-os/context/OrgVisibilityProvider'
 import { refreshWorkspaceProjectCompletion } from '@/features/workspace-os/lib/project-health'
 import { WorkspaceProjectKanban } from '@/features/workspace-os/components/project/WorkspaceProjectKanban'
@@ -154,7 +155,13 @@ export function WorkspaceProjectDetailPage() {
       ])
       toast.success(t('workspace.projectSaved'))
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (isPlanLimitError(error, 'workspace_project_limit')) {
+        openPlanPrompt({ reason: 'workspace_project_limit', workspaceId })
+        return
+      }
+      toast.error(error.message)
+    },
   })
 
   const saveLabels = useMutation({

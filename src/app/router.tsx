@@ -18,6 +18,8 @@ import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { Skeleton } from '@/components/ui/page'
 import { LandingSkeleton } from '@/features/landing/LandingSkeleton'
 
+const PlanPromptHost = lazy(() => import('@/shared/billing/PlanPromptHost').then((m) => ({ default: m.PlanPromptHost })))
+
 const LandingPage = lazy(() =>
   import('@/features/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
 )
@@ -428,6 +430,9 @@ export function AppRouter() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Suspense fallback={null}>
+        <PlanPromptHost />
+      </Suspense>
       </DomainGate>
     </BrowserRouter>
   )

@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Skeleton } from '@/components/ui/page'
 import { RetentionSettings } from '@/components/storage/RetentionSettings'
+import { WorkspacePlanCard } from '@/shared/billing/WorkspacePlanCard'
+import { billingKeys } from '@/shared/billing/api'
 
 function formatBytes(bytes: number) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(bytes >= 10 * 1024 ** 3 ? 0 : 1)} GB`
@@ -59,7 +61,7 @@ export function WorkspaceSettingsPage() {
   }, [workspace.name, workspace.description, workspace.color])
 
   const usage = useQuery({
-    queryKey: workspaceKeys.usage(workspaceId),
+    queryKey: billingKeys.workspace(workspaceId),
     queryFn: () => getWorkspaceUsage(workspaceId),
     staleTime: 60_000,
   })
@@ -131,6 +133,8 @@ export function WorkspaceSettingsPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       <PageHeader title={t('workspace.settingsPage.title')} description={t('workspace.settingsPage.desc')} />
+
+      <WorkspacePlanCard workspaceId={workspaceId} usage={usage.data} />
 
       <Card className="min-w-0">
         <CardHeader>

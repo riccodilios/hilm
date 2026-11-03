@@ -138,8 +138,9 @@ type AiData = {
   totals: { cost: number; requests: number; failed: number; tokens: number; audio_minutes: number; users: number }
   byDay: Array<{ day: string; cost: number; requests: number }>
   byFeature: Array<{ key: string; cost: number; requests: number }>
+  byScope?: Array<{ key: 'personal' | 'workspace'; cost: number; requests: number; tokens: number; users: number }>
   byModel: Array<{ key: string; cost: number; requests: number }>
-  topUsers: Array<{ id: string; email: string | null; cost: number; requests: number }>
+  topUsers: Array<{ id: string; email: string | null; cost: number; requests: number; personal_cost: number; workspace_cost: number }>
   controls: { ai_enabled: boolean; transcription_enabled: boolean; analysis_enabled: boolean; max_global_daily_cost_usd: number | null } | null
 }
 
@@ -184,8 +185,21 @@ export function AiPage() {
       <Loading q={q} />
       {d ? (
         <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(['personal', 'workspace'] as const).map((scope) => {
+              const row = d.byScope?.find((r) => r.key === scope)
+              return (
+                <Stat
+                  key={scope}
+                  label={`${scope === 'personal' ? 'Personal OS' : 'Workspace OS'} AI spend (${d.days} days)`}
+                  value={usd(row?.cost ?? 0)}
+                  hint={`${row?.requests ?? 0} requests · ${Number(row?.tokens ?? 0).toLocaleString()} tokens · ${row?.users ?? 0} users`}
+                />
+              )
+            })}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label={`Total cost (${d.days} days)`} value={usd(d.totals.cost)} />
+            <Stat label={`Combined cost, personal + workspace (${d.days} days)`} value={usd(d.totals.cost)} />
             <Stat label="Requests" value={d.totals.requests} hint={`${d.totals.failed} failed`} />
             <Stat label="Tokens" value={Number(d.totals.tokens).toLocaleString()} hint={`${d.totals.audio_minutes} audio minutes`} />
             <Stat label="Users using AI" value={d.totals.users} />
@@ -202,7 +216,10 @@ export function AiPage() {
             </Panel>
           </div>
           <Panel title="Top users by cost">
-            <Table head={['User', 'Cost', 'Requests']} rows={d.topUsers.map((r) => [r.email ?? r.id, usd(r.cost), r.requests])} />
+            <Table
+              head={['User', 'Personal OS', 'Workspace OS (charged to workspaces)', 'Combined', 'Requests']}
+              rows={d.topUsers.map((r) => [r.email ?? r.id, usd(r.personal_cost), usd(r.workspace_cost), usd(r.cost), r.requests])}
+            />
           </Panel>
           {controls ? (
             <Panel title="AI controls (whole app)">
@@ -267,6 +284,7 @@ type AdminUserRow = {
   owned_workspaces: number
   memberships: number
   ai_cost_30d: number
+  workspace_ai_cost_30d: number
   is_admin: boolean
 }
 
@@ -302,7 +320,7 @@ export function AccountsPage() {
     mutationFn: ({ id, tier }: { id: string; tier: string }) =>
       adminApi(`users/${id}/tier`, { method: 'POST', body: { tier } }),
     onSuccess: async () => {
-      toast.success('AI plan updated')
+      toast.success('Personal plan updated')
       await qc.invalidateQueries({ queryKey: ['admin'] })
     },
     onError: (e) => toast.error(errorText(e)),
@@ -327,7 +345,7 @@ export function AccountsPage() {
       {q.data ? (
         <Panel>
           <Table
-            head={['Account', 'Joined', 'Last sign-in', 'Status', 'AI plan', 'AI 30d', 'Workspaces', '']}
+            head={['Account', 'Joined', 'Last sign-in', 'Status', 'Personal plan', 'Personal AI 30d', 'Workspace AI 30d', 'Workspaces', '']}
             rows={q.data.users.map((u) => [
               <div key="a">
                 <p className="font-medium">{u.email}</p>
@@ -338,19 +356,23 @@ export function AccountsPage() {
               u.is_admin ? 'Admin' : u.locked ? <span className="text-red-400">Locked</span> : u.confirmed ? 'Active' : 'Unconfirmed',
               <select
                 key="t"
-                aria-label={`AI plan for ${u.email}`}
+                aria-label={`Personal plan for ${u.email}`}
                 value={u.tier ?? 'free'}
                 disabled={setTier.isPending}
                 onChange={(e) => setTier.mutate({ id: u.id, tier: e.target.value })}
                 className="h-8 rounded-md border border-border bg-surface px-2 text-xs"
               >
-                {['free', 'pro', 'team'].map((tier) => (
+                {[
+                  ['free', 'Free'],
+                  ['pro', 'Pro · 30 SAR'],
+                ].map(([tier, label]) => (
                   <option key={tier} value={tier}>
-                    {tier}
+                    {label}
                   </option>
                 ))}
               </select>,
               usd(u.ai_cost_30d),
+              <span key="w" className="text-muted">{usd(u.workspace_ai_cost_30d)}</span>,
               `${u.owned_workspaces} owned · ${u.memberships} member`,
               u.is_admin ? null : (
                 <div key="x" className="flex flex-wrap gap-1.5">

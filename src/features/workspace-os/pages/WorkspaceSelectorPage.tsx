@@ -11,6 +11,8 @@ import {
   workspaceKeys,
 } from '@/features/workspace-os/api'
 import { clearPendingInvite } from '@/features/auth/pending-invite'
+import { billingKeys } from '@/shared/billing/api'
+import { useWorkspaceCreateGate } from '@/shared/billing/useWorkspaceCreateGate'
 import {
   HoldableWorkspaceCard,
   WorkspaceActionsDialog,
@@ -34,11 +36,18 @@ export function WorkspaceSelectorPage() {
   const [color, setColor] = useState('#60a5fa')
   const [code, setCode] = useState('')
   const [actionsFor, setActionsFor] = useState<WorkspaceListItem | null>(null)
+  const createGate = useWorkspaceCreateGate()
 
   const list = useQuery({ queryKey: workspaceKeys.list(), queryFn: listMyWorkspaces })
 
   useEffect(() => {
-    if (params.get('create') === '1') setCreateOpen(true)
+    if (params.get('create') !== '1' || !createGate.billing.data) return
+    setParams({})
+    createGate.guard(() => setCreateOpen(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, createGate.billing.data])
+
+  useEffect(() => {
     const join = params.get('join')
     if (join) {
       setJoinOpen(true)
@@ -53,8 +62,15 @@ export function WorkspaceSelectorPage() {
       toast.success(t('workspace.createdToast'))
       navigate(`/workspace/${ws.id}`)
       await qc.invalidateQueries({ queryKey: workspaceKeys.list() })
+      await qc.invalidateQueries({ queryKey: billingKeys.all })
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (createGate.handleError(error)) {
+        closeDialogs()
+        return
+      }
+      toast.error(error.message)
+    },
   })
 
   const join = useMutation({
@@ -119,7 +135,7 @@ export function WorkspaceSelectorPage() {
 
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => createGate.guard(() => setCreateOpen(true))}
             className={cn(
               'flex min-h-36 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/20 p-5 text-muted transition hover:border-accent/40 hover:text-foreground',
             )}

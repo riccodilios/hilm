@@ -6,7 +6,7 @@ import { parseAiActions } from '@/types/ai-actions'
 import type { AgentId } from '@/features/ai/agents'
 import type { AiAction } from '@/types/ai-actions'
 import type { Inserts, Tables } from '@/types/database'
-import { formatAiLimitError } from '@/features/ai/lib/usage-errors'
+import { announceAiLimit, formatAiLimitError } from '@/features/ai/lib/usage-errors'
 
 export { formatAiLimitError } from '@/features/ai/lib/usage-errors'
 
@@ -312,7 +312,8 @@ export async function* streamChat(input: {
     if (!response.ok) {
       const text = await response.text()
       try {
-        const payload = JSON.parse(text) as { error?: string; code?: string }
+        const payload = JSON.parse(text) as { error?: string; code?: string; scope?: 'personal' | 'workspace'; workspaceId?: string | null }
+        announceAiLimit(payload)
         throw Object.assign(new Error(formatAiLimitError(payload)), { code: payload.code })
       } catch (error) {
         if (error instanceof SyntaxError) throw new Error(text || 'AI request failed')
@@ -329,6 +330,7 @@ export async function* streamChat(input: {
         code?: string
       }
       if (payload.error) {
+        announceAiLimit(payload)
         yield { type: 'error', error: formatAiLimitError(payload), code: payload.code }
         return
       }

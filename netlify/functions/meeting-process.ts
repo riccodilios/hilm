@@ -63,8 +63,8 @@ function stepResponse(result: StepResult, json: (data: unknown, status?: number)
   return json({ ok: false, code: result.code, error: result.message }, result.status)
 }
 
-async function meetingMaxRetries(client: SupabaseClient) {
-  const { data } = await client.rpc('meeting_quota_status', { p_user_id: null })
+async function meetingMaxRetries(client: SupabaseClient, workspaceId: string | null) {
+  const { data } = await client.rpc('meeting_quota_status', { p_user_id: null, p_workspace_id: workspaceId })
   const value = Number((data as { max_retries?: number } | null)?.max_retries)
   return Number.isFinite(value) ? value : 3
 }
@@ -128,7 +128,7 @@ async function handler(request: Request) {
       return json(result)
     }
     if (body.action === 'retry') {
-      const maxRetries = await meetingMaxRetries(userClient)
+      const maxRetries = await meetingMaxRetries(userClient, body.os === 'workspace' ? (meeting.workspace_id ?? null) : null)
       const result = await retryMeeting(ctx, meeting, maxRetries)
       if (!result.ok) return stepResponse(result, json)
       const fresh = (await loadMeeting(ctx, meeting.id)) ?? meeting

@@ -3,12 +3,17 @@ import { databaseUrl, withDb } from './db.ts'
 
 export type AiRequestKind = 'chat' | 'daily_log' | 'meeting_transcribe' | 'meeting_analyze' | 'meeting_translate'
 
+/** Which subscription pays for an AI request: the user's personal plan or the workspace's plan. */
+export type AiUsageScope = 'personal' | 'workspace'
+
 export type AiGuardResult = {
   ok: boolean
   code?: string
   message?: string
   event_id?: string
   status?: string
+  scope?: AiUsageScope
+  workspace_id?: string | null
   tier?: string
   usage?: Record<string, number>
   limits?: Record<string, number>
@@ -79,7 +84,9 @@ export function aiJson(data: unknown, status = 200, request?: Request) {
 export function aiLimitStatus(code?: string) {
   if (!code) return 429
   if (code === 'duplicate' || code === 'duplicate_execution' || code === 'in_flight') return 409
-  if (code === 'tier_disabled') return 403
+  if (code === 'tier_disabled' || code === 'not_workspace_member') return 403
+  if (code === 'workspace_required' || code === 'scope_mismatch') return 400
+  if (code === 'workspace_subscription_inactive') return 402
   return 429
 }
 
@@ -96,6 +103,8 @@ export function friendlyAiLimitPayload(guard: AiGuardResult) {
   return {
     error: guard.message || fallback,
     code,
+    scope: guard.scope,
+    workspaceId: guard.workspace_id ?? null,
     tier: guard.tier,
     usage: guard.usage,
     limits: guard.limits,
@@ -118,22 +127,31 @@ export async function beginAiRequest(
   client: SupabaseClient,
   input: {
     requestKind: AiRequestKind
+    /** Where the work happens. Workspace requests need workspaceId and are never charged personally. */
+    scope: AiUsageScope
     model?: string | null
     workspaceId?: string | null
     conversationId?: string | null
     idempotencyKey?: string | null
     fingerprint?: string | null
     userId?: string | null
+    /** Tokens to hold against the pool while the call runs (defaults per request kind). */
+    reserveTokens?: number | null
   },
 ): Promise<AiGuardResult> {
+  if (input.scope === 'workspace' && !input.workspaceId) {
+    return { ok: false, code: 'workspace_required', scope: 'workspace', message: 'This AI request needs its workspace.' }
+  }
   const { data, error } = await client.rpc('begin_ai_request', {
     p_request_kind: input.requestKind,
     p_model: input.model ?? null,
-    p_workspace_id: input.workspaceId ?? null,
+    p_workspace_id: input.scope === 'workspace' ? input.workspaceId : null,
     p_conversation_id: input.conversationId ?? null,
     p_idempotency_key: input.idempotencyKey ?? null,
     p_fingerprint: input.fingerprint ?? null,
     p_user_id: input.userId ?? null,
+    p_scope: input.scope,
+    p_reserve_tokens: input.reserveTokens ?? null,
   })
   if (error) {
     return {

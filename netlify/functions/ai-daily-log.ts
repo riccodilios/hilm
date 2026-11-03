@@ -141,6 +141,7 @@ async function handler(request: Request) {
     })
     const guard = await beginAiRequest(userClient, {
       requestKind: 'daily_log',
+      scope: 'personal',
       model: activeModel,
       idempotencyKey,
       fingerprint,

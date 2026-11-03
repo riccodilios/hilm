@@ -10,6 +10,7 @@ import { AutomationSection } from '@/features/landing/sections/Automation'
 import { VoiceSection } from '@/features/landing/sections/Voice'
 import { SecuritySection } from '@/features/landing/sections/Security'
 import { LandingFaqSection } from '@/features/landing/sections/Faq'
+import { PricingSection } from '@/features/landing/sections/Pricing'
 import { CtaSection } from '@/features/landing/sections/Cta'
 import { PublicFooter } from '@/features/landing/public/PublicChrome'
 import { usePublicPage } from '@/features/landing/public/PublicPage'
@@ -48,6 +49,7 @@ export function LandingPage() {
         <AutomationSection />
         <VoiceSection />
         <SecuritySection />
+        <PricingSection />
         <LandingFaqSection />
         <CtaSection />
       </main>

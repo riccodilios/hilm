@@ -94,6 +94,15 @@ beforeAll(async () => {
     await createAuthUser(client, id, emails[label]!)
   }
 
+  // Creating a workspace needs a workspace plan (0053); fixture owners get a test Team subscription.
+  const billing = await client.query(`select to_regclass('public.workspace_subscriptions') is not null as on`)
+  if (billing.rows[0]?.on) {
+    await client.query(
+      `insert into public.workspace_subscriptions (owner_user_id, plan_id, status) values ($1, 'team', 'active'), ($2, 'team', 'active')`,
+      [u.owner, u.outsider],
+    )
+  }
+
   const wsA = await asUser(client, u.owner, `select id from public.create_workspace('Security A', null, '#60a5fa')`)
   ids.wsA = wsA.rows[0].id
   const wsB = await asUser(client, u.outsider, `select id from public.create_workspace('Security B', null, '#60a5fa')`)
@@ -367,8 +376,10 @@ describe('AI access and cost', () => {
 
   it('usage is never attributed to a workspace the caller does not belong to', async () => {
     const began = await asUser(client, u.memberTech, `select public.begin_ai_request('chat', null, $1) as r`, [ids.wsB])
-    const row = await client.query(`select workspace_id from public.ai_usage_events where id = $1`, [began.rows[0].r.event_id])
-    expect(row.rows[0].workspace_id).toBeNull()
+    // Rejected outright: a foreign workspace is never re-charged to personal usage either.
+    expect(began.rows[0].r.code).toBe('not_workspace_member')
+    const rows = await client.query(`select count(*)::int as n from public.ai_usage_events where workspace_id = $1 and user_id = $2`, [ids.wsB, u.memberTech])
+    expect(rows.rows[0].n).toBe(0)
   })
 
   it('the global daily safeguard applies even when the cap is left empty', async () => {

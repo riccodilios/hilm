@@ -4,7 +4,7 @@ import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
 import type { Inserts, Tables } from '@/types/database'
 import { todayISO } from '@/lib/utils'
-import { formatAiLimitError } from '@/features/ai/lib/usage-errors'
+import { announceAiLimit, formatAiLimitError } from '@/features/ai/lib/usage-errors'
 
 export const dailyLogKeys = {
   all: ['daily-logs'] as const,
@@ -260,6 +260,7 @@ export async function generateDailyLog(input: {
       code?: string
     }
     if (!response.ok || !payload.log || !payload.stats) {
+      announceAiLimit({ ...payload, scope: 'personal' })
       throw new Error(formatAiLimitError(payload))
     }
     return { log: payload.log, stats: payload.stats }

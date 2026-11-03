@@ -354,6 +354,7 @@ async function submitSoniox(ctx: EngineContext, meeting: MeetingRow, deps: SttDe
   const begin = (key: string) =>
     beginAiRequest(ctx.client, {
       requestKind: 'meeting_transcribe',
+      scope: ctx.os,
       model: SONIOX_PRICING_MODEL,
       workspaceId: ctx.os === 'workspace' ? meeting.workspace_id : null,
       idempotencyKey: key,
