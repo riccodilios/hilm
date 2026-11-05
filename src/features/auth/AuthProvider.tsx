@@ -147,7 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
       async signOut() {
-        const { error } = await supabase.auth.signOut()
+        // Local: the default global scope also revokes the user's other devices and console session.
+        const { error } = await supabase.auth.signOut({ scope: 'local' })
         if (error) throwMapped(error)
       },
       async resetPassword(email) {

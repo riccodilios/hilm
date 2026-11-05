@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { requireUserId } from '@/lib/supabase/activity'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 
@@ -175,10 +176,9 @@ export async function sendTestNotification() {
       ? window.location.origin
       : getAppUrl() || (typeof window !== 'undefined' ? window.location.origin : '')
 
-  const response = await fetch(`${origin.replace(/\/$/, '')}/api/notify-test`, {
+  const response = await fetchWithSession(`${origin.replace(/\/$/, '')}/api/notify-test`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
       apikey: getSupabaseAnonKey(),
       'Content-Type': 'application/json',
     },

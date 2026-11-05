@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 import type { ReportOs } from '@/shared/reports/types'
 import type { RoadmapReportData } from '@/shared/reports/roadmap'
@@ -23,10 +24,9 @@ export async function fetchRoadmapReport(input: {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
-  const response = await fetch(endpoint(), {
+  const response = await fetchWithSession(endpoint(), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
       apikey: getSupabaseAnonKey(),
       'Content-Type': 'application/json',
     },

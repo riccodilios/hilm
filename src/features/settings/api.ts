@@ -6,6 +6,7 @@ export {
 } from '@/shared/user-settings'
 export { getProfile, updateProfile } from '@/shared/user-profile'
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 
 export async function deleteAccount(confirm: string) {
@@ -19,10 +20,9 @@ export async function deleteAccount(confirm: string) {
       ? window.location.origin
       : getAppUrl() || (typeof window !== 'undefined' ? window.location.origin : '')
 
-  const response = await fetch(`${origin.replace(/\/$/, '')}/api/delete-account`, {
+  const response = await fetchWithSession(`${origin.replace(/\/$/, '')}/api/delete-account`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
       apikey: getSupabaseAnonKey(),
       'Content-Type': 'application/json',
     },

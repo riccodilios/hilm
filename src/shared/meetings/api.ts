@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { getAppUrl } from '@/lib/env'
 import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import type {
@@ -513,16 +514,15 @@ export async function callMeetingProcess(
     | { action: 'advance' | 'retry'; os: MeetingOs; meetingId: string; locale?: string; timeZone?: string },
 ): Promise<ProcessResponse> {
   const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  if (!token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
+  if (!data.session?.access_token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
   let response: Response
   try {
     const timeZone =
       body.timeZone ||
       (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined)
-    response = await fetch(meetingProcessUrl(), {
+    response = await fetchWithSession(meetingProcessUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, timeZone }),
     })
   } catch {
@@ -568,13 +568,12 @@ export async function callMeetingTranslate(body: {
   target: TranslationTarget
 }): Promise<TranslateResponse> {
   const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  if (!token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
+  if (!data.session?.access_token) return { ok: false, code: 'unauthorized', error: 'Please sign in again.' }
   let response: Response
   try {
-    response = await fetch(meetingProcessUrl(), {
+    response = await fetchWithSession(meetingProcessUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'translate', ...body }),
     })
   } catch {

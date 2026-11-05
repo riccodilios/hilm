@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { requireUserId } from '@/lib/supabase/activity'
 import { combineDueAt, computeRemindAt, type ReminderType } from '@/shared/reminders'
 import { resolveMemberDisplayName } from '@/features/workspace-os/lib/member-display'
@@ -1177,9 +1178,9 @@ export async function sendWorkspaceEmailInvites(workspaceId: string, emails: str
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
-  const response = await fetch('/api/workspace-invite', {
+  const response = await fetchWithSession('/api/workspace-invite', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspaceId, emails, locale }),
   })
   const payload = (await response.json().catch(() => ({}))) as { error?: string; results?: EmailInviteResult[] }

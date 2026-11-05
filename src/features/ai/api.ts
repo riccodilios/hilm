@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { fetchAllByKeyset, sortByTimestampDesc } from '@/lib/supabase/paginate'
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
 import { coerceActionsList } from '@/features/ai/registry'
@@ -288,11 +289,10 @@ export async function* streamChat(input: {
     const timeoutMs = input.workspaceId ? 120_000 : 90_000
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-    const response = await fetch(getAiChatUrl(), {
+    const response = await fetchWithSession(getAiChatUrl(), {
       method: 'POST',
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
         apikey: getSupabaseAnonKey(),
         'Content-Type': 'application/json',
         Accept: 'text/event-stream, application/json',

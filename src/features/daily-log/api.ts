@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 import { recordActivity } from '@/features/activity/record'
 import { requireUserId } from '@/lib/supabase/activity'
@@ -235,10 +236,9 @@ export async function generateDailyLog(input: {
       : `ik_${Date.now()}_${Math.random().toString(36).slice(2)}`)
 
   try {
-    const response = await fetch(getDailyLogUrl(), {
+    const response = await fetchWithSession(getDailyLogUrl(), {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
         apikey: getSupabaseAnonKey(),
         'Content-Type': 'application/json',
         'Idempotency-Key': idempotencyKey,

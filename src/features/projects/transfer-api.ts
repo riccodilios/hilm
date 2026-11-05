@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchWithSession } from '@/lib/supabase/fetch-with-session'
 import { getAppUrl, getSupabaseAnonKey } from '@/lib/env'
 
 export type TransferTarget = { id: string; name: string; color: string | null; logo_url: string | null }
@@ -48,10 +49,9 @@ async function post(body: Record<string, unknown>) {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session) throw new Error('Not authenticated')
-  const response = await fetch(endpoint(), {
+  const response = await fetchWithSession(endpoint(), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
       apikey: getSupabaseAnonKey(),
       'Content-Type': 'application/json',
     },

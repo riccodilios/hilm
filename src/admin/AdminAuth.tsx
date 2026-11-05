@@ -63,7 +63,8 @@ export function AdminAuth({ children }: { children: (session: ConsoleSession, si
   const [busy, setBusy] = useState(false)
 
   const signOut = useCallback(async () => {
-    await adminSupabase.auth.signOut()
+    // Local: the default global scope would also revoke the admin's Hilm app sessions.
+    await adminSupabase.auth.signOut({ scope: 'local' })
     setStage({ kind: 'signin' })
   }, [])
 
@@ -73,7 +74,7 @@ export function AdminAuth({ children }: { children: (session: ConsoleSession, si
       setStage(session.networkAllowed ? { kind: 'ready', session } : { kind: 'network', session })
     } catch (error) {
       if (error instanceof AdminApiError && error.code === 'forbidden') {
-        await adminSupabase.auth.signOut()
+        await adminSupabase.auth.signOut({ scope: 'local' })
         setStage({ kind: 'denied' })
         return
       }
